@@ -46,14 +46,17 @@
 ```
 public/
 ├── index.html          # 入口 + 内联 script（全局状态、消息处理器、弹窗、自由函数）
+├── styles.css          # 新增：所有自定义 CSS（从 index.html 的 <style> 块迁出）
 ├── term-session.js     # 新增：TermSession 类定义
 ├── xterm/...           # 不存在（走 node_modules）
 └── ...
 ```
 
-`index.html` script 加载顺序：
+`index.html` 头部引用顺序：
 
 ```html
+<link rel="stylesheet" href="./xterm/css/xterm.css">  <!-- 已有 -->
+<link rel="stylesheet" href="./styles.css">           <!-- 新增 -->
 <script src="./xterm/lib/xterm.js"></script>
 <script src="./addon-web-links/lib/addon-web-links.js"></script>
 <script src="./addon-unicode11/lib/addon-unicode11.js"></script>
@@ -289,8 +292,9 @@ function scrollXtermDown()  { sessions.get(activeId)?.scrollLines(1); }
 **Commit 1：新增文件 + 加载（零行为变更）**
 
 1. 新建 `public/term-session.js`，写入完整 `TermSession` 类定义
-2. `public/index.html` 头部加 `<script src="./term-session.js"></script>`（在 xterm 之后、内联 script 之前）
-3. 验证：F5 刷新页面，DevTools console 输入 `TermSession` 应能查到类
+2. 新建 `public/styles.css`，把 `public/index.html` 的 `<style>` 块内全部内容迁出
+3. `public/index.html` 头部加 `<link rel="stylesheet" href="./styles.css">` 与 `<script src="./term-session.js"></script>`（在 xterm 之后、内联 script 之前），删除原 `<style>` 块
+4. 验证：F5 刷新页面，DevTools console 输入 `TermSession` 应能查到类，页面样式无变化
 
 **Commit 2：替换使用（一次性切换）**
 
@@ -341,7 +345,7 @@ function scrollXtermDown()  { sessions.get(activeId)?.scrollLines(1); }
 
 ### 回退方案
 
-- Commit 1 出问题：删 `<script src="./term-session.js">` + 删 `public/term-session.js`，回到当前状态
+- Commit 1 出问题：删 `<script src="./term-session.js">` + 删 `<link rel="stylesheet" href="./styles.css">` + 删 `public/term-session.js` + 删 `public/styles.css` + 把 `<style>` 块粘回 `public/index.html`，回到当前状态
 - Commit 2 出问题：`git revert HEAD` 撤销最近 commit
 - 重大问题：`git revert <sha1>..<sha2>` 撤销连续多个 commit
 
