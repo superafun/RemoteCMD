@@ -1,0 +1,22 @@
+{
+  "rows": 39,
+  "cols": 120,
+  "hotkeys": {
+    "Esc": "\u001b",
+    "Tab": "\t",
+    "↑": "\u001b[A",
+    "↓": "\u001b[B",
+    "→": "\u001b[C",
+    "←": "\u001b[D",
+    "Enter": "\r",
+    "Ctrl+V": "\u0016",
+    "Ctrl+O": "\u000f",
+    "Alt+M": "\u001bm",
+    "刷新Path": "$env:Path = [Environment]::ExpandEnvironmentVariables([Environment]::GetEnvironmentVariable('Path','Machine')) + ';' + [Environment]::ExpandEnvironmentVariables([Environment]::GetEnvironmentVariable('Path','User'))"
+  },
+  "scrollStep": 5,
+  "scrollInterval": 20,
+  "maxBuffer": 2,
+  "maxFrontendLogs": 40,
+  "clientTailMax": 512
+}

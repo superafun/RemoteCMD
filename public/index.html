@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="./xterm/css/xterm.css">
+    <script src="./addon-web-links/lib/addon-web-links.js"></script>
+    <script src="./addon-unicode11/lib/addon-unicode11.js"></script>
+    <style>
+        html {
+            overflow-x: auto;  /* 兜底：xterm 本身比视口宽时滚动 */
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            min-width: 100vw;  /* 至少铺满视口 */
+        }
+        #page {
+            /* 包裹层：flex 列布局，宽度由 #terminal-container 决定 */
+            display: flex;
+            flex-direction: column;
+            width: max-content;  /* = #terminal-container 宽度 */
+            min-width: 100%;  /* 不窄于 body */
+        }
+        #terminal-container {
+            width: max-content;  /* 由 xterm 撑开 */
+            align-self: flex-start;  /* flex 列布局中不拉伸 */
+        }
+        /* ===== 通用弹窗遮罩 ===== */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.55);
+            z-index: 999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-box {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px 24px;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            min-width: 360px;
+            max-width: 520px;
+            max-height: 80vh;
+            overflow-y: auto;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        .modal-box h3 {
+            margin: 0 0 14px;
+            font-size: 16px;
+            font-weight: 600;
+            color: #e0e0e0;
+            border-bottom: 1px solid #333;
+            padding-bottom: 10px;
+        }
+        .modal-box input, .modal-box select {
+            background: #2d2d2d;
+            border: 1px solid #3c3c3c;
+            color: #d4d4d4;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 13px;
+            outline: none;
+            box-sizing: border-box;
+        }
+        .modal-box input:focus, .modal-box select:focus {
+            border-color: #0078d4;
+        }
+        .modal-box button {
+            background: #3c3c3c;
+            border: 1px solid #555;
+            color: #d4d4d4;
+            padding: 6px 14px;
+            border-radius: 4px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s;
+        }
+        .modal-box button:hover {
+            background: #505050;
+            border-color: #6a6a6a;
+        }
+        .modal-box .btn-primary {
+            background: #0078d4;
+            border-color: #0078d4;
+            color: #fff;
+        }
+        .modal-box .btn-primary:hover {
+            background: #1a8ae8;
+            border-color: #1a8ae8;
+        }
+        .modal-box .btn-danger {
+            background: #5a1d1d;
+            border-color: #7a2a2a;
+            color: #e0a0a0;
+        }
+        .modal-box .btn-danger:hover {
+            background: #7a2a2a;
+        }
+        .modal-row {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .modal-row + .modal-row {
+            margin-top: 8px;
+        }
+        .hotkey-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #2a2a2a;
+            padding: 6px 10px;
+            border-radius: 4px;
+            margin-top: 6px;
+            border: 1px solid #333;
+        }
+        .hotkey-item span {
+            font-family: Consolas, 'Courier New', monospace;
+            font-size: 13px;
+            color: #c0c0c0;
+        }
+        .hotkey-item .btn-group {
+            display: flex;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+        .hotkey-item .btn-group button {
+            padding: 3px 10px;
+            font-size: 12px;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #333;
+        }
+        .empty-hint {
+            color: #888;
+            text-align: center;
+            padding: 16px 0;
+            font-style: italic;
+        }
+        .term-wrapper {
+            position: relative;  /* 让 .buffer-loading 绝对定位参照 */
+        }
+        .buffer-loading {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0,0,0,0.3);
+            z-index: 10;
+            pointer-events: none;  /* 不阻挡终端交互 */
+        }
+        .buffer-loading::after {
+            content: '';
+            width: 32px;
+            height: 32px;
+            border: 3px solid #555;
+            border-top-color: #0078d4;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .toolbar, #hotkeys-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            align-items: center;
+            /* width 由 #page flex 列布局默认 stretch 提供 */
+        }
+        .toolbar button, #hotkeys-bar button {
+            min-width: 60px;  /* 防止短文字按钮（如 ▲、编辑）被压缩到看不清 */
+        }
+    </style>
+</head>
+
+<body>
+    <div id="page">
+    <div class="toolbar">
+        <select id="sessionSelect"></select>
+        <button onclick="renameCurrent()">重命名</button>
+        <button onclick="renameAll()">重命名全部</button>
+        <button onclick="createNew()">新建终端</button>
+        <button onclick="killCurrent()">关闭终端</button>
+        <button onclick="openSettingsModal()">设置</button>
+        <span id="wsStatus" style="margin-left:4px;"></span>
+    </div>
+    <div id="terminal-container"></div>
+    <div id="hotkeys-bar">
+        <div id="hotkeysList" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
+        <button id="editBtn">编辑</button>
+        <button id="scrollUpBtn">▲上滑终端</button>
+        <button id="scrollDownBtn">▼下滑终端</button>
+        <button id="scrollXtermUpBtn">▲上滑页面</button>
+        <button id="scrollXtermDownBtn">▼下滑页面</button>
+        <button id="scrollBottomBtn">▽到底页面</button>
+    </div>
+    </div>
+    <script src="./xterm/lib/xterm.js"></script>
+    <script>
+        let ws = null;
+        const terms = {};
+        const wrappers = {};
+        let activeId = null;
+        const wsProtocol = location.protocol === 'https:' ? 'wss' : 'ws';
+        let hotkeys = {};
+        let scrollStep = 3;
+        let scrollInterval = 100;
+        let maxBuffer = 50000;
+        // rows / cols 替代原 #rowsInput / #colsInput（2026-06-30 移除 hidden input）
+        // 初始 null：服务端 resize 消息到达前不调用 term.resize
+        let rows = null;
+        let cols = null;
+        let editorDiv = null;
+        let editingKey = null;
+        let names = {};
+        // 标记"刚才那个 create 请求是不是本客户端发起的"，决定新终端是否自动切换
+        let pendingCreate = false;
+        let isFirstList = true;  // 重连后第一个 list 标志，用于触发 diff 交集的 buffer 增量拉取
+        let clientTailMax = 4096;  // 默认值，config.json 加载后会覆盖
+        // 每个终端最近收到的原始字节（data 消息 + buffer 消息合并），用于 buffer 去重
+        const clientTails = {};
+        // 等待 buffer 响应中的终端集合。发送 buffer 请求时把 id 加入，收到 buffer 响应时移除
+        // 在等待期间收到的 data 消息被丢弃（避免与 buffer 响应的 data 重复）
+        const pendingBuffer = new Set();
+        let settingsDiv = null;  // 设置弹窗 DOM 句柄
+        // === 前端日志 ===
+        let maxFrontendLogs = 50;
+        const frontendLogs = [];
+        function showBufferLoading(id) {
+            const w = wrappers[id];
+            if (!w || w.querySelector('.buffer-loading')) return;
+            const div = document.createElement('div');
+            div.className = 'buffer-loading';
+            w.appendChild(div);
+        }
+        function hideBufferLoading(id) {
+            const w = wrappers[id];
+            if (!w) return;
+            const el = w.querySelector('.buffer-loading');
+            if (el) el.remove();
+        }
+        // 累加每个终端的最近原始字节（按 clientTailMax 裁剪）
+        function appendClientTail(id, chunk) {
+            if (!chunk) return;
+            let buf = clientTails[id] || '';
+            buf += chunk;
+            if (buf.length > clientTailMax) buf = buf.slice(-clientTailMax);
+            clientTails[id] = buf;
+        }
+
+        // 封装 buffer 请求：自动带 tail，并把 id 加入 pendingBuffer（等待响应期间 data 消息会被丢弃）
+        function requestBuffer(id) {
+            pendingBuffer.add(id);
+            wsSend({ type: 'buffer', id, tail: clientTails[id] || '' });
+            showBufferLoading(id);
+        }
+        function addFrontendLog(msg) {
+            const t = new Date();
+            const time = t.toLocaleString('zh-CN', { hour12: false });
+            frontendLogs.push(`${time} — ${msg}`);
+            // 滞回式截断：超出上限 2 倍时截断到上限，避免每次 push 都做 O(n) 操作
+            if (frontendLogs.length > maxFrontendLogs * 2) {
+                frontendLogs = frontendLogs.slice(-maxFrontendLogs);
+            }
+        }
+
+        // 解析快捷键名为转义序列
+        function parseHotkey(s) {
+            const map = {
+                '↑': '\x1b[A', '↓': '\x1b[B', '→': '\x1b[C', '←': '\x1b[D',
+                'Up': '\x1b[A', 'Down': '\x1b[B', 'Right': '\x1b[C', 'Left': '\x1b[D',
+                'Home': '\x1b[H', 'End': '\x1b[F', 'PgUp': '\x1b[5~', 'PgDn': '\x1b[6~',
+                'Insert': '\x1b[2~', 'Delete': '\x1b[3~', 'Tab': '\t', 'Enter': '\r', 'Space': ' ',
+                'Esc': '\x1b', 'Backspace': '\x7f',
+                'Shift+Tab': '\x1b[Z'
+            };
+            if (map[s]) return map[s];
+            let m = s.match(/^Ctrl\+([A-Z])$/i);
+            if (m) return String.fromCharCode(m[1].toUpperCase().charCodeAt(0) - 64);
+            
+            // Alt+字母 → Escape 前缀 + 小写字母（如 Alt+M → \x1bm）
+            // 实际键盘 Alt+字母发送的是小写，大写 \x1bM 会被解释为 VT100 控制序列
+            m = s.match(/^Alt\+([A-Z])$/i);
+            if (m) {
+                return '\x1b' + m[1].toLowerCase();
+            }
+            
+            m = s.match(/^Shift\+(.+)$/);
+            if (m) return '\x1b' + m[1];
+            return s;
+        }
+        const availableKeys = ['Ctrl', 'Alt', 'Shift', '↑', '↓', '→', '←', 'Up', 'Down', 'Right', 'Left', 'Home', 'End', 'PgUp', 'PgDn', 'Insert', 'Delete', 'Tab', 'Enter', 'Esc', 'Backspace', 'Space', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
+
+        // === 设置弹窗 ===
+        function openSettingsModal() {
+            if (settingsDiv) { settingsDiv.remove(); settingsDiv = null; }
+            let html = '<div class="modal-overlay">';
+            html += '<div class="modal-box" style="min-width:420px;">';
+            html += '<h3>设置</h3>';
+
+            // 终端大小
+            html += '<div class="modal-row">';
+            html += '行 <input type="number" id="settingsRowsInput" min="20" max="200" style="width:80px;">';
+            html += '列 <input type="number" id="settingsColsInput" min="20" max="200" style="width:80px;">';
+            html += '<button class="btn-primary" onclick="applySettingsSize()">应用</button>';
+            html += '</div>';
+
+            // 滚动行数
+            html += '<div class="modal-row">';
+            html += '终端滚动行数 <input type="number" id="settingsScrollStepInput" min="1" max="100" style="width:80px;">';
+            html += '<button class="btn-primary" onclick="applySettingsScrollStep()">应用</button>';
+            html += '</div>';
+
+            // 按住滚动间隔 (ms)
+            html += '<div class="modal-row">';
+            html += '按住滚动间隔 (ms) <input type="number" id="settingsScrollIntervalInput" min="1" max="1000" step="10" style="width:80px;">';
+            html += '<button class="btn-primary" onclick="applySettingsScrollInterval()">应用</button>';
+            html += '</div>';
+
+            // 缓冲区上限 (MB)
+            html += '<div class="modal-row">';
+            html += '缓冲区上限 (MB) <input type="number" id="settingsMaxBufferInput" min="1" max="90" style="width:80px;">';
+            html += '<button class="btn-primary" onclick="applySettingsMaxBuffer()">应用</button>';
+            html += '</div>';
+
+            // 日志上限 (条)
+            html += '<div class="modal-row">';
+            html += '日志上限 (条) <input type="number" id="settingsMaxFrontendLogsInput" min="10" max="10000" step="10" style="width:80px;">';
+            html += '<button class="btn-primary" onclick="applySettingsMaxFrontendLogs()">应用</button>';
+            html += '</div>';
+
+            // buffer 去重比对长度 (bytes)
+            html += '<div class="modal-row">';
+            html += 'buffer 去重比对长度 (bytes) <input type="number" id="settingsClientTailMaxInput" min="64" max="65536" step="64" style="width:80px;">';
+            html += '<button class="btn-primary" onclick="applySettingsClientTailMax()">应用</button>';
+            html += '</div>';
+
+            // 缓冲区占用（自动检测，弹窗打开即拉取）
+            html += '<div class="modal-row" style="flex-direction:column;align-items:flex-start;gap:4px;">';
+            html += '<div style="color:#a0a0a0;">缓冲区占用</div>';
+            html += '<div id="bufferSizeResult" style="color:#c0c0c0;">检测中...</div>';
+            html += '</div>';
+
+            html += '<div class="modal-actions">';
+            html += '<button class="btn-danger" onclick="restartServer()">重启服务器</button>';
+            html += '<button onclick="openLogModal()">日志</button>';
+            html += '<button onclick="closeSettingsModal()" style="margin-left:auto;">关闭</button>';
+            html += '</div>';
+            html += '</div></div>';
+
+            const div = document.createElement('div');
+            div.innerHTML = html;
+            settingsDiv = div.firstElementChild;
+            document.body.appendChild(settingsDiv);
+
+            // 同步当前值到弹窗
+            document.getElementById('settingsRowsInput').value = rows;
+            document.getElementById('settingsColsInput').value = cols;
+            document.getElementById('settingsScrollStepInput').value = scrollStep;
+            document.getElementById('settingsScrollIntervalInput').value = scrollInterval;
+            document.getElementById('settingsMaxBufferInput').value = maxBuffer;
+            document.getElementById('settingsMaxFrontendLogsInput').value = maxFrontendLogs;
+            document.getElementById('settingsClientTailMaxInput').value = clientTailMax;
+
+            // 打开即自动检测当前会话 buffer 占用
+            queryBufferSize();
+        }
+
+        function closeSettingsModal() {
+            if (settingsDiv) { settingsDiv.remove(); settingsDiv = null; }
+        }
+
+        // === 日志弹窗 ===
+        function openLogModal() {
+            closeSettingsModal();
+            let html = '<div class="modal-overlay">';
+            html += '<div class="modal-box" style="min-width:480px;max-width:600px;">';
+            html += '<h3>后台日志</h3>';
+            html += '<div id="logContent" style="background:#0d0d0d;color:#c0c0c0;padding:10px;border-radius:4px;max-height:50vh;overflow-y:auto;font-family:Consolas,monospace;font-size:12px;line-height:1.6;white-space:pre-wrap;">';
+            html += (frontendLogs.length === 0 ? '暂无日志' : frontendLogs.join('\n'));
+            html += '</div>';
+            html += '<div class="modal-actions">';
+            html += '<button onclick="this.closest(\'.modal-overlay\').remove()">关闭</button>';
+            html += '</div></div></div>';
+            const div = document.createElement('div');
+            div.innerHTML = html;
+            document.body.appendChild(div.firstElementChild);
+        }
+
+        function applySettingsSize() {
+            const r = parseInt(document.getElementById('settingsRowsInput').value);
+            const c = parseInt(document.getElementById('settingsColsInput').value);
+            if (Number.isInteger(r) && Number.isInteger(c)) {
+                wsSend({ type: 'resize', id: 0, data: { rows: r, cols: c } });
+                addFrontendLog('终端尺寸变更为 ' + r + 'x' + c);
+            }
+        }
+
+        function applySettingsScrollStep() {
+            const v = parseInt(document.getElementById('settingsScrollStepInput').value);
+            if (Number.isInteger(v) && v >= 1 && v <= 100) {
+                scrollStep = v;
+                wsSend({ type: 'scroll_step', data: scrollStep });
+                addFrontendLog('滚动步长变更为 ' + v);
+            }
+        }
+
+        function applySettingsScrollInterval() {
+            const v = parseInt(document.getElementById('settingsScrollIntervalInput').value);
+            if (Number.isInteger(v) && v >= 1 && v <= 1000) {
+                scrollInterval = v;
+                wsSend({ type: 'scroll_interval', data: scrollInterval });
+                addFrontendLog('按住滚动间隔变更为 ' + v + ' ms');
+            }
+        }
+
+        function applySettingsMaxBuffer() {
+            const v = parseInt(document.getElementById('settingsMaxBufferInput').value);
+            if (Number.isInteger(v) && v >= 1 && v <= 90) {
+                maxBuffer = v;  // 存 MB
+                wsSend({ type: 'max_buffer', data: maxBuffer });
+                addFrontendLog('缓冲区上限变更为 ' + v + ' MB');
+            }
+        }
+
+        function applySettingsMaxFrontendLogs() {
+            const v = parseInt(document.getElementById('settingsMaxFrontendLogsInput').value);
+            if (Number.isInteger(v) && v >= 10 && v <= 10000) {
+                maxFrontendLogs = v;
+                wsSend({ type: 'max_frontend_logs', data: maxFrontendLogs });
+                addFrontendLog('日志上限变更为 ' + v + ' 条');
+            }
+        }
+
+        function applySettingsClientTailMax() {
+            const v = parseInt(document.getElementById('settingsClientTailMaxInput').value);
+            if (Number.isInteger(v) && v >= 64 && v <= 65536) {
+                clientTailMax = v;
+                wsSend({ type: 'client_tail_max', data: clientTailMax });
+                addFrontendLog('buffer 去重比对长度变更为 ' + v + ' 字节');
+            }
+        }
+
+        function restartServer() {
+            if (!confirm('确认重启服务器？\n所有终端会话将被关闭，断网期间的内容将丢失。')) return;
+            closeSettingsModal();
+            addFrontendLog('服务器重启中...');
+            wsSend({ type: 'restart_server' });
+        }
+
+        function queryBufferSize() {
+            const resultEl = document.getElementById('bufferSizeResult');
+            if (!activeId) {
+                if (resultEl) resultEl.textContent = '当前无活动会话';
+                return;
+            }
+            if (resultEl) resultEl.textContent = '检测中...';
+            wsSend({ type: 'buffer_size', id: parseInt(activeId) });
+            // 5s 超时：响应未到则显示占位文本
+            setTimeout(() => {
+                const el = document.getElementById('bufferSizeResult');
+                if (el && el.textContent === '检测中...') {
+                    el.textContent = '检测超时';
+                }
+            }, 5000);
+        }
+
+        // 重连定时器（避免无网络时疯狂重试，3 秒后重试）
+        let reconnectTimer = null;
+        function connect() {
+            // 清理上一个待执行的定时器
+            if (reconnectTimer) {
+                clearTimeout(reconnectTimer);
+                reconnectTimer = null;
+            }
+            if (!ws || ws.readyState === 3) {
+                addFrontendLog('正在重连...');
+                ws = new WebSocket(`${wsProtocol}://${location.host}/cmd/`);
+                ws.onopen = () => {
+                    addFrontendLog('连接已建立');
+                    // 重连后第一个 list 标志重置，让 list 处理器对 diff 交集发 buffer 请求
+                    isFirstList = true;
+                    updateWsStatus();
+                };
+                ws.onerror = (e) => {
+                    addFrontendLog('连接错误: ' + e);
+                    updateWsStatus();
+                };
+                ws.onclose = () => {
+                    addFrontendLog('连接已断开');
+                    pendingCreate = false;
+                    updateWsStatus();
+                    if (navigator.onLine) {
+                        addFrontendLog('1 秒后重连');
+                        reconnectTimer = setTimeout(connect, 1000);
+                    } else {
+                        addFrontendLog('网络已断开，等待网络恢复后自动重连');
+                    }
+                };
+                ws.onmessage = (event) => {
+                    const msg = JSON.parse(event.data);
+                    if (msg.type === 'list') {
+                        if (msg.names) names = msg.names;
+                        const currentIds = msg.ids.map(String);
+                        const oldTermIds = Object.keys(terms);  // 关键: diff 之前的 term 集合快照
+                        currentIds.forEach(id => {
+                            if (!terms[id]) {
+                                createTermInstance(id);
+                            }
+                        });
+                        Object.keys(terms).forEach(id => {
+                            if (!currentIds.includes(id)) {
+                                if (terms[id]) {
+                                    terms[id].dispose();
+                                    delete terms[id];
+                                }
+                                if (wrappers[id]) {
+                                    wrappers[id].remove();
+                                    delete wrappers[id];
+                                }
+                                delete clientTails[id];
+                                pendingBuffer.delete(id);
+                                if (activeId === id) {
+                                    activeId = null;
+                                }
+                                addFrontendLog('删除终端' + (names[id] || 'Shell #' + id));
+                            }
+                        });
+                        // 新增: 重连后第一个 list，对 diff 交集（即双方都有的 term）发 buffer 请求
+                        // 常规 session create / kill 的 list 不会进入此分支，避免误刷旧 term 导致闪烁
+                        if (isFirstList) {
+                            isFirstList = false;
+                            oldTermIds.forEach(id => {
+                                if (currentIds.includes(id) && terms[id]) {
+                                    requestBuffer(id);
+                                    addFrontendLog('申请已存在终端' + (names[id] || 'Shell #' + id) + '的缓存');
+                                }
+                            });
+                        }
+                        if (!activeId && currentIds.length > 0) {
+                            // 当前会话被 kill 后，跳到 ID 最大的会话（最新创建）
+                            switchSession(currentIds.reduce((a, b) => +a > +b ? a : b));
+                        }
+                        const sel = document.getElementById('sessionSelect');
+                        sel.innerHTML = '';
+                        msg.ids.forEach(id => {
+                            const opt = document.createElement('option');
+                            opt.value = id;
+                            opt.textContent = names[id] || ('Shell #' + id);
+                            if (id == activeId) opt.selected = true;
+                            sel.appendChild(opt);
+                        });
+                    } else if (msg.type === 'buffer') {
+                        // 收到 buffer 响应，退出等待状态
+                        pendingBuffer.delete(msg.id);
+                        if (msg.data === '' && msg.pos == null) {
+                            // 档 1：未变更，跳过 reset + write
+                            addFrontendLog('缓冲区无变化，跳过回放 (' + (names[msg.id] || 'Shell #' + msg.id) + ')');
+                        } else if (msg.pos != null && terms[msg.id]) {
+                            // 档 2：增量推送（pos 存在 = 客户端 xterm 内容与服务端 buf 同步，只追加）
+                            addFrontendLog(`缓冲区增量 ${msg.data.length} 字节 (${names[msg.id] || 'Shell #' + msg.id})`);
+                            terms[msg.id].write(msg.data);
+                            appendClientTail(msg.id, msg.data);
+                        } else if (msg.data && terms[msg.id]) {
+                            // 档 3：全量回放（pos 缺席 + data 非空 = 客户端与服务端不同步，需 reset）
+                            addFrontendLog(`缓冲区全量回放 ${msg.data.length} 字节 (${names[msg.id] || 'Shell #' + msg.id})`);
+                            terms[msg.id].reset();
+                            terms[msg.id].write(msg.data);
+                            appendClientTail(msg.id, msg.data);
+                        }
+                        hideBufferLoading(msg.id);
+                    } else if (msg.type === 'data') {
+                        if (terms[msg.id]) {
+                            if (pendingBuffer.has(msg.id)) {
+                                // 等待 buffer 响应中，丢弃此 data 消息
+                                // 原因：服务端 send buffer 响应时 buf.slice(pos) 已包含 send 那一刻之前的所有 PTY 数据
+                                // 这些 data 消息的内容已包含在 buffer 响应的 data 字段中，写入会导致重复
+                                // TCP 有序保证：send buffer 响应之后的 broadcast 一定在 buffer 响应之后到达客户端
+                                //   届时 pendingBuffer.delete(id) 已执行（buffer 响应先到），后续 data 正常处理
+                                return;
+                            }
+                            terms[msg.id].write(msg.data);
+                            appendClientTail(msg.id, msg.data);
+                        }
+                    } else if (msg.type === 'resize') {
+                        rows = msg.data.rows;
+                        cols = msg.data.cols;
+                        Object.keys(terms).forEach(id => {
+                            terms[id].resize(cols, rows);
+                        });
+                    } else if (msg.type === 'hotkeys') {
+                        hotkeys = msg.data || {};
+                        renderHotkeys();
+                        if (editorDiv) openHotkeyEditor();
+                    } else if (msg.type === 'scroll_step') {
+                        scrollStep = msg.data;
+                    } else if (msg.type === 'scroll_interval') {
+                        scrollInterval = msg.data;
+                    } else if (msg.type === 'max_buffer') {
+                        maxBuffer = msg.data;
+                    } else if (msg.type === 'max_frontend_logs') {
+                        maxFrontendLogs = msg.data;
+                    } else if (msg.type === 'client_tail_max') {
+                        clientTailMax = msg.data;
+                        // 阈值变更后裁剪已存在的 clientTails 字典
+                        Object.keys(clientTails).forEach(id => {
+                            if (clientTails[id].length > clientTailMax) {
+                                clientTails[id] = clientTails[id].slice(-clientTailMax);
+                            }
+                        });
+                    } else if (msg.type === 'restart_server') {
+                        addFrontendLog('服务端确认重启');
+                    } else if (msg.type === 'buffer_size') {
+                        const usedMB = (msg.used / 1000000).toFixed(2);
+                        const maxMB = (msg.max / 1000000).toFixed(2);
+                        const pct = msg.max > 0 ? ((msg.used / msg.max) * 100).toFixed(1) : '0';
+                        const resultEl = document.getElementById('bufferSizeResult');
+                        if (resultEl) {
+                            resultEl.textContent = `当前会话占用: ${usedMB} MB / ${maxMB} MB (${pct}%)`;
+                        }
+                    }
+                };
+            }
+        }
+        // === 同步顶栏/快捷键栏宽度到 xterm ===
+        // 页面宽度由 xterm 决定；toolbar/hotkeys-bar 跟随 xterm 宽度（flex-wrap 内部换行）
+        function syncLayoutWidths() {
+            const term = document.getElementById('terminal-container');
+            if (!term || term.offsetWidth === 0) return;
+            const w = term.offsetWidth + 'px';
+            const toolbar = document.querySelector('.toolbar');
+            const hotkeys = document.getElementById('hotkeys-bar');
+            if (toolbar) toolbar.style.width = w;
+            if (hotkeys) hotkeys.style.width = w;
+        }
+        // DOM 加载完成后首次同步
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', syncLayoutWidths);
+        } else {
+            syncLayoutWidths();
+        }
+        // 窗口尺寸变化时不再同步（#terminal-container { align-self: flex-start } 不随窗口缩放）
+        // xterm 尺寸变化时同步（设置弹窗改 rows/cols 后触发）
+        if (typeof ResizeObserver !== 'undefined') {
+            const term = document.getElementById('terminal-container');
+            if (term) new ResizeObserver(syncLayoutWidths).observe(term);
+        }
+
+        connect();
+        document.getElementById('editBtn').onclick = openHotkeyEditor;
+        document.getElementById('scrollUpBtn').onclick = scrollUp;
+        document.getElementById('scrollDownBtn').onclick = scrollDown;
+        document.getElementById('scrollBottomBtn').onclick = scrollBottom;
+        // 按住连续滚动（pointerdown 立即触发，pointerup/pointerleave 停止）
+        // 每次定时器触发时重新读取 scrollInterval 全局变量，确保设置变更后立即生效
+        function setupHoldScroll(btnId, fn) {
+            const btn = document.getElementById(btnId);
+            let timer = null;
+            btn.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                fn();
+                timer = setInterval(fn, scrollInterval);
+            });
+            const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
+            btn.addEventListener('pointerup', stop);
+            btn.addEventListener('pointerleave', stop);
+        }
+        setupHoldScroll('scrollXtermUpBtn', scrollXtermUp);
+        setupHoldScroll('scrollXtermDownBtn', scrollXtermDown);
+        function createTermInstance(id) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'term-wrapper';
+            wrapper.style.display = 'none'; // 默认隐藏：旁观者客户端看不到新 wrapper；创建者由 switchSession 翻成 block
+            document.getElementById('terminal-container').appendChild(wrapper);
+            wrappers[id] = wrapper;
+            const term = new Terminal({ allowProposedApi: true });
+            term.open(wrapper);
+            term.loadAddon(new WebLinksAddon.WebLinksAddon());
+            term.loadAddon(new Unicode11Addon.Unicode11Addon());
+            term.unicode.activeVersion = '11';
+            terms[id] = term;
+            term.onData(data => {
+                wsSend({ type: 'input', id: id, data: data });
+            });
+            if (Number.isInteger(rows) && Number.isInteger(cols)) {
+                term.resize(cols, rows);
+            }
+            addFrontendLog('新建终端' + (names[id] || 'Shell #' + id) + '并申请缓存');
+            requestBuffer(id);
+            // 仅当本客户端刚刚发起过 create 时，才跳到新终端
+            if (pendingCreate) {
+                pendingCreate = false;
+                switchSession(id);
+            }
+            
+        }
+        function switchSession(id) {
+            if (activeId === id) return;
+            if (activeId && wrappers[activeId]) {
+                wrappers[activeId].style.display = 'none';
+            }
+            activeId = id;
+            if (wrappers[id]) {
+                wrappers[id].style.display = 'block';
+                terms[id].focus();
+            }
+            document.getElementById('sessionSelect').value = id;
+            // 弹窗打开时同步「检测」按钮的可用性
+            const queryBtn = document.getElementById('queryBufferSizeBtn');
+            if (queryBtn) queryBtn.disabled = !activeId;
+        }
+        document.getElementById('sessionSelect').addEventListener('change', (e) => {
+            switchSession(e.target.value);
+        });
+        function createNew() {
+            addFrontendLog('新建终端');
+            pendingCreate = true;
+            wsSend({ type: 'create' });
+        }
+        function killCurrent() {
+            if (activeId) {
+                addFrontendLog('关闭终端 (' + (names[activeId] || 'Shell #' + activeId) + ')');
+                wsSend({ type: 'kill', id: activeId });
+            }
+        }
+        function renameCurrent() {
+            if (!activeId) return;
+            const current = names[activeId] || ('Shell #' + activeId);
+            const name = prompt('重命名当前会话', current);
+            if (name === null) return;
+            wsSend({ type: 'rename', id: parseInt(activeId), data: name });
+            addFrontendLog('终端重命名: ' + (name.trim() || '(空)'));
+        }
+        function renameAll() {
+            wsSend({ type: 'rename_all' });
+            addFrontendLog('全部终端已重命名');
+        }
+
+
+        function sendSgrWheel(dir) {
+            if (!terms[activeId]) return;
+            const y = Math.ceil(terms[activeId].rows / 2);
+            const code = dir > 0 ? 65 : 64;
+            const seq = '\x1b[<' + code + ';' + y + ';1M';
+            // 一次滚动发送 scrollStep 个滚轮事件
+            for (let i = 0; i < scrollStep; i++) {
+                sendInput(seq);
+            }
+        }
+        function wsSend(obj) {
+            if (!ws || ws.readyState !== 1) return;
+            try {
+                ws.send(JSON.stringify(obj));
+            } catch (e) {
+                addFrontendLog('发送失败: ' + e.message);
+            }
+        }
+        function sendInput(data) { if (activeId) wsSend({ type: 'input', id: activeId, data: data }); }
+        function scrollUp() { sendSgrWheel(-1); }
+        function scrollDown() { sendSgrWheel(1); }
+        function scrollBottom() { if (terms[activeId]) terms[activeId].scrollToBottom(); }
+        function scrollXtermUp() { if (terms[activeId]) terms[activeId].scrollLines(-1); }
+        function scrollXtermDown() { if (terms[activeId]) terms[activeId].scrollLines(1); }
+
+        // === 快捷键 ===
+        function renderHotkeys() {
+            const bar = document.getElementById('hotkeysList');
+            bar.innerHTML = '';
+            Object.keys(hotkeys).forEach(name => {
+                const btn = document.createElement('button');
+                btn.textContent = name;
+                btn.onclick = () => sendInput(hotkeys[name]);
+                bar.appendChild(btn);
+            });
+        }
+
+        function openHotkeyEditor() {
+            if (editorDiv) { editorDiv.remove(); editorDiv = null; }
+            const names = Object.keys(hotkeys);
+            let html = '<div class="modal-overlay">';
+            html += '<div class="modal-box">';
+            html += '<h3>编辑快捷键</h3>';
+            html += '<div class="modal-row">';
+            html += '<input id="hkName" placeholder="显示名称（如 Alt+M）" style="flex:1;min-width:0;">';
+            html += '<button onclick="resolveHotkey()">解析</button>';
+            html += '</div>';
+            html += '<div class="modal-row">';
+            html += '<input id="hkCmd" placeholder="解析后的指令" style="flex:1;min-width:0;">';
+            html += '<button class="btn-primary" onclick="addHotkey()">添加</button>';
+            html += '</div>';
+            html += '<div class="modal-row"><button onclick="showAvailableKeys()">可用按键</button></div>';
+            if (names.length === 0) {
+                html += '<div class="empty-hint">暂无快捷键，上方添加</div>';
+            } else {
+                names.forEach(n => {
+                    const val = hotkeys[n];
+                    const displayVal = val.length > 14 ? val.slice(0, 14) + '…' : val;
+                    const safe = n.replace(/'/g, "\\'");
+                    html += '<div class="hotkey-item">';
+                    html += `<span title="${val}">${n}: ${displayVal}</span>`;
+                    html += '<div class="btn-group">';
+                    html += `<button onclick="moveUp('${safe}')">上移</button>`;
+                    html += `<button onclick="editHotkey('${safe}')">编辑</button>`;
+                    html += `<button class="btn-danger" onclick="delHotkey('${safe}')">删除</button>`;
+                    html += '</div></div>';
+                });
+            }
+            html += '<div class="modal-actions">';
+            html += '<button onclick="closeEditor()" style="margin-left:auto;">关闭</button>';
+            html += '</div>';
+            html += '</div></div>';
+            const div = document.createElement('div');
+            div.innerHTML = html;
+            editorDiv = div.firstElementChild;
+            document.body.appendChild(editorDiv);
+        }
+
+        function closeEditor() { if (editorDiv) { editorDiv.remove(); editorDiv = null; } }
+
+        function resolveHotkey() {
+            const name = document.getElementById('hkName').value.trim();
+            if (!name) return;
+            document.getElementById('hkCmd').value = parseHotkey(name);
+        }
+
+        function showAvailableKeys() {
+            let html = '<div class="modal-overlay" style="z-index:1000;">';
+            html += '<div class="modal-box" style="min-width:300px;">';
+            html += '<h3>可用按键</h3>';
+            html += '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
+            availableKeys.forEach(k => {
+                html += `<button onclick="insertKey(this)">${k}</button>`;
+            });
+            html += `<button onclick="insertKey(this)" style="font-weight:bold;font-size:1.2em;">+</button>`;
+            html += '</div>';
+            html += '<div class="modal-actions">';
+            html += '<button onclick="this.closest(\'.modal-overlay\').remove()" style="margin-left:auto;">关闭</button>';
+            html += '</div></div></div>';
+            const div = document.createElement('div');
+            div.innerHTML = html;
+            document.body.appendChild(div.firstElementChild);
+        }
+
+        function insertKey(btn) {
+            const inp = document.getElementById('hkName');
+            inp.value = inp.value + btn.textContent;
+        }
+
+        function addHotkey() {
+            const name = document.getElementById('hkName').value.trim();
+            let cmd = document.getElementById('hkCmd').value;
+            if (!name) return;
+            if (!cmd) cmd = parseHotkey(name);
+            if (!cmd) return;
+            // 编辑模式：若名称变了则删除旧条目
+            if (editingKey && editingKey !== name) {
+                delete hotkeys[editingKey];
+            }
+            editingKey = null;
+            hotkeys[name] = cmd;
+            syncHotkeys();
+            document.getElementById('hkName').value = '';
+            document.getElementById('hkCmd').value = '';
+        }
+
+        function delHotkey(name) {
+            delete hotkeys[name];
+            syncHotkeys();
+        }
+
+        function editHotkey(name) {
+            editingKey = name;
+            document.getElementById('hkName').value = name;
+            document.getElementById('hkCmd').value = hotkeys[name];
+        }
+
+        function moveUp(name) {
+            const order = Object.keys(hotkeys);
+            const i = order.indexOf(name);
+            if (i <= 0) return;
+            [order[i - 1], order[i]] = [order[i], order[i - 1]];
+            const nh = {};
+            order.forEach(n => nh[n] = hotkeys[n]);
+            hotkeys = nh;
+            syncHotkeys();
+        }
+
+        function syncHotkeys() {
+            wsSend({ type: 'hot_keys', data: hotkeys });
+        }
+
+        // === 连接状态检测（事件驱动，2026-06-30 由 1Hz 轮询改为事件触发）===
+        const wsStatusEl = document.getElementById('wsStatus');
+        function updateWsStatus() {
+            const ok = ws && ws.readyState === 1;
+            wsStatusEl.textContent = ok ? '已连接' : '已断连';
+            wsStatusEl.style.color = ok ? 'green' : 'red';
+        }
+
+        // 移动端：阻止按钮 mousedown 默认行为，避免软键盘因焦点转移而收起
+        document.addEventListener('mousedown', e => { if (e.target.tagName === 'BUTTON') e.preventDefault(); });
+        // 浏览器报告网络恢复时立即重连（不等 3 秒 backoff）
+        window.addEventListener('online', () => { addFrontendLog('网络恢复，触发重连'); connect(); });
+    </script>
+</body>
+
+</html>
