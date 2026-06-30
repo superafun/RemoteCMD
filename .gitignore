@@ -9,6 +9,7 @@ ecosystem.config.js
 # === IDE / 编辑器 ===
 .vscode/
 .idea/
+reasonix.toml
 *.swp
 *.swo
 *~
