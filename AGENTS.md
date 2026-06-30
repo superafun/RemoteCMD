@@ -119,6 +119,34 @@ server.js
 - **极简主义** —— 每个功能都以最简单的代码路径实现。不做过早的泛化。
 - **配置模式** —— 启动时读取，变更时同步写入。`JSON.parse` / `JSON.stringify` 往返。
 
+## Git 工作流
+
+**2026-06-30 起项目纳入 git 版本控制**。单人本地开发，单 `main` 分支。
+
+### 追踪范围
+
+- **追踪**：`server.js` / `public/index.html` 及未来新增的 `public/term-session.js` / `package.json` / `package-lock.json` / `config.json` / `docs/` / `AGENTS.md`
+- **不追踪**（详见 `.gitignore`）：`node_modules/` / `.pm2/` / `reasonix.toml` / IDE 与 OS 临时文件 / `*.log`
+- xterm 静态资源由 `node_modules/@xterm/xterm` 提供（`server.js` 用 `express.static` 挂到 `/xterm`），无需 vendored 副本
+
+### 提交信息规范
+
+`<前缀>: <一句话描述>`（Conventional Commits 风格，中英文皆可）：
+
+- `feat:` — 新功能
+- `fix:` — Bug 修复
+- `refactor:` — 重构（无功能变化）
+- `docs:` — 文档 / AGENTS.md 变更
+- `chore:` — 工具 / 构建 / 依赖更新
+
+### Commit / 回退
+
+- 一个独立变更一个 commit；阶段性进展先 commit 再继续
+- commit 前 `git status` 确认要 add 的文件，**禁止** `git add -A`（会带进临时文件）
+- 单步回退：`git revert HEAD`；多步：`git revert <sha1>..<sha2>`
+- **禁止** `git reset --hard` 撤销已超过 1 个 commit 的历史
+- git 管代码版本，PM2 管进程生命周期，两者正交。**禁止**用 git 命令误杀 PM2 进程
+
 ## 已知注意事项
 
 1. **`@xterm/addon-fit` 未使用** —— 在 package.json 中但从未在 index.html 中加载或实例化。可安全移除。
