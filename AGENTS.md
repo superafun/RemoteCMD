@@ -43,7 +43,7 @@ server.js
 |--------|------|-------|---------------|
 | 后端 | `server.js` | 100 | Express 静态服务器 + WebSocket 处理器 + node-pty 会话生命周期 + PM2 重启 |
 | 前端 | `public/index.html` | 320 | 单页应用：xterm.js v6 终端、会话切换器、快捷键编辑器、滚动控制、自动重连、重启服务器 |
-| 配置 | `config.json` | ~21 | 持久化配置：`rows`、`cols`、`hotkeys`（名称→转义序列）、`scrollInterval`、`maxBuffer`、`maxFrontendLogs`、`clientTailMax`（buffer 尾部比对长度，单位：bytes，默认 4096） |
+| 配置 | `config.json` | ~21 | 持久化配置：`rows`、`cols`、`hotkeys`（名称→转义序列）、`scrollIntervalTerminal`、`scrollIntervalPage`、`maxBuffer`、`maxFrontendLogs`、`clientTailMax`（buffer 尾部比对长度，单位：bytes，默认 4096） |
 
 ### WebSocket 协议（JSON，type 字段）
 
@@ -57,7 +57,8 @@ server.js
 | `size_slots` | 大/小尺寸槽位全量广播（data: {large: {rows, cols}, small: {rows, cols}}），连接建立时下发 + 客户端写槽后广播 |
 | `current_size` | 当前尺寸广播（data: 'large' \| 'small'），连接建立时下发 + 客户端切换后广播 |
 | `hotkeys` | 快捷键配置同步 |
-| `scroll_interval` | 按住滚动间隔（单位：ms） |
+| `scroll_interval_terminal` | 终端按住滚动间隔（单位：ms） |
+| `scroll_interval_page` | 页面按住滚动间隔（单位：ms） |
 | `max_buffer` | 缓冲区上限值（单位：MB） |
 | `max_frontend_logs` | 前端日志上限值（单位：条） |
 | `client_tail_max` | 客户端 buffer 尾部比对最大长度（单位：bytes），连接建立时下发 + 设置变更时广播 |
@@ -75,7 +76,8 @@ server.js
 | `size_slots` | 写大/小尺寸槽位（sizeMode: 'large'\|'small' + rows + cols），服务端会写槽 + 落盘 + 全量广播 |
 | `current_size` | 切换当前尺寸（size: 'large'\|'small'），服务端会切换 + 调所有 PTY + 落盘 + 广播 |
 | `hot_keys` | 更新快捷键配置（data） |
-| `scroll_interval` | 更新按住滚动间隔（data，单位：ms） |
+| `scroll_interval_terminal` | 更新终端按住滚动间隔（data，单位：ms） |
+| `scroll_interval_page` | 更新页面按住滚动间隔（data，单位：ms） |
 | `max_buffer` | 更新缓冲区上限（单位：MB） |
 | `max_frontend_logs` | 更新前端日志上限（单位：条） |
 | `client_tail_max` | 更新客户端 buffer 尾部比对最大长度（data，64 ≤ data ≤ 65536） |
@@ -96,7 +98,7 @@ server.js
 |------|------|
 | `server.js` | **整个后端** —— Express 5、WebSocket（/cmd/）、node-pty 创建子进程 |
 | `public/index.html` | **整个前端** —— 内联 JS、xterm.js v6、无打包工具 |
-| `config.json` | 运行时持久化配置（rows、cols、hotkeys、scrollInterval、maxBuffer、maxFrontendLogs、clientTailMax） |
+| `config.json` | 运行时持久化配置（rows、cols、hotkeys、scrollIntervalTerminal、scrollIntervalPage、maxBuffer、maxFrontendLogs、clientTailMax） |
 | `package.json` | 依赖：express ^5、ws ^8、node-pty ^1、@xterm/xterm ^6、3 个 addon；scripts：start/restart/stop（PM2） |
 | `reasonix.toml` | CodeWhale IDE 配置（非项目运行时配置） |
 
@@ -217,11 +219,12 @@ server.js
     - 错误：`Alt+A → \x1bA`，`Alt+Z → \x1bZ`
     - **原因**：Windows Terminal / PowerShell 对 `\x1bA`（大写）的响应与 `\x1ba`（小写）不同。大写序列可能被解释为其他控制功能而非 Alt+字母快捷键。
 
-24. **按住滚动间隔可配置（2026-06-30）**：按住上滑/下滑按钮时连续触发的间隔毫秒数改为 config.json 可配置项。
-    - 字段名：`scrollInterval`，默认 100ms，范围 1-1000ms
-    - WebSocket 消息类型：`scroll_interval`（双向同步）
-    - 前端 `setupHoldScroll` 每次 `setInterval` 触发时重新读取全局 `scrollInterval` 变量
-    - 设置弹窗中「按住滚动间隔 (ms)」输入框，step=10，min=1
+24. **按住滚动间隔拆分为终端/页面两项（2026-07-01）**：原 `scrollInterval` 单项配置拆成两个独立字段。Hard break，无旧版本兼容。
+    - 字段名：`scrollIntervalTerminal`（终端 SGR 滚轮按钮，默认 100ms）+ `scrollIntervalPage`（页面 xterm 滚视图按钮，默认 100ms），范围 1-1000ms
+    - WebSocket 消息类型：`scroll_interval_terminal`（双向同步）+ `scroll_interval_page`（双向同步）
+    - 前端 `setupHoldScroll` 签名扩展为 `(btnId, fn, intervalGetter)`：4 个按钮按类型传入对应 getter（终端传 `() => scrollIntervalTerminal`，页面传 `() => scrollIntervalPage`）
+    - **周期锁定语义**：`setInterval` 创建时调用 `intervalGetter()` 读一次周期，运行期间不变；按住期间改设置不会影响当前定时器，需释放并再次按住才按新值生效
+    - 设置弹窗中「按住终端滚动间隔 (ms)」+「按住页面滚动间隔 (ms)」两个输入框，step=10，min=1
 
 25. **前端日志上限可配置（2026-06-30）**：前端日志上限从硬编码 500 改为 config.json 可配置项。
     - 默认值 50（用户明确指定），范围 10-10000，step=10
@@ -232,11 +235,11 @@ server.js
 
 26. **大/小尺寸切换 + 双槽位（2026-07-01 引入）**：顶栏 `#sizeToggleBtn` 按钮在 large/small 之间切换。设置弹窗分大/小两节，每节独立设置行/列。协议：`size_slots`（C→S 写槽 + S→C 全量广播）/ `current_size`（C→S 切换 + S→C 广播当前尺寸）。旧的 `resize` 消息整条删除（C→S 和 S→C 双向）。**应用 = 切换 + 写槽**：用户点"应用"发两条消息（先 `size_slots` 写槽，再 `current_size` 切尺寸）。**默认值**：large=60×120, small=24×80。**记忆**：服务端通过 `config.currentSize` 字段记忆上次切换结果，连接建立时下发。**校验**：服务端对 sizeMode/size 必须是 'large'/'small'，rows/cols 必须在 20-200 整数范围内，非法值拒收。`config.sizeSlots` 字段是对象，键为 'large'/'small'，值为 `{rows, cols}`。**`current_size` 处理器无"无变化跳过"**（2026-07-01 修复行数不生效 bug）：用户在大尺寸时修改大尺寸行数，size_slots 已更新槽位，但 size 名未变 —— 若早返回则 PTY 和 xterm 都不 resize，必须刷新浏览器才能看到。修复后 `current_size` 始终按最新槽位 resize PTY + 落盘 + 广播。前端的 `sizeSlots` 已由上一条 `size_slots` 广播更新，`current_size` 处理器用 `sizeSlots[currentSize]` resize xterm 时拿到新槽位 → xterm 即时刷新。
 
-27. **前后端日志覆盖（2026-07-01 补全）**：所有 WebSocket 消息都有 `addFrontendLog` 记录（设置弹窗 → 日志 按钮可查看），**唯二例外**：`input`（C→S 键盘输入，每按键都记会产生大量噪音）和 `data`（S→C PTY 输出，每帧都记会产生大量噪音）。**接收侧 7 类**（2026-07-01 补全 → `buffer_size` 于 2026-07-01 因 UI 重复移除）：`size_slots`（'尺寸槽位已更新'）/ `current_size`（'当前尺寸切换为 大/小 (rows x cols)'）/ `hotkeys`（'快捷键配置已同步'）/ `scroll_interval`（'按住滚动间隔同步为 X ms'）/ `max_buffer`（'缓冲区上限同步为 X MB'）/ `max_frontend_logs`（'日志上限同步为 X 条'）/ `client_tail_max`（'buffer 去重比对长度同步为 X 字节'）。**发送侧补 1 类**（2026-07-01 补全 → `buffer` 请求于 2026-07-01 因重复移除）：`hot_keys`（'快捷键已同步给服务端'，在 `syncHotkeys` 内）。**不记日志的特例**：
+27. **前后端日志覆盖（2026-07-01 补全）**：所有 WebSocket 消息都有 `addFrontendLog` 记录（设置弹窗 → 日志 按钮可查看），**唯二例外**：`input`（C→S 键盘输入，每按键都记会产生大量噪音）和 `data`（S→C PTY 输出，每帧都记会产生大量噪音）。**接收侧 7 类**（2026-07-01 补全 → `buffer_size` 于 2026-07-01 因 UI 重复移除）：`size_slots`（'尺寸槽位已更新'）/ `current_size`（'当前尺寸切换为 大/小 (rows x cols)'）/ `hotkeys`（'快捷键配置已同步'）/ `scroll_interval_terminal`（'终端按住滚动间隔同步为 X ms'）/ `scroll_interval_page`（'页面按住滚动间隔同步为 X ms'）/ `max_buffer`（'缓冲区上限同步为 X MB'）/ `max_frontend_logs`（'日志上限同步为 X 条'）/ `client_tail_max`（'buffer 去重比对长度同步为 X 字节'）。**发送侧补 1 类**（2026-07-01 补全 → `buffer` 请求于 2026-07-01 因重复移除）：`hot_keys`（'快捷键已同步给服务端'，在 `syncHotkeys` 内）。**不记日志的特例**：
     - `buffer_size`：开设置弹窗即自动拉取并显示占用情况（'当前会话占用: X.XX MB / Y.YY MB (Z.Z%)'），与日志内容完全重复。
     - `buffer` 请求：调用点（list 处理器 / createTermInstance / bufferQueue）已记录上下文（'优先加载当前终端' / '新建终端并申请缓存' / '开始加载队列中下一个'），响应侧有'缓冲区无变化/增量/全量回放'三档覆盖整个拉取过程。**新增 wsSend 处理器时必须配套添加日志**，input/data 类高频消息除外。
 
-28. **服务端权威 + 客户端不乐观更新（2026-07-01 修复）**：设置类 `apply*` 处理器**不应在 `wsSend` 之前修改本地状态**，否则 ws 失败时本地已变但服务器没变，下次重连被服务器覆盖 → "看似应用了" 实际没生效的不一致。**正确模式**：只 `wsSend`，本地状态由 `ws.onmessage` 收到 broadcast 后统一更新（接收侧已有 `xxx = msg.data` 赋值）。**已修复**：`applySettingsScrollInterval` / `applySettingsMaxBuffer` / `applySettingsMaxFrontendLogs` / `applySettingsClientTailMax` —— 删除 `scrollInterval = v` / `maxBuffer = v` / `maxFrontendLogs = v` / `clientTailMax = v; clientTailMax2 = v * 2` 4 处本地 mutation，删除对应发送侧 `addFrontendLog`（与接收侧 'X 同步为 Y' 重复）。**已是正确模式**（无需改）：`applySettingsSizeFor` / `toggleSize`（size 类只读 sizeSlots/currentSize 不修改）/ `renameCurrent` / `renameAll` / `createNew`（pendingCreate 是创建标志位非配置）/ `killCurrent`（本地 term 由 list 处理器统一删）/ `restartServer` / `syncHotkeys`（hotkeys 已在用户编辑时改）。**fbBtn 保持立即调用**："指令已发出"语义；wsSend 失败时 `wsSend` 内部 catch 会 log 失败原因。**新增 apply 类处理器时**：只发不发本地状态，本地状态由 `ws.onmessage` 接收侧负责更新。
+28. **服务端权威 + 客户端不乐观更新（2026-07-01 修复）**：设置类 `apply*` 处理器**不应在 `wsSend` 之前修改本地状态**，否则 ws 失败时本地已变但服务器没变，下次重连被服务器覆盖 → "看似应用了" 实际没生效的不一致。**正确模式**：只 `wsSend`，本地状态由 `ws.onmessage` 收到 broadcast 后统一更新（接收侧已有 `xxx = msg.data` 赋值）。**已修复**：`applySettingsScrollIntervalTerminal` / `applySettingsScrollIntervalPage` / `applySettingsMaxBuffer` / `applySettingsMaxFrontendLogs` / `applySettingsClientTailMax` —— 删除 `scrollIntervalTerminal = v` / `scrollIntervalPage = v` / `maxBuffer = v` / `maxFrontendLogs = v` / `clientTailMax = v; clientTailMax2 = v * 2` 5 处本地 mutation，删除对应发送侧 `addFrontendLog`（与接收侧 'X 同步为 Y' 重复）。**已是正确模式**（无需改）：`applySettingsSizeFor` / `toggleSize`（size 类只读 sizeSlots/currentSize 不修改）/ `renameCurrent` / `renameAll` / `createNew`（pendingCreate 是创建标志位非配置）/ `killCurrent`（本地 term 由 list 处理器统一删）/ `restartServer` / `syncHotkeys`（hotkeys 已在用户编辑时改）。**fbBtn 保持立即调用**："指令已发出"语义；wsSend 失败时 `wsSend` 内部 catch 会 log 失败原因。**新增 apply 类处理器时**：只发不发本地状态，本地状态由 `ws.onmessage` 接收侧负责更新。
 
 ## 开发工作流
 
