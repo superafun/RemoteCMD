@@ -486,9 +486,12 @@
                         renderHotkeys();
                         if (editorDiv) openHotkeyEditor();
                         addFrontendLog('快捷键配置已同步');
-                    } else if (msg.type === 'scroll_interval') {
-                        scrollInterval = msg.data;
-                        addFrontendLog('按住滚动间隔同步为 ' + scrollInterval + ' ms');
+                    } else if (msg.type === 'scroll_interval_terminal') {
+                        scrollIntervalTerminal = msg.data;
+                        addFrontendLog('终端按住滚动间隔同步为 ' + scrollIntervalTerminal + ' ms');
+                    } else if (msg.type === 'scroll_interval_page') {
+                        scrollIntervalPage = msg.data;
+                        addFrontendLog('页面按住滚动间隔同步为 ' + scrollIntervalPage + ' ms');
                     } else if (msg.type === 'max_buffer') {
                         maxBuffer = msg.data;
                         addFrontendLog('缓冲区上限同步为 ' + maxBuffer + ' MB');
