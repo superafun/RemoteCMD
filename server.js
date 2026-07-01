@@ -44,6 +44,8 @@ function loadConfig() {
     }
     if (typeof cfg.maxBuffer !== 'number' || cfg.maxBuffer < 1 || cfg.maxBuffer > 90) cfg.maxBuffer = 10;
     if (cfg.clientTailMax == null) cfg.clientTailMax = 4096;
+    if (typeof cfg.scrollIntervalTerminal !== 'number' || cfg.scrollIntervalTerminal < 1 || cfg.scrollIntervalTerminal > 1000) cfg.scrollIntervalTerminal = 100;
+    if (typeof cfg.scrollIntervalPage !== 'number' || cfg.scrollIntervalPage < 1 || cfg.scrollIntervalPage > 1000) cfg.scrollIntervalPage = 100;
     return cfg;
 }
 function saveConfig(cfg) {
