@@ -135,10 +135,12 @@ function createSession() {
 
 wss.on('connection', (ws) => {
     if (Object.keys(sessions).length === 0) createSession();
-    ws.send(JSON.stringify(buildListMsg()));
-    // === 新增：大/小尺寸槽位 + 当前尺寸（替代旧 resize 下发） ===
+    // === 先发设置（size_slots + current_size），再发 list ===
+    // 这样前端 list 处理器可以无条件从 sizeSlots[currentSize] 取值 resize 新会话，
+    // 不区分"首次连接"和"后续新建"两条路径（2026-07-02 重构）
     ws.send(JSON.stringify(buildSizeSlotsMsg()));
     ws.send(JSON.stringify({ type: 'current_size', data: config.currentSize }));
+    ws.send(JSON.stringify(buildListMsg()));
     ws.send(JSON.stringify({ type: 'hotkeys', data: config.hotkeys }));
     ws.send(JSON.stringify({ type: 'scroll_interval_terminal', data: config.scrollIntervalTerminal }));
     ws.send(JSON.stringify({ type: 'scroll_interval_page', data: config.scrollIntervalPage }));

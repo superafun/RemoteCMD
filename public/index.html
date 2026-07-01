@@ -390,11 +390,10 @@
                             const s = new TermSession(id, terminalContainer);
                             if (msg.names?.[id]) s.name = msg.names[id];
                             sessions.set(id, s);
-                            // 同步当前尺寸：list 之前 size_slots/current_size 已下发到本客户端
-                            // （首次连接除外，那时 currentSize/sizeSlots 仍为 null，slot 取不到，跳过；
-                            //  后续 current_size 处理器会兜底 resize 全部 sessions）
-                            const slot = currentSize && sizeSlots[currentSize];
-                            if (slot) s.resize(slot.cols, slot.rows);
+                            // 同步当前尺寸：服务端先发 size_slots/current_size 再发 list,
+                            // sizeSlots[currentSize] 一定就绪,直接 resize 无需守卫（2026-07-02 重构）
+                            const slot = sizeSlots[currentSize];
+                            s.resize(slot.cols, slot.rows);
                         });
 
                         // 删除已不存在的会话
