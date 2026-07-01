@@ -3,14 +3,6 @@
 // 依赖全局：Terminal, WebLinksAddon, Unicode11Addon,
 //          wsSend, clientTailMax, scrollStep, rows, cols
 class TermSession {
-    // === 状态 ===
-    id;            // number
-    name;          // string
-    term;          // Terminal
-    wrapper;       // HTMLDivElement
-    clientTail;    // string
-    pendingBuffer; // boolean
-
     constructor(id, container) {
         this.id = id;
         this.name = 'Shell #' + id;

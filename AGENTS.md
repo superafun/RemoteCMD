@@ -180,17 +180,17 @@ server.js
 17. **PM2 进程管理 + 前端重启**：2026-06-30 引入。服务器由 PM2 管理（`pm2 start server.js --name remote-cmd`），`npm start` 启动。前端设置弹窗新增「重启服务器」按钮（`restartServer()`），发送 `{type:'restart_server'}` 到服务端。服务端回复确认后杀掉所有 PowerShell 子进程，200ms 后 `process.exit(1)` 退出，PM2 检测到非零退出码自动重启新实例。前端 `ws.onclose` 触发 1 秒后自动重连。**PM2 安装**：`npm install -g pm2`（一次性）。**常用命令**：`npm start`（启动）、`npm run restart`（重启）、`npm run stop`（停止）。**Trae 环境例外（2026-06-30）**：Trae PowerShell 工具下 PM2 daemon 反复 EPERM（Windows 命名管道权限），PM2 不可用。`server.js` 实际由独立的 node 守护进程（PID 101804）拉起，113036 是当前 remote-cmd 服务进程。`process.exit(1)` 后 101804 会自动重新 spawn 新的 server.js 实例，前端 ws.onclose 触发 1 秒后自动重连。**恢复 PM2 管理**：需在 Trae 外的 PowerShell 手动执行 `pm2 start server.js --name remote-cmd` + `pm2 save`，或在 `c:\Users\fmy3\.pm2` 不存在的全新环境下使用。
 
 18. **buffer 尾部比对去重 + 增量推送 + 等待期间丢弃 data（2026-06-30 引入）**：解决多终端场景下 buffer 加载慢的问题。设计要点：
-    - **客户端维护 `clientTails[id]` 字典**：每个终端最近 N 字节（默认 4096，可通过设置弹窗调整）的原始 data/buffer 合并流。`appendClientTail(id, chunk)` 累加 + 滞回式截断（超阈值时 `slice(-clientTailMax)`）。
-    - **buffer 请求带 `tail` 字段**：所有 buffer 请求（`createTermInstance` 末尾、`isFirstList` 重连交集分支）都通过 `requestBuffer(id)` 函数发出，自动带 `clientTails[id] || ''` 作为 tail。
+    - **`TermSession.clientTail` 实例字段**：每个终端最近 N 字节（默认 4096，可通过设置弹窗调整）的原始 data/buffer 合并流。`session.appendClientTail(chunk)` 累加 + 滞回式截断（超阈值时 `slice(-clientTailMax)`）。状态随 `Map<number, TermSession>` 生命周期自动管理，无需手动清理。
+    - **buffer 请求带 `tail` 字段**：所有 buffer 请求（list 处理器中新建会话的 `requestBuffer()` 调用、`isFirstList` 重连交集分支）都通过 `session.requestBuffer()` 发出，自动带 `this.clientTail` 作为 tail。
     - **服务端三档响应**（[server.js L118-L148](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/server.js#L118-L148)）：
       1. **档 1 未变更**：`buf.endsWith(tail)` 命中 → 回 `{type:'buffer', id, data:''}`（pos 缺席）。客户端跳过 reset + write。
       2. **档 2 增量推送**：`buf.lastIndexOf(tail) !== -1`（且不命中档 1）→ 回 `{type:'buffer', id, data: buf.slice(i + tail.length), pos: i + tail.length}`。客户端只 `term.write(data)` 追加。
       3. **档 3 全量**：tail 缺/空串/`lastIndexOf` 没找到 → 回 `{type:'buffer', id, data: buf.slice(-maxBufferChars) || buf}`。客户端 `term.reset() + term.write(data)`。
-    - **`pendingBuffer` 机制**（[public/index.html L240](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/public/index.html#L240)）：客户端在 `requestBuffer` 时把 id 加入 `pendingBuffer` 集合，收到 buffer 响应时移除。**等待期间到达的 data 消息直接丢弃**。原因：服务端 send buffer 响应时 `buf.slice(pos)` 已包含 send 那一刻之前的所有 PTY 数据，这些 data 内容已包含在 buffer 响应的 `data` 字段中，写入会导致重复。TCP 有序保证：send buffer 响应之后的 broadcast 一定在 buffer 响应之后到达客户端 → 后续 data 正常处理。这样不需要 `clientLengths` 字典、不需要 overlap 计算。
-    - **`client_tail_max` 消息**：连接建立时下发（来自 config.json）；设置弹窗变更时客户端发 `{type:'client_tail_max', data}` → 服务端存盘 + 广播给所有客户端。收到时前端立即按新阈值裁剪已有 `clientTails[id]`。
+    - **`session.pendingBuffer: boolean` 实例字段**：客户端在 `requestBuffer()` 时置 true，`handleBufferResponse()` 内置 false。**等待期间到达的 data 消息直接丢弃**（list 处理器中 `if (s.pendingBuffer) return`）。原因：服务端 send buffer 响应时 `buf.slice(pos)` 已包含 send 那一刻之前的所有 PTY 数据，这些 data 内容已包含在 buffer 响应的 `data` 字段中，写入会导致重复。TCP 有序保证：send buffer 响应之后的 broadcast 一定在 buffer 响应之后到达客户端 → 后续 data 正常处理。这样不需要 `clientLengths` 字典、不需要 overlap 计算。
+    - **`client_tail_max` 消息**：连接建立时下发（来自 config.json）；设置弹窗变更时客户端发 `{type:'client_tail_max', data}` → 服务端存盘 + 广播给所有客户端。收到时 `client_tail_max` 处理器遍历 sessions 调用 `s.trimClientTail(clientTailMax)` 立即按新阈值裁剪已有 clientTail。
     - **配置字段**：`config.json.clientTailMax`（默认 4096，范围 64-65536）。`loadConfig` 防御性默认：`if (cfg.clientTailMax == null) cfg.clientTailMax = 4096`，避免老用户 config.json 缺字段时 `undefined` 穿透。
-    - **`createTermInstance` 末尾调 `requestBuffer(id)`**：`clientTails[id]` 是 undefined → `tail = ''` → 服务端 `buf.endsWith('') === true` → 档 1 命中 → 客户端跳过 reset + write。xterm 本身是空的，没有需要恢复的内容。
-    - **list 处理器删除 term 时清理**：`delete clientTails[id]; pendingBuffer.delete(id)`（与 `delete terms[id]; wrappers[id].remove()` 并列）。
+    - **list 处理器新建会话时调 `requestBuffer()`**：`this.clientTail` 是空串 → 服务端 `buf.endsWith('') === true` → 档 1 命中 → 客户端跳过 reset + write。xterm 本身是空的，没有需要恢复的内容。
+    - **list 处理器删除 term 时清理**：`s.dispose(); sessions.delete(id)`（`TermSession.dispose()` 内 `term.dispose(); wrapper.remove();`，`clientTail` / `pendingBuffer` 随 Map GC 清理，无需显式 delete）。
 
 ## 开发工作流
 

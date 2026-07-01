@@ -65,7 +65,7 @@
             frontendLogs.push(`${time} — ${msg}`);
             // 滞回式截断：超出上限 2 倍时截断到上限，避免每次 push 都做 O(n) 操作
             if (frontendLogs.length > maxFrontendLogs * 2) {
-                frontendLogs = frontendLogs.slice(-maxFrontendLogs);
+                frontendLogs.splice(0, frontendLogs.length - maxFrontendLogs);
             }
         }
 
@@ -319,7 +319,7 @@
                         currentIds.forEach(id => {
                             if (!sessions.has(id)) {
                                 const s = new TermSession(id, terminalContainer);
-                                s.name = msg.names?.[id] || ('Shell #' + id);
+                                if (msg.names?.[id]) s.name = msg.names[id];
                                 sessions.set(id, s);
                                 addFrontendLog('新建终端' + s.name + '并申请缓存');
                                 s.requestBuffer();
