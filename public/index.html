@@ -35,10 +35,10 @@
     </div>
     <script src="./xterm/lib/xterm.js"></script>
     <script>
+        const terminalContainer = document.getElementById('terminal-container');
         let ws = null;
-        const terms = {};
-        const wrappers = {};
-        let activeId = null;
+        const sessions = new Map();  // number id → TermSession
+        let activeId = null;         // number | null
         const wsProtocol = location.protocol === 'https:' ? 'wss' : 'ws';
         let hotkeys = {};
         let scrollStep = 3;
@@ -50,48 +50,15 @@
         let cols = null;
         let editorDiv = null;
         let editingKey = null;
-        let names = {};
         // 标记"刚才那个 create 请求是不是本客户端发起的"，决定新终端是否自动切换
         let pendingCreate = false;
         let isFirstList = true;  // 重连后第一个 list 标志，用于触发 diff 交集的 buffer 增量拉取
         let clientTailMax = 4096;  // 默认值，config.json 加载后会覆盖
-        // 每个终端最近收到的原始字节（data 消息 + buffer 消息合并），用于 buffer 去重
-        const clientTails = {};
-        // 等待 buffer 响应中的终端集合。发送 buffer 请求时把 id 加入，收到 buffer 响应时移除
-        // 在等待期间收到的 data 消息被丢弃（避免与 buffer 响应的 data 重复）
-        const pendingBuffer = new Set();
         let settingsDiv = null;  // 设置弹窗 DOM 句柄
         // === 前端日志 ===
         let maxFrontendLogs = 50;
         const frontendLogs = [];
-        function showBufferLoading(id) {
-            const w = wrappers[id];
-            if (!w || w.querySelector('.buffer-loading')) return;
-            const div = document.createElement('div');
-            div.className = 'buffer-loading';
-            w.appendChild(div);
-        }
-        function hideBufferLoading(id) {
-            const w = wrappers[id];
-            if (!w) return;
-            const el = w.querySelector('.buffer-loading');
-            if (el) el.remove();
-        }
-        // 累加每个终端的最近原始字节（按 clientTailMax 裁剪）
-        function appendClientTail(id, chunk) {
-            if (!chunk) return;
-            let buf = clientTails[id] || '';
-            buf += chunk;
-            if (buf.length > clientTailMax) buf = buf.slice(-clientTailMax);
-            clientTails[id] = buf;
-        }
-
-        // 封装 buffer 请求：自动带 tail，并把 id 加入 pendingBuffer（等待响应期间 data 消息会被丢弃）
-        function requestBuffer(id) {
-            pendingBuffer.add(id);
-            wsSend({ type: 'buffer', id, tail: clientTails[id] || '' });
-            showBufferLoading(id);
-        }
+        
         function addFrontendLog(msg) {
             const t = new Date();
             const time = t.toLocaleString('zh-CN', { hour12: false });
@@ -338,94 +305,77 @@
                 ws.onmessage = (event) => {
                     const msg = JSON.parse(event.data);
                     if (msg.type === 'list') {
-                        if (msg.names) names = msg.names;
-                        const currentIds = msg.ids.map(String);
-                        const oldTermIds = Object.keys(terms);  // 关键: diff 之前的 term 集合快照
+                        // 更新 names（如果服务端带了 msg.names）
+                        if (msg.names) {
+                            Object.entries(msg.names).forEach(([id, name]) => {
+                                const s = sessions.get(+id);
+                                if (s) s.name = name;
+                            });
+                        }
+                        const currentIds = msg.ids.map(Number);  // Object.keys → 字符串数组，转数字
+                        const oldIds = Array.from(sessions.keys());
+
+                        // 创建新会话
                         currentIds.forEach(id => {
-                            if (!terms[id]) {
-                                createTermInstance(id);
+                            if (!sessions.has(id)) {
+                                const s = new TermSession(id, terminalContainer);
+                                s.name = msg.names?.[id] || ('Shell #' + id);
+                                sessions.set(id, s);
+                                addFrontendLog('新建终端' + s.name + '并申请缓存');
+                                s.requestBuffer();
+                                if (pendingCreate) { pendingCreate = false; switchSession(id); }
                             }
                         });
-                        Object.keys(terms).forEach(id => {
+
+                        // 删除已不存在的会话
+                        oldIds.forEach(id => {
                             if (!currentIds.includes(id)) {
-                                if (terms[id]) {
-                                    terms[id].dispose();
-                                    delete terms[id];
+                                const s = sessions.get(id);
+                                if (s) {
+                                    addFrontendLog('删除终端' + s.name);
+                                    s.dispose();
+                                    sessions.delete(id);
                                 }
-                                if (wrappers[id]) {
-                                    wrappers[id].remove();
-                                    delete wrappers[id];
-                                }
-                                delete clientTails[id];
-                                pendingBuffer.delete(id);
-                                if (activeId === id) {
-                                    activeId = null;
-                                }
-                                addFrontendLog('删除终端' + (names[id] || 'Shell #' + id));
+                                if (activeId === id) activeId = null;
                             }
                         });
-                        // 新增: 重连后第一个 list，对 diff 交集（即双方都有的 term）发 buffer 请求
-                        // 常规 session create / kill 的 list 不会进入此分支，避免误刷旧 term 导致闪烁
+
+                        // 重连后第一个 list：对 diff 交集（即双方都有的 term）发 buffer 请求
                         if (isFirstList) {
                             isFirstList = false;
-                            oldTermIds.forEach(id => {
-                                if (currentIds.includes(id) && terms[id]) {
-                                    requestBuffer(id);
-                                    addFrontendLog('申请已存在终端' + (names[id] || 'Shell #' + id) + '的缓存');
+                            oldIds.forEach(id => {
+                                if (currentIds.includes(id)) {
+                                    sessions.get(id).requestBuffer();
+                                    addFrontendLog('申请已存在终端' + sessions.get(id).name + '的缓存');
                                 }
                             });
                         }
-                        if (!activeId && currentIds.length > 0) {
-                            // 当前会话被 kill 后，跳到 ID 最大的会话（最新创建）
-                            switchSession(currentIds.reduce((a, b) => +a > +b ? a : b));
+
+                        // 当前会话被 kill 后跳到 ID 最大者
+                        if (activeId == null && currentIds.length > 0) {
+                            switchSession(currentIds.reduce((a, b) => a > b ? a : b));
                         }
-                        const sel = document.getElementById('sessionSelect');
-                        sel.innerHTML = '';
-                        msg.ids.forEach(id => {
-                            const opt = document.createElement('option');
-                            opt.value = id;
-                            opt.textContent = names[id] || ('Shell #' + id);
-                            if (id == activeId) opt.selected = true;
-                            sel.appendChild(opt);
-                        });
+
+                        renderSessionSelect();
                     } else if (msg.type === 'buffer') {
-                        // 收到 buffer 响应，退出等待状态
-                        pendingBuffer.delete(msg.id);
-                        if (msg.data === '' && msg.pos == null) {
-                            // 档 1：未变更，跳过 reset + write
-                            addFrontendLog('缓冲区无变化，跳过回放 (' + (names[msg.id] || 'Shell #' + msg.id) + ')');
-                        } else if (msg.pos != null && terms[msg.id]) {
-                            // 档 2：增量推送（pos 存在 = 客户端 xterm 内容与服务端 buf 同步，只追加）
-                            addFrontendLog(`缓冲区增量 ${msg.data.length} 字节 (${names[msg.id] || 'Shell #' + msg.id})`);
-                            terms[msg.id].write(msg.data);
-                            appendClientTail(msg.id, msg.data);
-                        } else if (msg.data && terms[msg.id]) {
-                            // 档 3：全量回放（pos 缺席 + data 非空 = 客户端与服务端不同步，需 reset）
-                            addFrontendLog(`缓冲区全量回放 ${msg.data.length} 字节 (${names[msg.id] || 'Shell #' + msg.id})`);
-                            terms[msg.id].reset();
-                            terms[msg.id].write(msg.data);
-                            appendClientTail(msg.id, msg.data);
+                        const s = sessions.get(msg.id);
+                        if (!s) return;
+                        const result = s.handleBufferResponse(msg);
+                        if (result === 'skip') {
+                            addFrontendLog('缓冲区无变化，跳过回放 (' + s.name + ')');
+                        } else if (result === 'incremental') {
+                            addFrontendLog(`缓冲区增量 ${msg.data.length} 字节 (${s.name})`);
+                        } else if (result === 'full') {
+                            addFrontendLog(`缓冲区全量回放 ${msg.data.length} 字节 (${s.name})`);
                         }
-                        hideBufferLoading(msg.id);
                     } else if (msg.type === 'data') {
-                        if (terms[msg.id]) {
-                            if (pendingBuffer.has(msg.id)) {
-                                // 等待 buffer 响应中，丢弃此 data 消息
-                                // 原因：服务端 send buffer 响应时 buf.slice(pos) 已包含 send 那一刻之前的所有 PTY 数据
-                                // 这些 data 消息的内容已包含在 buffer 响应的 data 字段中，写入会导致重复
-                                // TCP 有序保证：send buffer 响应之后的 broadcast 一定在 buffer 响应之后到达客户端
-                                //   届时 pendingBuffer.delete(id) 已执行（buffer 响应先到），后续 data 正常处理
-                                return;
-                            }
-                            terms[msg.id].write(msg.data);
-                            appendClientTail(msg.id, msg.data);
-                        }
+                        const s = sessions.get(msg.id);
+                        if (!s || s.pendingBuffer) return;  // 等待 buffer 响应中，丢弃
+                        s.write(msg.data);
                     } else if (msg.type === 'resize') {
                         rows = msg.data.rows;
                         cols = msg.data.cols;
-                        Object.keys(terms).forEach(id => {
-                            terms[id].resize(cols, rows);
-                        });
+                        sessions.forEach(s => s.resize(cols, rows));
                     } else if (msg.type === 'hotkeys') {
                         hotkeys = msg.data || {};
                         renderHotkeys();
@@ -440,12 +390,7 @@
                         maxFrontendLogs = msg.data;
                     } else if (msg.type === 'client_tail_max') {
                         clientTailMax = msg.data;
-                        // 阈值变更后裁剪已存在的 clientTails 字典
-                        Object.keys(clientTails).forEach(id => {
-                            if (clientTails[id].length > clientTailMax) {
-                                clientTails[id] = clientTails[id].slice(-clientTailMax);
-                            }
-                        });
+                        sessions.forEach(s => s.trimClientTail(clientTailMax));
                     } else if (msg.type === 'restart_server') {
                         addFrontendLog('服务端确认重启');
                     } else if (msg.type === 'buffer_size') {
@@ -505,44 +450,25 @@
         }
         setupHoldScroll('scrollXtermUpBtn', scrollXtermUp);
         setupHoldScroll('scrollXtermDownBtn', scrollXtermDown);
-        function createTermInstance(id) {
-            const wrapper = document.createElement('div');
-            wrapper.className = 'term-wrapper';
-            wrapper.style.display = 'none'; // 默认隐藏：旁观者客户端看不到新 wrapper；创建者由 switchSession 翻成 block
-            document.getElementById('terminal-container').appendChild(wrapper);
-            wrappers[id] = wrapper;
-            const term = new Terminal({ allowProposedApi: true });
-            term.open(wrapper);
-            term.loadAddon(new WebLinksAddon.WebLinksAddon());
-            term.loadAddon(new Unicode11Addon.Unicode11Addon());
-            term.unicode.activeVersion = '11';
-            terms[id] = term;
-            term.onData(data => {
-                wsSend({ type: 'input', id: id, data: data });
+        
+        function renderSessionSelect() {
+            const sel = document.getElementById('sessionSelect');
+            sel.innerHTML = '';
+            sessions.forEach((s, id) => {
+                const opt = document.createElement('option');
+                opt.value = id;
+                opt.textContent = s.name || ('Shell #' + id);
+                if (id === activeId) opt.selected = true;
+                sel.appendChild(opt);
             });
-            if (Number.isInteger(rows) && Number.isInteger(cols)) {
-                term.resize(cols, rows);
-            }
-            addFrontendLog('新建终端' + (names[id] || 'Shell #' + id) + '并申请缓存');
-            requestBuffer(id);
-            // 仅当本客户端刚刚发起过 create 时，才跳到新终端
-            if (pendingCreate) {
-                pendingCreate = false;
-                switchSession(id);
-            }
-            
         }
         function switchSession(id) {
-            if (activeId === id) return;
-            if (activeId && wrappers[activeId]) {
-                wrappers[activeId].style.display = 'none';
-            }
-            activeId = id;
-            if (wrappers[id]) {
-                wrappers[id].style.display = 'block';
-                terms[id].focus();
-            }
-            document.getElementById('sessionSelect').value = id;
+            const idNum = parseInt(id);  // 兼容 select.onchange 传 string
+            if (activeId === idNum) return;
+            if (activeId != null) sessions.get(activeId)?.hide();
+            activeId = idNum;
+            sessions.get(idNum)?.show();
+            document.getElementById('sessionSelect').value = idNum;
             // 弹窗打开时同步「检测」按钮的可用性
             const queryBtn = document.getElementById('queryBufferSizeBtn');
             if (queryBtn) queryBtn.disabled = !activeId;
@@ -556,17 +482,16 @@
             wsSend({ type: 'create' });
         }
         function killCurrent() {
-            if (activeId) {
-                addFrontendLog('关闭终端 (' + (names[activeId] || 'Shell #' + activeId) + ')');
-                wsSend({ type: 'kill', id: activeId });
-            }
+            if (activeId == null) return;
+            addFrontendLog('关闭终端 (' + (sessions.get(activeId)?.name || 'Shell #' + activeId) + ')');
+            wsSend({ type: 'kill', id: activeId });
         }
         function renameCurrent() {
-            if (!activeId) return;
-            const current = names[activeId] || ('Shell #' + activeId);
-            const name = prompt('重命名当前会话', current);
+            if (activeId == null) return;
+            const cur = sessions.get(activeId)?.name || ('Shell #' + activeId);
+            const name = prompt('重命名当前会话', cur);
             if (name === null) return;
-            wsSend({ type: 'rename', id: parseInt(activeId), data: name });
+            wsSend({ type: 'rename', id: activeId, data: name });
             addFrontendLog('终端重命名: ' + (name.trim() || '(空)'));
         }
         function renameAll() {
@@ -576,14 +501,9 @@
 
 
         function sendSgrWheel(dir) {
-            if (!terms[activeId]) return;
-            const y = Math.ceil(terms[activeId].rows / 2);
-            const code = dir > 0 ? 65 : 64;
-            const seq = '\x1b[<' + code + ';' + y + ';1M';
-            // 一次滚动发送 scrollStep 个滚轮事件
-            for (let i = 0; i < scrollStep; i++) {
-                sendInput(seq);
-            }
+            const s = sessions.get(activeId);
+            if (!s) return;
+            s.sendSgrWheel(dir);
         }
         function wsSend(obj) {
             if (!ws || ws.readyState !== 1) return;
@@ -596,9 +516,9 @@
         function sendInput(data) { if (activeId) wsSend({ type: 'input', id: activeId, data: data }); }
         function scrollUp() { sendSgrWheel(-1); }
         function scrollDown() { sendSgrWheel(1); }
-        function scrollBottom() { if (terms[activeId]) terms[activeId].scrollToBottom(); }
-        function scrollXtermUp() { if (terms[activeId]) terms[activeId].scrollLines(-1); }
-        function scrollXtermDown() { if (terms[activeId]) terms[activeId].scrollLines(1); }
+        function scrollBottom() { sessions.get(activeId)?.scrollToBottom(); }
+        function scrollXtermUp() { sessions.get(activeId)?.scrollLines(-1); }
+        function scrollXtermDown() { sessions.get(activeId)?.scrollLines(1); }
 
         // === 快捷键 ===
         function renderHotkeys() {
