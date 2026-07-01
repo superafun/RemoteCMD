@@ -18,5 +18,5 @@
   "scrollInterval": 20,
   "maxBuffer": 2,
   "maxFrontendLogs": 40,
-  "clientTailMax": 512
+  "clientTailMax": 1024
 }
