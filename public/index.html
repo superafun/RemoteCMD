@@ -178,7 +178,8 @@
             document.getElementById('settingsLargeColsInput').value = sizeSlots.large?.cols ?? 120;
             document.getElementById('settingsSmallRowsInput').value = sizeSlots.small?.rows ?? 24;
             document.getElementById('settingsSmallColsInput').value = sizeSlots.small?.cols ?? 80;
-            document.getElementById('settingsScrollIntervalInput').value = scrollInterval;
+            document.getElementById('settingsScrollIntervalTerminalInput').value = scrollIntervalTerminal;
+            document.getElementById('settingsScrollIntervalPageInput').value = scrollIntervalPage;
             document.getElementById('settingsMaxBufferInput').value = maxBuffer;
             document.getElementById('settingsMaxFrontendLogsInput').value = maxFrontendLogs;
             document.getElementById('settingsClientTailMaxInput').value = clientTailMax;
@@ -216,14 +217,24 @@
             setTimeout(() => { btn.textContent = '应用'; btn.style.color = ''; }, 1500);
         }
 
-        function applySettingsScrollInterval() {
-            const v = parseInt(document.getElementById('settingsScrollIntervalInput').value);
+        function applySettingsScrollIntervalTerminal() {
+            const v = parseInt(document.getElementById('settingsScrollIntervalTerminalInput').value);
             if (Number.isInteger(v) && v >= 1 && v <= 1000) {
-                // 客户端不立即修改 scrollInterval：等服务端广播回来再更新（避免 ws 失败时本地与服务端不一致）
-                wsSend({ type: 'scroll_interval', data: v });
-                fbBtn('btn-apply-scrollInterval', true);
+                // 服务端权威：只发不发本地状态，收到 broadcast 后再更新
+                wsSend({ type: 'scroll_interval_terminal', data: v });
+                fbBtn('btn-apply-scrollIntervalTerminal', true);
             } else {
-                fbBtn('btn-apply-scrollInterval', false);
+                fbBtn('btn-apply-scrollIntervalTerminal', false);
+            }
+        }
+
+        function applySettingsScrollIntervalPage() {
+            const v = parseInt(document.getElementById('settingsScrollIntervalPageInput').value);
+            if (Number.isInteger(v) && v >= 1 && v <= 1000) {
+                wsSend({ type: 'scroll_interval_page', data: v });
+                fbBtn('btn-apply-scrollIntervalPage', true);
+            } else {
+                fbBtn('btn-apply-scrollIntervalPage', false);
             }
         }
 
