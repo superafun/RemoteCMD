@@ -54,7 +54,8 @@ server.js
 | `list` | 当前会话 ID 列表（连接时及会话变更后发送） |
 | `data` | 指定会话的终端输出（id + data） |
 | `buffer` | 历史缓冲区响应（id + data + 可选 pos）。`pos` 存在 = 档 2 增量推送（客户端只 write 追加）；`pos` 缺席 + `data === ''` = 档 1 未变更（客户端跳过）；`pos` 缺席 + `data !== ''` = 档 3 全量回放（客户端 reset + write） |
-| `resize` | 终端尺寸变更广播（id: 0, data: {rows, cols}） |
+| `size_slots` | 大/小尺寸槽位全量广播（data: {large: {rows, cols}, small: {rows, cols}}），连接建立时下发 + 客户端写槽后广播 |
+| `current_size` | 当前尺寸广播（data: 'large' \| 'small'），连接建立时下发 + 客户端切换后广播 |
 | `hotkeys` | 快捷键配置同步 |
 | `scroll_interval` | 按住滚动间隔（单位：ms） |
 | `max_buffer` | 缓冲区上限值（单位：MB） |
@@ -71,7 +72,8 @@ server.js
 | `input` | 向会话写入数据（id + data） |
 | `kill` | 关闭会话（id） |
 | `buffer` | 请求会话的缓冲区回放（id + 可选 tail，tail 是客户端最近 N 字节原始字符串，默认 N = config.clientTailMax）。服务端按 `endsWith` → `lastIndexOf` → 全量 三档响应（见注意事项 18） |
-| `resize` | 调整所有终端尺寸（id: 0, data: {rows, cols}） |
+| `size_slots` | 写大/小尺寸槽位（sizeMode: 'large'\|'small' + rows + cols），服务端会写槽 + 落盘 + 全量广播 |
+| `current_size` | 切换当前尺寸（size: 'large'\|'small'），服务端会切换 + 调所有 PTY + 落盘 + 广播 |
 | `hot_keys` | 更新快捷键配置（data） |
 | `scroll_interval` | 更新按住滚动间隔（data，单位：ms） |
 | `max_buffer` | 更新缓冲区上限（单位：MB） |
@@ -108,6 +110,9 @@ server.js
 - **`renderHotkeys()`** —— 从 `hotkeys` 映射渲染快捷键按钮。
 - **`openHotkeyEditor()`** —— 用于添加、删除、重新排序快捷键的模态弹窗。
 - **`syncHotkeys()`** —— 发送 `{type:'hot_keys', data:hotkeys}` 到服务端。
+- **`toggleSize()`** —— 顶栏大/小尺寸切换按钮。发 `{type:'current_size', size:'large'|'small'}` 到服务端。按钮文字由服务端 broadcast `current_size` 后由 `updateSizeToggleText()` 回填。
+- **`applySettingsSizeFor(sizeMode)`** —— 设置弹窗大/小尺寸"应用"按钮。发两条消息：先 `size_slots`(sizeMode, rows, cols) 写槽，再 `current_size`(size: sizeMode) 切尺寸。
+- **`updateSizeToggleText()`** —— 收到 `current_size` 时更新顶栏按钮文字（大/小）。
 
 ## 编码约定
 
@@ -224,6 +229,8 @@ server.js
     - 截断方式：`frontendLogs = frontendLogs.slice(-maxFrontendLogs)`
     - 完整链路：前端变量 → WebSocket `max_frontend_logs` 消息 → server.js 持久化到 config.json → 连接时同步所有客户端
     - `loadConfig` 兜底：非数字/超范围时回退到 50
+
+26. **大/小尺寸切换 + 双槽位（2026-07-01 引入）**：顶栏 `#sizeToggleBtn` 按钮在 large/small 之间切换。设置弹窗分大/小两节，每节独立设置行/列。协议：`size_slots`（C→S 写槽 + S→C 全量广播）/ `current_size`（C→S 切换 + S→C 广播当前尺寸）。旧的 `resize` 消息整条删除（C→S 和 S→C 双向）。**应用 = 切换 + 写槽**：用户点"应用"发两条消息（先 `size_slots` 写槽，再 `current_size` 切尺寸）。**默认值**：large=60×120, small=24×80。**记忆**：服务端通过 `config.currentSize` 字段记忆上次切换结果，连接建立时下发。**校验**：服务端对 sizeMode/size 必须是 'large'/'small'，rows/cols 必须在 20-200 整数范围内，非法值拒收。`config.sizeSlots` 字段是对象，键为 'large'/'small'，值为 `{rows, cols}`。
 
 ## 开发工作流
 
