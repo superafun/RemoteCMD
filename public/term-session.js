@@ -50,6 +50,10 @@ class TermSession {
 
     // === Buffer 协议 ===
     requestBuffer() {
+        // 发送前确保 tail 不超过阈值（appendClientTail 是滞回式，可能还没裁）
+        if (this.clientTail.length > clientTailMax) {
+            this.clientTail = this.clientTail.slice(-clientTailMax);
+        }
         this.pendingBuffer = true;
         wsSend({ type: 'buffer', id: this.id, tail: this.clientTail });
         this.showBufferLoading();
