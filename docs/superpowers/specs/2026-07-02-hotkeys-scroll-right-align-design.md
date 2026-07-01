@@ -70,12 +70,31 @@
 
 ### 2. CSS 变更
 
-**无新增 CSS**。现有规则已足够:
+修改 [public/styles.css L207-L209](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/public/styles.css#L207-L209) 之后新增 `#scrollGroup button` 规则:
 
+```css
+.toolbar button, #hotkeys-bar button {
+    min-width: 60px;  /* 防止短文字按钮（如 ▲、编辑）被压缩到看不清 */
+}
+/* 5 个滚动按钮的文字已经有 4 字 + 1 符号,不需要默认 14px 横向 padding */
+#scrollGroup button {
+    padding-left: 6px;
+    padding-right: 6px;
+    min-width: 0;  /* 取消通用 min-width: 60px,允许按内容收缩 */
+}
+```
+
+**为什么需要**:
+- 默认 `button` 规则有 `padding: 6px 14px`(见 [public/styles.css L68-L80](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/public/styles.css#L68-L80))
+- 通用 `.toolbar button, #hotkeys-bar button` 规则有 `min-width: 60px`(见 [public/styles.css L207-L209](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/public/styles.css#L207-L209))
+- 5 个滚动按钮的文字(▲上滑终端等)已经有 4 字 + 1 符号,不需要 14px 横向 padding,也不需要 min-width: 60px
+- 缩窄后 5 个滚动按钮总宽度从 ~550px 降到 ~430px,这样第一行占满时,第二行如有空间就能装下 5 个按钮
+- 取消 min-width: 0 是因为内容已经够宽,不需要强制最小宽度
+
+**其他规则**:
 - `#hotkeys-bar` 已有 `display: flex; flex-wrap: wrap; gap: 0; align-items: center;`(见 [public/styles.css L177-L183](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/public/styles.css#L177-L183))
-- `.toolbar button, #hotkeys-bar button` 已有 `min-width: 60px`(见 [public/styles.css L207-L209](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/public/styles.css#L207-L209))
-- 5 个滚动按钮的 `min-width: 60px` × 5 = 300px 是 `#scrollGroup` 的最小自然宽度,放进 hotkey-bar 时遵循 flex-wrap 行为
-- `#scrollGroup` 用 inline style,无需新增 CSS class
+- `#scrollGroup` 用 inline style(`display:flex; flex-shrink:0; margin-left:auto`)
+- 5 个滚动按钮的 inline style + CSS 规则已足够,无其他新增 CSS
 
 ### 3. JS 变更
 
@@ -131,8 +150,8 @@ function renderHotkeys() {
 | 0 个快捷键 | hotkeyList 只有一个「编辑」按钮(在最左),5 个滚动按钮在同一行最右侧 |
 | 1-3 个快捷键 | 快捷键 + 「编辑」+ 5 个滚动按钮在一行(滚动按钮在右) |
 | 4-6 个快捷键 | 一行装下,5 个滚动按钮在右 |
-| 10+ 快捷键(第一行满,第二行有 3 个快捷键 + 编辑,右侧有 5+ 按钮空隙) | 第一行满,第二行 = 3 个快捷键 + 编辑 + 5 个滚动按钮(右侧) |
-| 10+ 快捷键(第一行满,第二行也有 8+ 个快捷键占满) | 第二行满,第三行 = 5 个滚动按钮(右侧) |
+| 10-11 个快捷键(第一行满) | 第一行 = 全部快捷键 + 编辑;第二行 = 5 个滚动按钮(右侧,整行) |
+| 12-18 个快捷键(第一行满,第二行有 1-7 个快捷键 + 编辑) | 第一行 = 部分快捷键;第二行 = 剩余快捷键 + 编辑 + 5 个滚动按钮(右侧) |
 | 20+ 快捷键(前两行满,第三行有部分快捷键) | 前两行满,第三行 = 剩余快捷键 + 编辑 + 5 个滚动按钮(右侧) |
 | 添加/删除/编辑快捷键 | renderHotkeys 重跑,「编辑」和 #scrollGroup 位置不变 |
 | 5 个滚动按钮内部 | 永远在一行,顺序:▲上滑终端,▼下滑终端,▲上滑页面,▼下滑页面,▽到底页面 |
