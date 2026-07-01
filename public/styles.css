@@ -213,6 +213,17 @@
             padding-right: 6px;
             min-width: 0;  /* 取消通用 min-width: 60px,允许按内容收缩 */
         }
+        /* 「编辑」按钮职责是打开快捷键编辑器(管理),跟发送指令的快捷键按钮不同
+           用蓝色高亮,跟深灰色的快捷键/滚动按钮形成视觉区分 */
+        #editBtn {
+            background: #1e6fb8;
+            border-color: #4a9eff;
+            color: #fff;
+        }
+        #editBtn:hover {
+            background: #2680d4;
+            border-color: #6ab0ff;
+        }
         #wsStatus {
             margin-left: 4px;
             user-select: none;
