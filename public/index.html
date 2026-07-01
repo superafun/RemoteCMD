@@ -26,13 +26,16 @@
         </div>
         <div id="terminal-container"></div>
         <div id="hotkeys-bar">
-            <div id="hotkeysList" style="display:flex;gap:0;flex-wrap:wrap;"></div>
-            <button id="editBtn">编辑</button>
-            <button id="scrollUpBtn">▲上滑终端</button>
-            <button id="scrollDownBtn">▼下滑终端</button>
-            <button id="scrollXtermUpBtn">▲上滑页面</button>
-            <button id="scrollXtermDownBtn">▼下滑页面</button>
-            <button id="scrollBottomBtn">▽到底页面</button>
+            <div id="hotkeysList" style="display:flex;gap:0;flex-wrap:wrap;">
+                <button id="editBtn">编辑</button>
+                <div id="scrollGroup" style="display:flex;flex-shrink:0;margin-left:auto;">
+                    <button id="scrollUpBtn">▲上滑终端</button>
+                    <button id="scrollDownBtn">▼下滑终端</button>
+                    <button id="scrollXtermUpBtn">▲上滑页面</button>
+                    <button id="scrollXtermDownBtn">▼下滑页面</button>
+                    <button id="scrollBottomBtn">▽到底页面</button>
+                </div>
+            </div>
         </div>
     </div>
     <script src="./xterm/lib/xterm.js"></script>
@@ -62,6 +65,11 @@
         // === 前端日志 ===
         let maxFrontendLogs = 50;
         const frontendLogs = [];
+        // 保留 hotkeyList 内固定尾部元素（编辑按钮 + 滚动按钮组）的引用
+        // renderHotkeys() 中 bar.innerHTML = '' 会把它们从 DOM 树摘下,getElementById 失效
+        // 必须用变量持有引用才能在 renderHotkeys 末尾 appendChild 回去
+        const editBtnEl = document.getElementById('editBtn');
+        const scrollGroupEl = document.getElementById('scrollGroup');
 
         function addFrontendLog(msg) {
             const t = new Date();
@@ -545,6 +553,8 @@
         renderSessionSelect();
         connect();
         document.getElementById('editBtn').onclick = openHotkeyEditor;
+        // editBtn 引用已保留为 editBtnEl（被 renderHotkeys 重新附加），上行的 getElementById 在首次
+        // init 时拿到引用并赋值 onclick 即可，后续即使元素被摘下再附加，onclick 仍在同一 JS 对象上
         document.getElementById('scrollBottomBtn').onclick = scrollBottom;
         // 按住连续滚动（pointerdown 立即触发，pointerup/pointerleave 停止）
         // setInterval 创建时调用 intervalGetter() 读一次周期，运行期间不变（需释放+再次按住才按新值）
@@ -658,6 +668,12 @@
                 btn.onclick = () => sendInput(hotkeys[name]);
                 bar.appendChild(btn);
             });
+            // 「编辑」按钮和 #scrollGroup 是 hotkeyList 的固定尾部元素
+            // renderHotkeys 重跑时（添加/删除/编辑/移动快捷键）需要重新附加
+            // CSS 换行时 #scrollGroup 会跟着 hotkeyList 内部 flex-wrap 走,
+            // 自然落到有空隙的那一行右侧
+            bar.appendChild(editBtnEl);
+            bar.appendChild(scrollGroupEl);
         }
 
         function openHotkeyEditor() {
