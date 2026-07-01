@@ -462,6 +462,7 @@
                             document.getElementById('settingsSmallRowsInput').value = sizeSlots.small.rows;
                             document.getElementById('settingsSmallColsInput').value = sizeSlots.small.cols;
                         }
+                        addFrontendLog('尺寸槽位已更新');
                     } else if (msg.type === 'current_size') {
                         currentSize = msg.data;
                         const slot = sizeSlots[currentSize];
@@ -469,20 +470,26 @@
                             sessions.forEach(s => s.resize(slot.cols, slot.rows));
                         }
                         updateSizeToggleText();
+                        addFrontendLog(`当前尺寸切换为 ${currentSize === 'large' ? '大' : '小'} (${slot ? slot.rows + 'x' + slot.cols : '未配置'})`);
                     } else if (msg.type === 'hotkeys') {
                         hotkeys = msg.data || {};
                         renderHotkeys();
                         if (editorDiv) openHotkeyEditor();
+                        addFrontendLog('快捷键配置已同步');
                     } else if (msg.type === 'scroll_interval') {
                         scrollInterval = msg.data;
+                        addFrontendLog('按住滚动间隔同步为 ' + scrollInterval + ' ms');
                     } else if (msg.type === 'max_buffer') {
                         maxBuffer = msg.data;
+                        addFrontendLog('缓冲区上限同步为 ' + maxBuffer + ' MB');
                     } else if (msg.type === 'max_frontend_logs') {
                         maxFrontendLogs = msg.data;
+                        addFrontendLog('日志上限同步为 ' + maxFrontendLogs + ' 条');
                     } else if (msg.type === 'client_tail_max') {
                         clientTailMax = msg.data;
                         clientTailMax2 = msg.data * 2;
                         sessions.forEach(s => s.trimClientTail(clientTailMax));
+                        addFrontendLog('buffer 去重比对长度同步为 ' + clientTailMax + ' 字节');
                     } else if (msg.type === 'restart_server') {
                         addFrontendLog('服务端确认重启');
                     } else if (msg.type === 'buffer_size') {
@@ -493,6 +500,7 @@
                         if (resultEl) {
                             resultEl.textContent = `当前会话占用: ${usedMB} MB / ${maxMB} MB (${pct}%)`;
                         }
+                        addFrontendLog(`缓冲区占用: ${usedMB} MB / ${maxMB} MB (${pct}%)`);
                     }
                 };
             }
@@ -753,6 +761,7 @@
 
         function syncHotkeys() {
             wsSend({ type: 'hot_keys', data: hotkeys });
+            addFrontendLog('快捷键已同步给服务端');
         }
 
         // === 连接状态检测（事件驱动，2026-06-30 由 1Hz 轮询改为事件触发）===
