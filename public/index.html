@@ -21,6 +21,7 @@
             <button onclick="createNew()">新建终端</button>
             <button onclick="killCurrent()">关闭终端</button>
             <button onclick="openSettingsModal()">设置</button>
+            <button id="sizeToggleBtn" onclick="toggleSize()">大</button>
             <span id="wsStatus"></span>
         </div>
         <div id="terminal-container"></div>
@@ -44,10 +45,10 @@
         let hotkeys = {};
         let scrollInterval = 100;
         let maxBuffer = 50000;
-        // rows / cols 替代原 #rowsInput / #colsInput（2026-06-30 移除 hidden input）
-        // 初始 null：服务端 resize 消息到达前不调用 term.resize
-        let rows = null;
-        let cols = null;
+        // sizeSlots / currentSize 替代原 rows/cols（2026-07-01 改用 size_slots/current_size 协议）
+        // 初始 null：服务端消息到达前不调用 term.resize，也不渲染弹窗默认值
+        let sizeSlots = { large: null, small: null };
+        let currentSize = null;  // 'large' | 'small' | null
         let editorDiv = null;
         let editingKey = null;
         // 标记"刚才那个 create 请求是不是本客户端发起的"，决定新终端是否自动切换
@@ -105,12 +106,23 @@
             html += '<div class="modal-box" style="min-width:420px;">';
             html += '<h3>设置</h3>';
 
-            // 终端大小
-            html += '<div class="modal-row">';
-            html += '行 <input type="number" id="settingsRowsInput" min="20" max="200" style="width:80px;">';
-            html += '列 <input type="number" id="settingsColsInput" min="20" max="200" style="width:80px;">';
-            html += '<button class="btn-primary" id="btn-apply-size" onclick="applySettingsSize()">应用</button>';
-            html += '</div>';
+            // === 终端大小（大尺寸） ===
+            html += '<div class="modal-row" style="flex-direction:column;align-items:flex-start;gap:4px;">';
+            html += '<div style="color:#a0a0a0;">大尺寸</div>';
+            html += '<div style="display:flex;gap:6px;align-items:center;">';
+            html += '行 <input type="number" id="settingsLargeRowsInput" min="20" max="200" style="width:80px;">';
+            html += '列 <input type="number" id="settingsLargeColsInput" min="20" max="200" style="width:80px;">';
+            html += '<button class="btn-primary" id="btn-apply-largeSize" onclick="applySettingsLargeSize()">应用</button>';
+            html += '</div></div>';
+
+            // === 终端大小（小尺寸） ===
+            html += '<div class="modal-row" style="flex-direction:column;align-items:flex-start;gap:4px;">';
+            html += '<div style="color:#a0a0a0;">小尺寸</div>';
+            html += '<div style="display:flex;gap:6px;align-items:center;">';
+            html += '行 <input type="number" id="settingsSmallRowsInput" min="20" max="200" style="width:80px;">';
+            html += '列 <input type="number" id="settingsSmallColsInput" min="20" max="200" style="width:80px;">';
+            html += '<button class="btn-primary" id="btn-apply-smallSize" onclick="applySettingsSmallSize()">应用</button>';
+            html += '</div></div>';
 
             // 按住滚动间隔 (ms)
             html += '<div class="modal-row">';
@@ -155,8 +167,10 @@
             document.body.appendChild(settingsDiv);
 
             // 同步当前值到弹窗
-            document.getElementById('settingsRowsInput').value = rows;
-            document.getElementById('settingsColsInput').value = cols;
+            document.getElementById('settingsLargeRowsInput').value = sizeSlots.large?.rows ?? 60;
+            document.getElementById('settingsLargeColsInput').value = sizeSlots.large?.cols ?? 120;
+            document.getElementById('settingsSmallRowsInput').value = sizeSlots.small?.rows ?? 24;
+            document.getElementById('settingsSmallColsInput').value = sizeSlots.small?.cols ?? 80;
             document.getElementById('settingsScrollIntervalInput').value = scrollInterval;
             document.getElementById('settingsMaxBufferInput').value = maxBuffer;
             document.getElementById('settingsMaxFrontendLogsInput').value = maxFrontendLogs;
@@ -193,18 +207,6 @@
             btn.textContent = ok ? '✓已应用' : '✗无效';
             btn.style.color = ok ? '#4caf50' : '#f44336';
             setTimeout(() => { btn.textContent = '应用'; btn.style.color = ''; }, 1500);
-        }
-
-        function applySettingsSize() {
-            const r = parseInt(document.getElementById('settingsRowsInput').value);
-            const c = parseInt(document.getElementById('settingsColsInput').value);
-            if (Number.isInteger(r) && Number.isInteger(c)) {
-                wsSend({ type: 'resize', id: 0, data: { rows: r, cols: c } });
-                addFrontendLog('终端尺寸变更为 ' + r + 'x' + c);
-                fbBtn('btn-apply-size', true);
-            } else {
-                fbBtn('btn-apply-size', false);
-            }
         }
 
         function applySettingsScrollInterval() {
@@ -254,6 +256,43 @@
             } else {
                 fbBtn('btn-apply-clientTailMax', false);
             }
+        }
+
+        // === 大/小尺寸槽位应用（2026-07-01 引入） ===
+        // 应用 = 写 sizeSlots 槽位 + 切 currentSize（两条消息）
+        function applySettingsSizeFor(sizeMode) {
+            const isLarge = sizeMode === 'large';
+            const rInput = document.getElementById(`settings${isLarge ? 'Large' : 'Small'}RowsInput`);
+            const cInput = document.getElementById(`settings${isLarge ? 'Large' : 'Small'}ColsInput`);
+            const r = parseInt(rInput.value);
+            const c = parseInt(cInput.value);
+            if (!Number.isInteger(r) || !Number.isInteger(c)) {
+                fbBtn(`btn-apply-${sizeMode}Size`, false);
+                return;
+            }
+            // 第一步：写 sizeSlots 槽位（服务端会全量广播 size_slots）
+            wsSend({ type: 'size_slots', sizeMode, rows: r, cols: c });
+            // 第二步：切到目标尺寸（服务端会广播 current_size + 调 PTY）
+            wsSend({ type: 'current_size', size: sizeMode });
+            addFrontendLog(`${isLarge ? '大' : '小'}尺寸变更为 ${r}x${c}`);
+            fbBtn(`btn-apply-${sizeMode}Size`, true);
+        }
+
+        function applySettingsLargeSize() { applySettingsSizeFor('large'); }
+        function applySettingsSmallSize() { applySettingsSizeFor('small'); }
+
+        // === 顶栏大/小尺寸切换按钮（2026-07-01 引入） ===
+        function toggleSize() {
+            const newSize = currentSize === 'small' ? 'large' : 'small';
+            const slot = sizeSlots[newSize];
+            if (!slot) return;  // size_slots 消息还没到（极端情况）
+            wsSend({ type: 'current_size', size: newSize });
+            // 按钮文字由服务端广播 current_size 后回填，避免乐观更新与服务端不一致
+        }
+
+        function updateSizeToggleText() {
+            const btn = document.getElementById('sizeToggleBtn');
+            if (btn) btn.textContent = currentSize === 'small' ? '小' : '大';
         }
 
         function restartServer() {
@@ -412,10 +451,23 @@
                         const s = sessions.get(msg.id);
                         if (!s || s.pendingBuffer) return;  // 等待 buffer 响应中，丢弃
                         s.write(msg.data);
-                    } else if (msg.type === 'resize') {
-                        rows = msg.data.rows;
-                        cols = msg.data.cols;
-                        sessions.forEach(s => s.resize(cols, rows));
+                    } else if (msg.type === 'size_slots') {
+                        sizeSlots = msg.data;  // 全量覆盖
+                        // 弹窗打开时同步：仅在 modal 已开时刷新输入框
+                        const largeRows = document.getElementById('settingsLargeRowsInput');
+                        if (largeRows) {
+                            largeRows.value = sizeSlots.large.rows;
+                            document.getElementById('settingsLargeColsInput').value = sizeSlots.large.cols;
+                            document.getElementById('settingsSmallRowsInput').value = sizeSlots.small.rows;
+                            document.getElementById('settingsSmallColsInput').value = sizeSlots.small.cols;
+                        }
+                    } else if (msg.type === 'current_size') {
+                        currentSize = msg.data;
+                        const slot = sizeSlots[currentSize];
+                        if (slot) {
+                            sessions.forEach(s => s.resize(slot.cols, slot.rows));
+                        }
+                        updateSizeToggleText();
                     } else if (msg.type === 'hotkeys') {
                         hotkeys = msg.data || {};
                         renderHotkeys();

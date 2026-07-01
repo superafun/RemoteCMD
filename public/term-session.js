@@ -1,7 +1,9 @@
 // public/term-session.js
 // 封装单个终端会话的所有状态与行为。
 // 依赖全局：Terminal, WebLinksAddon, Unicode11Addon,
-//          wsSend, clientTailMax, rows, cols
+//          wsSend, clientTailMax
+// （rows/cols 已在 2026-07-01 改用 size_slots/current_size 协议，
+//  TermSession 构造时不立即 resize，等 current_size 消息到达后由外部循环调用 resize）
 class TermSession {
     constructor(id, container) {
         this.id = id;
@@ -26,11 +28,6 @@ class TermSession {
         this.term.onData(data => {
             wsSend({ type: 'input', id: this.id, data: data });
         });
-
-        // 若 rows/cols 已就绪则立即 resize
-        if (Number.isInteger(rows) && Number.isInteger(cols)) {
-            this.term.resize(cols, rows);
-        }
     }
 
     // === 生命周期 ===
