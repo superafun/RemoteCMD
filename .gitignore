@@ -29,3 +29,6 @@ yarn-error.log*
 *.bak
 *.tmp
 *.orig
+
+# === Subagent-Driven Development scratch ===
+.superpowers/sdd/
