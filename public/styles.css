@@ -224,6 +224,16 @@
             background: #2680d4;
             border-color: #6ab0ff;
         }
+        /* 顶栏「设置」按钮也是管理类(打开设置弹窗),跟「编辑」对应,同色 */
+        #openSettingsBtn {
+            background: #1e6fb8;
+            border-color: #4a9eff;
+            color: #fff;
+        }
+        #openSettingsBtn:hover {
+            background: #2680d4;
+            border-color: #6ab0ff;
+        }
         #wsStatus {
             margin-left: 4px;
             user-select: none;
