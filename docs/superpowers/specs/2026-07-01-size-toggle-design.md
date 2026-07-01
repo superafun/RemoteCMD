@@ -20,6 +20,7 @@
 - 旧的 `resize` 消息：客户端 → 服务端、服务端 → 客户端 双向删除。
 - 客户端 `let rows = null, cols = null;` 全局变量。
 - 客户端 `applySettingsSize()` 函数及对应的设置弹窗行/列输入项。
+- 客户端 TermSession 构造里的 `if (Number.isInteger(rows) && Number.isInteger(cols)) this.term.resize(cols, rows);` 守卫（依赖 current_size 消息到达后再 resize）。
 - 服务端 `config.rows / config.cols` 顶层字段及相关读写。
 
 ### 新增
