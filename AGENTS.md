@@ -232,6 +232,8 @@ server.js
 
 26. **大/小尺寸切换 + 双槽位（2026-07-01 引入）**：顶栏 `#sizeToggleBtn` 按钮在 large/small 之间切换。设置弹窗分大/小两节，每节独立设置行/列。协议：`size_slots`（C→S 写槽 + S→C 全量广播）/ `current_size`（C→S 切换 + S→C 广播当前尺寸）。旧的 `resize` 消息整条删除（C→S 和 S→C 双向）。**应用 = 切换 + 写槽**：用户点"应用"发两条消息（先 `size_slots` 写槽，再 `current_size` 切尺寸）。**默认值**：large=60×120, small=24×80。**记忆**：服务端通过 `config.currentSize` 字段记忆上次切换结果，连接建立时下发。**校验**：服务端对 sizeMode/size 必须是 'large'/'small'，rows/cols 必须在 20-200 整数范围内，非法值拒收。`config.sizeSlots` 字段是对象，键为 'large'/'small'，值为 `{rows, cols}`。**`current_size` 处理器无"无变化跳过"**（2026-07-01 修复行数不生效 bug）：用户在大尺寸时修改大尺寸行数，size_slots 已更新槽位，但 size 名未变 —— 若早返回则 PTY 和 xterm 都不 resize，必须刷新浏览器才能看到。修复后 `current_size` 始终按最新槽位 resize PTY + 落盘 + 广播。前端的 `sizeSlots` 已由上一条 `size_slots` 广播更新，`current_size` 处理器用 `sizeSlots[currentSize]` resize xterm 时拿到新槽位 → xterm 即时刷新。
 
+27. **前后端日志覆盖（2026-07-01 补全）**：所有 WebSocket 消息都有 `addFrontendLog` 记录（设置弹窗 → 日志 按钮可查看），**唯二例外**：`input`（C→S 键盘输入，每按键都记会产生大量噪音）和 `data`（S→C PTY 输出，每帧都记会产生大量噪音）。**接收侧 8 类**（2026-07-01 补全）：`size_slots`（'尺寸槽位已更新'）/ `current_size`（'当前尺寸切换为 大/小 (rows x cols)'）/ `hotkeys`（'快捷键配置已同步'）/ `scroll_interval`（'按住滚动间隔同步为 X ms'）/ `max_buffer`（'缓冲区上限同步为 X MB'）/ `max_frontend_logs`（'日志上限同步为 X 条'）/ `client_tail_max`（'buffer 去重比对长度同步为 X 字节'）/ `buffer_size`（'缓冲区占用: X.XX MB / Y.YY MB (Z.Z%)'）。**发送侧补 2 类**（2026-07-01 补全）：`buffer`（'开始拉取 XX 缓存'，在 `term-session.js#requestBuffer` 内）/ `hot_keys`（'快捷键已同步给服务端'，在 `syncHotkeys` 内）。**新增 wsSend 处理器时必须配套添加日志**，input/data 类高频消息除外。
+
 ## 开发工作流
 
 - **只改前端时不要重启服务器**：测试前先用 `Get-NetTCPConnection -LocalPort 65433` 检查后端服务器是否在跑。如果在跑就直接连现成的服务器测网页（静态文件刷新即可加载新前端）。只有改了 `server.js` 时才需要重启服务。
