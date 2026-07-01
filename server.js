@@ -60,18 +60,22 @@ function buildListMsg() {
     return { type: 'list', ids: Object.keys(sessions), names };
 }
 
-function computeSmartName(fallbackId) {
-    // 没有任何会话 → 不起名，让前端用 ID 兜底显示
-    const ids = Object.keys(sessions).map(Number).sort((a, b) => b - a);
-    if (ids.length === 0) return null;
-    const latestId = ids[0];
-    // 取最近会话的名字；null 表示用默认 "Shell #" + ID 作为虚拟显示
-    const latestName = sessions[latestId].name || ('Shell #' + latestId);
-    // 匹配 "Shell #N" 字面量（必须有一个空格）→ 在 N 基础上 +1
-    const m = latestName.match(/^Shell #(\d+)$/);
-    if (m) return 'Shell #' + (parseInt(m[1]) + 1);
-    // 前一个是自定义名 → 用即将分配的新 ID 作为后缀
-    return 'Shell #' + fallbackId;
+function computeSmartName() {
+    // 没有任何会话 → 返回 Shell #1
+    const ids = Object.keys(sessions).map(Number);
+    if (ids.length === 0) return 'Shell #1';
+    // 遍历所有会话，找匹配 /^Shell #(\d+)$/ 的最大数字
+    let maxN = 0;
+    for (const id of ids) {
+        const m = sessions[id].name?.match(/^Shell #(\d+)$/);
+        if (m) {
+            const n = parseInt(m[1], 10);
+            if (n > maxN) maxN = n;
+        }
+    }
+    if (maxN > 0) return 'Shell #' + (maxN + 1);
+    // 全是自定义名 → 回退 Shell #1
+    return 'Shell #1';
 }
 
 function createSession() {
@@ -83,7 +87,7 @@ function createSession() {
         cwd: process.env.USERPROFILE,
         env: process.env
     });
-    sessions[newId] = { pty: ptyProcess, buffer: '', name: computeSmartName(newId) };
+    sessions[newId] = { pty: ptyProcess, buffer: '', name: computeSmartName() };
     ptyProcess.onData((d) => {
         sessions[newId].buffer += d;
         // 滞回式：超 2x 才截断，截到 1x（避免每帧 O(N) slice）
@@ -187,7 +191,7 @@ wss.on('connection', (ws) => {
         }
         else if (type === 'rename' && sessions[id]) {
             const name = (data == null ? '' : String(data)).trim().slice(0, 50);
-            sessions[id].name = name === '' ? null : name;
+            sessions[id].name = name === '' ? computeSmartName() : name;
             broadcast(buildListMsg());
         }
         else if (type === 'rename_all') {

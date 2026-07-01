@@ -193,6 +193,16 @@ server.js
     - **list 处理器新建会话时调 `requestBuffer()`**：`this.clientTail` 是空串 → 服务端 `buf.endsWith('') === true` → 档 1 命中 → 客户端跳过 reset + write。xterm 本身是空的，没有需要恢复的内容。
     - **list 处理器删除 term 时清理**：`s.dispose(); sessions.delete(id)`（`TermSession.dispose()` 内 `term.dispose(); wrapper.remove();`，`clientTail` / `pendingBuffer` 随 Map GC 清理，无需显式 delete）。
 
+21. **`computeSmartName()` 永不返回 null（2026-07-01 修改）**：修复日志中出现 `(null)` 的问题。
+    - **原逻辑**：第一个会话返回 `null`，让前端用 ID 兜底显示；重连时服务端下发 `names: {"0": null}` 覆盖前端已有名称，导致日志显示 `null`。
+    - **新逻辑**：
+      1. 无会话 → 返回 `'Shell #1'`
+      2. 有会话 → 遍历所有会话找匹配 `/^Shell #(\d+)$/` 的最大数字 N → `'Shell #' + (N + 1)`
+      3. 全是自定义名 → 回退 `'Shell #1'`
+    - **删除了 `fallbackId` 参数**，调用处 `createSession()` 同步改为 `computeSmartName()`（无参）。
+    - **`rename` 清空时复用**：用户重命名为空字符串时，调用 `computeSmartName()` 自动计算新名称，不再产生 `null`。
+    - **影响**：后端永远不产生 `null` 名称，前端无需额外防御。
+
 ## 开发工作流
 
 - **只改前端时不要重启服务器**：测试前先用 `Get-NetTCPConnection -LocalPort 65433` 检查后端服务器是否在跑。如果在跑就直接连现成的服务器测网页（静态文件刷新即可加载新前端）。只有改了 `server.js` 时才需要重启服务。
