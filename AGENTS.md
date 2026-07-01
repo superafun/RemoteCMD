@@ -141,11 +141,12 @@ server.js
 
 ### Commit / 回退
 
-- 一个独立变更一个 commit；阶段性进展先 commit 再继续
-- commit 前 `git status` 确认要 add 的文件，**禁止** `git add -A`（会带进临时文件）
-- 单步回退：`git revert HEAD`；多步：`git revert <sha1>..<sha2>`
-- **禁止** `git reset --hard` 撤销已超过 1 个 commit 的历史
-- git 管代码版本，PM2 管进程生命周期，两者正交。**禁止**用 git 命令误杀 PM2 进程
+- **每次代码修改完成后必须立即 git commit**，不允许累积多个改动后再一次性提交。
+- 一个独立变更一个 commit；阶段性进展先 commit 再继续。
+- commit 前 `git status` 确认要 add 的文件，**禁止** `git add -A`（会带进临时文件）。
+- 单步回退：`git revert HEAD`；多步：`git revert <sha1>..<sha2>`。
+- **禁止** `git reset --hard` 撤销已超过 1 个 commit 的历史。
+- git 管代码版本，PM2 管进程生命周期，两者正交。**禁止**用 git 命令误杀 PM2 进程。
 
 ## 已知注意事项
 
