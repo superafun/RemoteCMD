@@ -55,6 +55,7 @@
         let isFirstList = true;  // 重连后第一个 list 标志，用于触发 diff 交集的 buffer 增量拉取
         let bufferQueue = [];  // 等待加载缓存的后台终端 ID 队列
         let clientTailMax = 4096;  // 默认值，config.json 加载后会覆盖
+        let clientTailMax2 = clientTailMax * 2;
         let settingsDiv = null;  // 设置弹窗 DOM 句柄
         // === 前端日志 ===
         let maxFrontendLogs = 50;
@@ -246,6 +247,7 @@
             const v = parseInt(document.getElementById('settingsClientTailMaxInput').value);
             if (Number.isInteger(v) && v >= 64 && v <= 65536) {
                 clientTailMax = v;
+                clientTailMax2 = v * 2;
                 wsSend({ type: 'client_tail_max', data: clientTailMax });
                 addFrontendLog('buffer 去重比对长度变更为 ' + v + ' 字节');
                 fbBtn('btn-apply-clientTailMax', true);
@@ -426,6 +428,7 @@
                         maxFrontendLogs = msg.data;
                     } else if (msg.type === 'client_tail_max') {
                         clientTailMax = msg.data;
+                        clientTailMax2 = msg.data * 2;
                         sessions.forEach(s => s.trimClientTail(clientTailMax));
                     } else if (msg.type === 'restart_server') {
                         addFrontendLog('服务端确认重启');

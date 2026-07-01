@@ -81,7 +81,7 @@ class TermSession {
         if (!chunk) return;
         let buf = this.clientTail + chunk;
         // 滞回式：超 2x 才截断，截到 1x（避免每帧 O(N) slice）
-        if (buf.length > clientTailMax * 2) buf = buf.slice(-clientTailMax);
+        if (buf.length > clientTailMax2) buf = buf.slice(-clientTailMax);
         this.clientTail = buf;
     }
 
