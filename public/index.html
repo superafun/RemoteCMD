@@ -287,6 +287,7 @@
             const slot = sizeSlots[newSize];
             if (!slot) return;  // size_slots 消息还没到（极端情况）
             wsSend({ type: 'current_size', size: newSize });
+            addFrontendLog(`切换为${newSize === 'large' ? '大' : '小'}尺寸 (${slot.rows}x${slot.cols})`);
             // 按钮文字由服务端广播 current_size 后回填，避免乐观更新与服务端不一致
         }
 
