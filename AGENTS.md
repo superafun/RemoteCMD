@@ -241,11 +241,15 @@ server.js
 
 28. **服务端权威 + 客户端不乐观更新（2026-07-01 修复）**：设置类 `apply*` 处理器**不应在 `wsSend` 之前修改本地状态**，否则 ws 失败时本地已变但服务器没变，下次重连被服务器覆盖 → "看似应用了" 实际没生效的不一致。**正确模式**：只 `wsSend`，本地状态由 `ws.onmessage` 收到 broadcast 后统一更新（接收侧已有 `xxx = msg.data` 赋值）。**已修复**：`applySettingsScrollIntervalTerminal` / `applySettingsScrollIntervalPage` / `applySettingsMaxBuffer` / `applySettingsMaxFrontendLogs` / `applySettingsClientTailMax` —— 删除 `scrollIntervalTerminal = v` / `scrollIntervalPage = v` / `maxBuffer = v` / `maxFrontendLogs = v` / `clientTailMax = v; clientTailMax2 = v * 2` 5 处本地 mutation，删除对应发送侧 `addFrontendLog`（与接收侧 'X 同步为 Y' 重复）。**已是正确模式**（无需改）：`applySettingsSizeFor` / `toggleSize`（size 类只读 sizeSlots/currentSize 不修改）/ `renameCurrent` / `renameAll` / `createNew`（pendingCreate 是创建标志位非配置）/ `killCurrent`（本地 term 由 list 处理器统一删）/ `restartServer` / `syncHotkeys`（hotkeys 已在用户编辑时改）。**fbBtn 保持立即调用**："指令已发出"语义；wsSend 失败时 `wsSend` 内部 catch 会 log 失败原因。**新增 apply 类处理器时**：只发不发本地状态，本地状态由 `ws.onmessage` 接收侧负责更新。
 
-29. **新建终端时 xterm 尺寸同步（2026-07-02 修复）**：用户报 bug「新建终端时终端变小」。根因是 list 处理器 newIds 分支创建 TermSession 后未调 resize，新 xterm 保持默认 80×24（xterm.js Terminal 构造时未传 cols/rows 的默认值），而服务端 PTY 已用 `config.sizeSlots[config.currentSize]` 创建（如 34×110）。**为什么 current_size 处理器兜不住**：首次连接场景服务端按 `list → size_slots → current_size` 顺序下发，current_size 处理器 `sessions.forEach(s => s.resize(...))` 兜底 OK；但**新建终端场景服务端只 broadcast list，不会重发 current_size**（currentSize 没变），所以新会话保持 80×24。**修复位置**：[public/index.html L388-L398](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/public/index.html#L388-L398) list 处理器 newIds 分支加 `const slot = currentSize && sizeSlots[currentSize]; if (slot) s.resize(slot.cols, slot.rows);`。**安全性**：
-    - 首次连接场景：list 到达时 `currentSize/sizeSlots` 仍为 null，`slot` 取不到跳过；后续 current_size 消息到达时 `sessions.forEach` 兜底 ✓
-    - 非首次连接的新建：`sizeSlots/currentSize` 已有值（首次连接收到过），立即 resize ✓
-    - 断网重连：客户端 JS 变量保留重连前的值，且 list 处理器不加 isFirstList 标记下也会进入新会话分支；服务端 `wss.on('connection')` 不重发 size_slots/current_size 但客户端变量不丢 ✓
-    - 用户刷新页面后极短时间内点新建（100ms 内）：sizeSlots/currentSize 仍为 null 跳过；current_size 后续到达时 `sessions.forEach` 兜底 ✓
+29. **WS 消息顺序：先设置后 list（2026-07-02 重构）**：服务端 `wss.on('connection')` 下发顺序为 `size_slots → current_size → list`（参考 [server.js L141-L143](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/server.js#L141-L143)），前端 list 处理器 newIds 分支可直接 `s.resize(sizeSlots[currentSize].cols, sizeSlots[currentSize].rows)` 无条件 resize（参考 [public/index.html L388-L397](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/public/index.html#L388-L397)），不区分"首次连接"和"后续新建"两条路径。
+    - **设计动机**：bug「新建终端时终端变小」原修复是 list 处理器 newIds 加 `if (slot) resize` 守卫（slot 取不到时跳过），由 `current_size` 处理器 `sessions.forEach` 兜底首次连接场景。用户提出两条路径应统一，**根本办法是调整 WS 消息顺序**：让 list 之前一定有 size_slots/current_size，newIds 一定能取到 slot。
+    - **current_size 处理器保留**（[public/index.html L484-L491](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/public/index.html#L484-L491)）：`sessions.forEach(s => s.resize(...))` 仍负责"用户切换大/小尺寸"时的全量 resize。首次连接时 sessions Map 还没填充（list 未到），forEach 是 no-op；后续 list 到达时 list 处理器统一 resize 新会话。两条路径职责分明：list = 创建新会话并 resize，current_size = 调整现有会话尺寸。
+    - **安全性**：
+      - 首次连接：size_slots → current_size → list 顺序下发，list 到达时 sizeSlots/currentSize 已就绪，newIds 无条件 resize ✓
+      - 非首次连接的新建：客户端 JS 变量 sizeSlots/currentSize 保留，list 到达时立即 resize ✓
+      - 断网重连：服务端不重发 size_slots/current_size，但客户端变量不丢；list 到达时 resize ✓
+      - 用户刷新页面后 100ms 内点新建：connection 还没建立时 wsSend 直接 return（pendingCreate 置位但 create 消息未发出），无 list 处理 ✓
+    - **不要回退消息顺序**：原顺序（list 在最前）会导致"首次连接场景 current_size 处理器兜底" vs "后续新建场景 list 处理器守卫"两条路径并存，逻辑分裂。
 
 ## 开发工作流
 
