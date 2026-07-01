@@ -54,6 +54,7 @@
         // 标记"刚才那个 create 请求是不是本客户端发起的"，决定新终端是否自动切换
         let pendingCreate = false;
         let isFirstList = true;  // 重连后第一个 list 标志，用于触发 diff 交集的 buffer 增量拉取
+        let bufferQueue = [];  // 等待加载缓存的后台终端 ID 队列
         let clientTailMax = 4096;  // 默认值，config.json 加载后会覆盖
         let settingsDiv = null;  // 设置弹窗 DOM 句柄
         // === 前端日志 ===
@@ -286,6 +287,7 @@
                     addFrontendLog('连接已建立');
                     // 重连后第一个 list 标志重置，让 list 处理器对 diff 交集发 buffer 请求
                     isFirstList = true;
+                    bufferQueue = [];  // 清空残留队列
                     updateWsStatus();
                 };
                 ws.onerror = (e) => {
@@ -317,15 +319,32 @@
                         const oldIds = Array.from(sessions.keys());
 
                         // 创建新会话
-                        currentIds.forEach(id => {
-                            if (!sessions.has(id)) {
-                                const s = new TermSession(id, terminalContainer);
-                                if (msg.names?.[id]) s.name = msg.names[id];
-                                sessions.set(id, s);
+                        const newIds = currentIds.filter(id => !sessions.has(id));
+                        newIds.forEach((id, idx) => {
+                            const s = new TermSession(id, terminalContainer);
+                            if (msg.names?.[id]) s.name = msg.names[id];
+                            sessions.set(id, s);
+                            // 本客户端主动创建的 → 立即加载并自动切换
+                            // 首次加载/重连时 → 第一个终端立即加载，其余排队
+                            // 正常使用中其他用户创建的 → 立即加载（数量少，无需排队）
+                            if (pendingCreate) {
+                                addFrontendLog('新建终端' + s.name + '并优先申请缓存');
+                                s.requestBuffer();
+                            } else if (isFirstList) {
+                                if (idx === 0) {
+                                    addFrontendLog('新建终端' + s.name + '并优先申请缓存');
+                                    s.requestBuffer();
+                                    // 首次加载时自动切换到第一个终端，让用户立即看到加载进度
+                                    if (activeId == null) switchSession(id);
+                                } else {
+                                    addFrontendLog('新建终端' + s.name + '，缓存排队等待');
+                                    bufferQueue.push(id);
+                                }
+                            } else {
                                 addFrontendLog('新建终端' + s.name + '并申请缓存');
                                 s.requestBuffer();
-                                if (pendingCreate) { pendingCreate = false; switchSession(id); }
                             }
+                            if (pendingCreate) { pendingCreate = false; switchSession(id); }
                         });
 
                         // 删除已不存在的会话
@@ -341,15 +360,23 @@
                             }
                         });
 
-                        // 重连后第一个 list：对 diff 交集（即双方都有的 term）发 buffer 请求
+                        // 重连后第一个 list：优先加载当前活动终端，其余排队
                         if (isFirstList) {
                             isFirstList = false;
-                            oldIds.forEach(id => {
-                                if (currentIds.includes(id)) {
-                                    sessions.get(id).requestBuffer();
-                                    addFrontendLog('申请已存在终端' + sessions.get(id).name + '的缓存');
+                            const toLoad = oldIds.filter(id => currentIds.includes(id));
+                            if (toLoad.length > 0) {
+                                // 确定优先终端：当前活动终端优先，否则取第一个
+                                const priorityId = toLoad.includes(activeId) ? activeId : toLoad[0];
+                                sessions.get(priorityId).requestBuffer();
+                                addFrontendLog('优先加载当前终端 ' + sessions.get(priorityId).name + ' 的缓存');
+                                // 如果当前没有活动终端（被删了），切换到正在加载的优先级终端
+                                if (activeId == null) switchSession(priorityId);
+                                // 其余终端追加到队列（不覆盖，新建终端可能已加入队列）
+                                bufferQueue.push(...toLoad.filter(id => id !== priorityId));
+                                if (bufferQueue.length > 0) {
+                                    addFrontendLog('其余 ' + bufferQueue.length + ' 个终端缓存排队等待');
                                 }
-                            });
+                            }
                         }
 
                         // 当前会话被 kill 后跳到 ID 最大者
@@ -368,6 +395,15 @@
                             addFrontendLog(`缓冲区增量 ${msg.data.length} 字节 (${s.name})`);
                         } else if (result === 'full') {
                             addFrontendLog(`缓冲区全量回放 ${msg.data.length} 字节 (${s.name})`);
+                        }
+                        // 当前终端缓存加载完毕，触发队列中的下一个
+                        if (bufferQueue.length > 0) {
+                            const nextId = bufferQueue.shift();
+                            const nextSession = sessions.get(nextId);
+                            if (nextSession) {
+                                nextSession.requestBuffer();
+                                addFrontendLog('开始加载队列中下一个终端 ' + nextSession.name + ' 的缓存');
+                            }
                         }
                     } else if (msg.type === 'data') {
                         const s = sessions.get(msg.id);

@@ -149,21 +149,23 @@ server.js
 
 ## 已知注意事项
 
-1. **`@xterm/addon-fit` 未使用** —— 在 package.json 中但从未在 index.html 中加载或实例化。可安全移除。
-2. **缓冲区上限由 `config.json` 的 `maxBuffer` 控制**（默认 10 MB，1 MB = 1,000,000 字符），在设置弹窗内输入并实时同步所有客户端。服务端用模块级 `maxBufferChars` 缓存；`onData` 中用滞回式截断（超 2x 触发 slice）。`loadConfig` 自动迁移旧字符数格式（值 ≥ 1000 时视为字符，自动转 MB 并落盘）。
-3. **客户端→服务端的 hotkey type 是 `hot_keys`**（下划线），不是 `set_hotkeys` 或 `hotkeys` —— 字符串必须精确匹配。
-4. **端口 65433 是硬编码的** —— 无环境变量或 CLI 覆盖方式。
-5. **无认证/加密** —— 用于受信任网络边界内的本地/LAN 使用。
-6. **`node-pty` 需要原生构建工具** —— 在 Windows 上可能需要 Visual Studio Build Tools 或 `windows-build-tools` npm 包。
-7. **每次变更配置都会立即持久化** —— 无防抖处理。快速连续调整大小时每次都会同步写入磁盘。
-8. **`package.json` 中需要 `allowScripts`** 以支持 `node-pty` 原生绑定（已设置）。
-9. **多客户端创建终端隔离**：前端 `pendingCreate` 标志位识别"刚才那个 create 请求是不是本客户端发起的"。`createNew()` 置 true，`createTermInstance()` 末尾若为 true 则消费并 `switchSession`，WS 断连时 `onclose` 复位。**新 wrapper 创建后默认 `display: none`**（[public/index.html L156](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/public/index.html#L156)）：创建者由 `switchSession` 翻成 `block`；旁观者保持 `none`，新终端在 DOM 中存在（下拉框可选）但视觉上不叠加在旧终端下。
-10. **删除当前终端后跳到 ID 最大者**：list 处理器中 `if (!activeId && currentIds.length > 0)` 分支使用 `currentIds.reduce((a, b) => +a > +b ? a : b)` 选取目标，跳到最新创建的会话（而非下拉框第一个）。`reduce` 对单元素数组直接返回该元素，结合 `length > 0` 守卫确保空数组不会触发。非当前会话被 kill 不触发跳转。
-11. **重连后 buffer 增量拉取**：list 处理器中 `isFirstList` 标志位在 `ws.onopen` 中重置为 true。重连后第一个 list 到达时，对 `oldTermIds ∩ currentIds`（即双方都有的 term）发 `{type:'buffer'}` 请求，断网期间的内容用 `term.reset() + term.write()` 补回。常规 session create / kill 的 list 不会进入该分支，避免误刷旧 term 导致闪烁。`createTermInstance` 内既有的 buffer 请求保留（按职责对称：新建 xterm 立刻拉 buffer 填满）。
-12. **前端布局**：页面宽度由 `#terminal-container`（xterm）决定。CSS 层面 `.toolbar` 和 `#hotkeys-bar` 用 `flex-wrap: wrap`。`.toolbar button` 和 `#hotkeys-bar button` 统一 `min-width: 60px`，防止「编辑」「▲」等短文字按钮被 flex 压缩到看不清（弹窗内的 button 不受此约束，由 `.modal-box button` 单独控制）。**连接状态**：`#wsStatus` 紧跟在「设置」按钮后面（DOM 顺序），`margin-left: 4px` 与按钮隔开，作为 flex 子元素参与自动换行。**JS 同步**：`syncLayoutWidths()` 函数读取 `terminal-container.offsetWidth`，把 `.toolbar` 和 `#hotkeys-bar` 的 `style.width` 设为该值，触发点在 `DOMContentLoaded`（首屏同步）和 `ResizeObserver(terminal-container)`（xterm 尺寸变化同步）。**注意**：原本还有 `window resize` 触发点，但 `#terminal-container { align-self: flex-start }` 不随窗口缩放变化，`window resize` 永远无效，已于 2026-06-30 删除。原因：纯 CSS 的 `width: max-content` 在 flex column 容器中会取所有子元素的最大宽度（hotkeys 按钮过多会撑开页面），用 JS 显式同步更可靠。`html { overflow-x: auto }` 是兜底（xterm 本身比视口宽时出现水平滚动条）。
-13. **设置弹窗**：顶栏「设置」按钮打开。包含终端大小、终端滚动行数、按住滚动间隔(ms)、缓冲区上限(MB)、日志上限(条) 5 个可配置块，加上缓冲区占用（只读、自动检测）一块。复用现有 `.modal-overlay / .modal-box` 样式。`settingsDiv` 是全局 DOM 句柄（与 `editorDiv` 对称）。
-14. **buffer 自动检测**：弹窗打开时即调用 `queryBufferSize()` 拉取当前会话占用（`{type:'buffer_size', id}` → 服务端回 `{type:'buffer_size', id, used, max}`，字符数）。前端用 `/ 1000000` 转 MB，显示为 `当前会话占用: X.XX MB / Y.YY MB (Z.Z%)`。`#bufferSizeResult` 文本依次经历 `检测中...` → 真实占用或 `当前无活动会话` / `检测超时`（5s 兜底）。无活动会话时 `queryBufferSize()` 直接显示「当前无活动会话」并 return，不发请求。
-15. **2026-06-30 过度设计审查结论**：发现 3 处过度设计 / 冗余，**均已修复**：
+1. **⚠️ 按钮 `line-height` 中英文差异** —— 2026-07-01 修复。通用 `button` 样式缺少 `line-height`，浏览器 `line-height: normal` 对纯英文文本（如"Shell #1"）与含中文文本（如"新建终端"）计算值不同（英文~1.15、中文~1.5），导致按钮高度不一致。修复方式：通用 `button` 规则添加 `line-height: 1.4` 固定行高，所有按钮高度不再受文字语言影响。同步修复了 `.dropdown-menu button` 中 `border: none; background: none;` 导致的 dropdown 按钮额外矮 2px 的问题。
+
+3. **`@xterm/addon-fit` 未使用** —— 在 package.json 中但从未在 index.html 中加载或实例化。可安全移除。
+4. **缓冲区上限由 `config.json` 的 `maxBuffer` 控制**（默认 10 MB，1 MB = 1,000,000 字符），在设置弹窗内输入并实时同步所有客户端。服务端用模块级 `maxBufferChars` 缓存；`onData` 中用滞回式截断（超 2x 触发 slice）。`loadConfig` 自动迁移旧字符数格式（值 ≥ 1000 时视为字符，自动转 MB 并落盘）。
+5. **客户端→服务端的 hotkey type 是 `hot_keys`**（下划线），不是 `set_hotkeys` 或 `hotkeys` —— 字符串必须精确匹配。
+6. **端口 65433 是硬编码的** —— 无环境变量或 CLI 覆盖方式。
+7. **无认证/加密** —— 用于受信任网络边界内的本地/LAN 使用。
+8. **`node-pty` 需要原生构建工具** —— 在 Windows 上可能需要 Visual Studio Build Tools 或 `windows-build-tools` npm 包。
+9. **每次变更配置都会立即持久化** —— 无防抖处理。快速连续调整大小时每次都会同步写入磁盘。
+10. **`package.json` 中需要 `allowScripts`** 以支持 `node-pty` 原生绑定（已设置）。
+11. **多客户端创建终端隔离**：前端 `pendingCreate` 标志位识别"刚才那个 create 请求是不是本客户端发起的"。`createNew()` 置 true，`createTermInstance()` 末尾若为 true 则消费并 `switchSession`，WS 断连时 `onclose` 复位。**新 wrapper 创建后默认 `display: none`**（[public/index.html L156](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/public/index.html#L156)）：创建者由 `switchSession` 翻成 `block`；旁观者保持 `none`，新终端在 DOM 中存在（下拉框可选）但视觉上不叠加在旧终端下。
+12. **删除当前终端后跳到 ID 最大者**：list 处理器中 `if (!activeId && currentIds.length > 0)` 分支使用 `currentIds.reduce((a, b) => +a > +b ? a : b)` 选取目标，跳到最新创建的会话（而非下拉框第一个）。`reduce` 对单元素数组直接返回该元素，结合 `length > 0` 守卫确保空数组不会触发。非当前会话被 kill 不触发跳转。
+13. **重连后 buffer 增量拉取**：list 处理器中 `isFirstList` 标志位在 `ws.onopen` 中重置为 true。重连后第一个 list 到达时，对 `oldTermIds ∩ currentIds`（即双方都有的 term）发 `{type:'buffer'}` 请求，断网期间的内容用 `term.reset() + term.write()` 补回。常规 session create / kill 的 list 不会进入该分支，避免误刷旧 term 导致闪烁。`createTermInstance` 内既有的 buffer 请求保留（按职责对称：新建 xterm 立刻拉 buffer 填满）。
+14. **前端布局**：页面宽度由 `#terminal-container`（xterm）决定。CSS 层面 `.toolbar` 和 `#hotkeys-bar` 用 `flex-wrap: wrap`。`.toolbar button` 和 `#hotkeys-bar button` 统一 `min-width: 60px`，防止「编辑」「▲」等短文字按钮被 flex 压缩到看不清（弹窗内的 button 不受此约束，由 `.modal-box button` 单独控制）。**连接状态**：`#wsStatus` 紧跟在「设置」按钮后面（DOM 顺序），`margin-left: 4px` 与按钮隔开，作为 flex 子元素参与自动换行。**JS 同步**：`syncLayoutWidths()` 函数读取 `terminal-container.offsetWidth`，把 `.toolbar` 和 `#hotkeys-bar` 的 `style.width` 设为该值，触发点在 `DOMContentLoaded`（首屏同步）和 `ResizeObserver(terminal-container)`（xterm 尺寸变化同步）。**注意**：原本还有 `window resize` 触发点，但 `#terminal-container { align-self: flex-start }` 不随窗口缩放变化，`window resize` 永远无效，已于 2026-06-30 删除。原因：纯 CSS 的 `width: max-content` 在 flex column 容器中会取所有子元素的最大宽度（hotkeys 按钮过多会撑开页面），用 JS 显式同步更可靠。`html { overflow-x: auto }` 是兜底（xterm 本身比视口宽时出现水平滚动条）。
+15. **设置弹窗**：顶栏「设置」按钮打开。包含终端大小、终端滚动行数、按住滚动间隔(ms)、缓冲区上限(MB)、日志上限(条) 5 个可配置块，加上缓冲区占用（只读、自动检测）一块。复用现有 `.modal-overlay / .modal-box` 样式。`settingsDiv` 是全局 DOM 句柄（与 `editorDiv` 对称）。
+16. **buffer 自动检测**：弹窗打开时即调用 `queryBufferSize()` 拉取当前会话占用（`{type:'buffer_size', id}` → 服务端回 `{type:'buffer_size', id, used, max}`，字符数）。前端用 `/ 1000000` 转 MB，显示为 `当前会话占用: X.XX MB / Y.YY MB (Z.Z%)`。`#bufferSizeResult` 文本依次经历 `检测中...` → 真实占用或 `当前无活动会话` / `检测超时`（5s 兜底）。无活动会话时 `queryBufferSize()` 直接显示「当前无活动会话」并 return，不发请求。
+17. **2026-06-30 过度设计审查结论**：发现 3 处过度设计 / 冗余，**均已修复**：
     1. `public/index.html` 中 4 个 hidden input（`rowsInput/colsInput/scrollStepInput/maxBufferInput`）用 DOM 当 state 容器 → 改为 JS 顶层变量（`let rows = null, cols = null`；`scrollStep/maxBuffer` 原本就同时是 JS 变量，删除 DOM 那份）。`createTermInstance` 用 `Number.isInteger(rows) && Number.isInteger(cols)` 守卫跳过初始 resize（与旧版 hidden input 空 value 行为一致）。
     2. `syncLayoutWidths` 函数 4 个触发点中 `window resize` 是冗余（`#terminal-container { align-self: flex-start }` 不随窗口缩放变化） → 删除 `window.resize` 监听，保留 `DOMContentLoaded` + `ResizeObserver` 两个有效触发点。
     3. `updateWsStatus` 1Hz 轮询 → 改事件驱动。`ws.onopen / onerror / onclose` 三事件触发 `updateWsStatus()`。**重连策略**：
@@ -175,11 +177,11 @@ server.js
     
     其他 8 个候选点（`min-width: 60px` 移动端点击区域、`availableKeys` 手机点选、`computeSmartName` 命名连贯、70 行 `.modal-box` CSS、3 个独立"应用"按钮、`maxBufferChars` 缓存等）经用户确认均为合理设计或可选优化，**不在本次范围**。完整审查记录见 [docs/superpowers/specs/2026-06-30-over-engineering-audit-design.md](docs/superpowers/specs/2026-06-30-over-engineering-audit-design.md)。**新增/修改代码时如果引入新的 state 容器，优先用 JS 变量**，不再用 hidden input。
 
-16. **滚动行数分离**：2026-06-30 修改。`scrollStep`（设置弹窗中的"终端滚动行数"）现在**只控制 ▲上滑终端/▼下滑终端**（SGR 滚轮事件发送次数）。**▲上滑页面/▼下滑页面**（xterm 视口滚动）固定每次滚动 1 行，不受 scrollStep 影响。
+18. **滚动行数分离**：2026-06-30 修改。`scrollStep`（设置弹窗中的"终端滚动行数"）现在**只控制 ▲上滑终端/▼下滑终端**（SGR 滚轮事件发送次数）。**▲上滑页面/▼下滑页面**（xterm 视口滚动）固定每次滚动 1 行，不受 scrollStep 影响。
 
-17. **PM2 进程管理 + 前端重启**：2026-06-30 引入。服务器由 PM2 管理（`pm2 start server.js --name remote-cmd`），`npm start` 启动。前端设置弹窗新增「重启服务器」按钮（`restartServer()`），发送 `{type:'restart_server'}` 到服务端。服务端回复确认后杀掉所有 PowerShell 子进程，200ms 后 `process.exit(1)` 退出，PM2 检测到非零退出码自动重启新实例。前端 `ws.onclose` 触发 1 秒后自动重连。**PM2 安装**：`npm install -g pm2`（一次性）。**常用命令**：`npm start`（启动）、`npm run restart`（重启）、`npm run stop`（停止）。**Trae 环境例外（2026-06-30）**：Trae PowerShell 工具下 PM2 daemon 反复 EPERM（Windows 命名管道权限），PM2 不可用。`server.js` 实际由独立的 node 守护进程（PID 101804）拉起，113036 是当前 remote-cmd 服务进程。`process.exit(1)` 后 101804 会自动重新 spawn 新的 server.js 实例，前端 ws.onclose 触发 1 秒后自动重连。**恢复 PM2 管理**：需在 Trae 外的 PowerShell 手动执行 `pm2 start server.js --name remote-cmd` + `pm2 save`，或在 `c:\Users\fmy3\.pm2` 不存在的全新环境下使用。
+19. **PM2 进程管理 + 前端重启**：2026-06-30 引入。服务器由 PM2 管理（`pm2 start server.js --name remote-cmd`），`npm start` 启动。前端设置弹窗新增「重启服务器」按钮（`restartServer()`），发送 `{type:'restart_server'}` 到服务端。服务端回复确认后杀掉所有 PowerShell 子进程，200ms 后 `process.exit(1)` 退出，PM2 检测到非零退出码自动重启新实例。前端 `ws.onclose` 触发 1 秒后自动重连。**PM2 安装**：`npm install -g pm2`（一次性）。**常用命令**：`npm start`（启动）、`npm run restart`（重启）、`npm run stop`（停止）。**Trae 环境例外（2026-06-30）**：Trae PowerShell 工具下 PM2 daemon 反复 EPERM（Windows 命名管道权限），PM2 不可用。`server.js` 实际由独立的 node 守护进程（PID 101804）拉起，113036 是当前 remote-cmd 服务进程。`process.exit(1)` 后 101804 会自动重新 spawn 新的 server.js 实例，前端 ws.onclose 触发 1 秒后自动重连。**恢复 PM2 管理**：需在 Trae 外的 PowerShell 手动执行 `pm2 start server.js --name remote-cmd` + `pm2 save`，或在 `c:\Users\fmy3\.pm2` 不存在的全新环境下使用。
 
-18. **buffer 尾部比对去重 + 增量推送 + 等待期间丢弃 data（2026-06-30 引入）**：解决多终端场景下 buffer 加载慢的问题。设计要点：
+20. **buffer 尾部比对去重 + 增量推送 + 等待期间丢弃 data（2026-06-30 引入）**：解决多终端场景下 buffer 加载慢的问题。设计要点：
     - **`TermSession.clientTail` 实例字段**：每个终端最近 N 字节（默认 4096，可通过设置弹窗调整）的原始 data/buffer 合并流。`session.appendClientTail(chunk)` 累加 + 滞回式截断（超阈值时 `slice(-clientTailMax)`）。状态随 `Map<number, TermSession>` 生命周期自动管理，无需手动清理。
     - **buffer 请求带 `tail` 字段**：所有 buffer 请求（list 处理器中新建会话的 `requestBuffer()` 调用、`isFirstList` 重连交集分支）都通过 `session.requestBuffer()` 发出，自动带 `this.clientTail` 作为 tail。
     - **服务端三档响应**（[server.js L118-L148](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/server.js#L118-L148)）：

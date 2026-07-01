@@ -72,6 +72,7 @@
             color: #d4d4d4;
             border-radius: 4px;
             font-size: 13px;
+            line-height: 1.4;  /* 固定行高，避免中英文切换时按钮高度变化 */
             cursor: pointer;
         }
         button:hover {
@@ -193,13 +194,12 @@
             display: block;
             width: 100%;
             text-align: left;
-            background: none;
-            border: none;
-            color: #ccc;
             padding: 6px 14px;
+            /* 继承通用 button 的 background、border、color、font-size */
         }
         .dropdown-menu button:hover {
-            background: #333;
+            background: #505050;
+            border-color: #6a6a6a;
         }
         .toolbar button, #hotkeys-bar button {
             min-width: 60px;  /* 防止短文字按钮（如 ▲、编辑）被压缩到看不清 */
