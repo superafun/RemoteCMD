@@ -71,10 +71,13 @@
         const editBtnEl = document.getElementById('editBtn');
         const scrollGroupEl = document.getElementById('scrollGroup');
 
-        function addFrontendLog(msg) {
+        // dir: 'out' = 客户端→服务端 (C→S, 蓝色 →)
+        //      'in'  = 服务端→客户端 (S→C, 绿色 ←)
+        //      undefined/其他 = 本地事件 (无方向,无前缀)
+        function addFrontendLog(msg, dir) {
             const t = new Date();
             const time = t.toLocaleString('zh-CN', { hour12: false });
-            frontendLogs.push(`${time} — ${msg}`);
+            frontendLogs.push({ time, msg, dir });
             // 滞回式截断：超出上限 2 倍时截断到上限，避免每次 push 都做 O(n) 操作
             if (frontendLogs.length > maxFrontendLogs * 2) {
                 frontendLogs.splice(0, frontendLogs.length - maxFrontendLogs);
@@ -204,10 +207,25 @@
         function openLogModal() {
             closeSettingsModal();
             let html = '<div class="modal-overlay">';
-            html += '<div class="modal-box" style="min-width:480px;max-width:600px;">';
-            html += '<h3>后台日志</h3>';
-            html += '<div id="logContent" style="background:#0d0d0d;color:#c0c0c0;padding:10px;border-radius:4px;max-height:50vh;overflow-y:auto;font-family:Consolas,monospace;font-size:12px;line-height:1.6;white-space:pre-wrap;">';
-            html += (frontendLogs.length === 0 ? '暂无日志' : frontendLogs.join('\n'));
+            html += '<div class="modal-box" style="min-width:520px;max-width:680px;">';
+            html += '<h3>后台日志 <span style="font-size:11px;color:#888;font-weight:400;margin-left:8px;">';
+            html += '<span style="color:#4a9eff">→</span> 客户端→服务端 &nbsp; ';
+            html += '<span style="color:#4caf50">←</span> 服务端→客户端';
+            html += '</span></h3>';
+            html += '<div id="logContent" style="background:#0d0d0d;color:#c0c0c0;padding:10px;border-radius:4px;max-height:50vh;overflow-y:auto;font-family:Consolas,monospace;font-size:12px;line-height:1.6;">';
+            if (frontendLogs.length === 0) {
+                html += '暂无日志';
+            } else {
+                // 每条日志独占一行,前缀按方向上色
+                frontendLogs.forEach(log => {
+                    const timeColor = '#666';
+                    let arrow = '', arrowColor = '';
+                    if (log.dir === 'out') { arrow = '→'; arrowColor = '#4a9eff'; }
+                    else if (log.dir === 'in') { arrow = '←'; arrowColor = '#4caf50'; }
+                    const sep = log.dir ? ` <span style="color:${arrowColor};font-weight:bold">${arrow}</span> ` : '  ';
+                    html += `<div style="white-space:pre-wrap;"><span style="color:${timeColor}">${log.time}</span>${sep}${log.msg}</div>`;
+                });
+            }
             html += '</div>';
             html += '<div class="modal-actions">';
             html += '<button onclick="this.closest(\'.modal-overlay\').remove()">关闭</button>';
@@ -292,7 +310,7 @@
             wsSend({ type: 'size_slots', sizeMode, rows: r, cols: c });
             // 第二步：切到目标尺寸（服务端会广播 current_size + 调 PTY）
             wsSend({ type: 'current_size', size: sizeMode });
-            addFrontendLog(`${isLarge ? '大' : '小'}尺寸变更为 ${r}x${c}`);
+            addFrontendLog(`${isLarge ? '大' : '小'}尺寸变更为 ${r}x${c}`, 'out');
             fbBtn(`btn-apply-${sizeMode}Size`, true);
         }
 
@@ -305,7 +323,7 @@
             const slot = sizeSlots[newSize];
             if (!slot) return;  // size_slots 消息还没到（极端情况）
             wsSend({ type: 'current_size', size: newSize });
-            addFrontendLog(`切换为${newSize === 'large' ? '大' : '小'}尺寸 (${slot.rows}x${slot.cols})`);
+            addFrontendLog(`切换为${newSize === 'large' ? '大' : '小'}尺寸 (${slot.rows}x${slot.cols})`, 'out');
             // 按钮文字由服务端广播 current_size 后回填，避免乐观更新与服务端不一致
         }
 
@@ -317,7 +335,7 @@
         function restartServer() {
             if (!confirm('确认重启服务器？\n所有终端会话将被关闭，断网期间的内容将丢失。')) return;
             closeSettingsModal();
-            addFrontendLog('服务器重启中...');
+            addFrontendLog('服务器重启中...', 'out');
             wsSend({ type: 'restart_server' });
         }
 
@@ -401,7 +419,7 @@
                             if (!currentIds.includes(id)) {
                                 const s = sessions.get(id);
                                 if (s) {
-                                    addFrontendLog('删除终端' + s.name);
+                                    addFrontendLog('删除终端' + s.name, 'in');
                                     s.dispose();
                                     sessions.delete(id);
                                 }
@@ -422,7 +440,7 @@
                             if (allIds.length > 0) {
                                 const foregroundId = allIds.includes(activeId) ? activeId : allIds[0];
                                 sessions.get(foregroundId).requestBuffer();
-                                addFrontendLog('优先加载当前终端 ' + sessions.get(foregroundId).name + ' 的缓存');
+                                addFrontendLog('优先加载当前终端 ' + sessions.get(foregroundId).name + ' 的缓存', 'out');
                                 if (activeId == null) switchSession(foregroundId);
                                 bufferQueue.push(...allIds.filter(id => id !== foregroundId));
                                 if (bufferQueue.length > 0) {
@@ -434,18 +452,18 @@
                             pendingCreate = false;
                             newIds.forEach((id, idx) => {
                                 if (idx === 0) {
-                                    addFrontendLog('新建终端' + sessions.get(id).name + '并优先申请缓存');
+                                    addFrontendLog('新建终端' + sessions.get(id).name + '并优先申请缓存', 'out');
                                     sessions.get(id).requestBuffer();
                                     switchSession(id);
                                 } else {
-                                    addFrontendLog('新建终端' + sessions.get(id).name + '，缓存排队等待');
+                                    addFrontendLog('新建终端' + sessions.get(id).name + '，缓存排队等待', 'out');
                                     bufferQueue.push(id);
                                 }
                             });
                         } else {
                             // 正常使用：全部立即加载
                             newIds.forEach(id => {
-                                addFrontendLog('新建终端' + sessions.get(id).name + '并申请缓存');
+                                addFrontendLog('新建终端' + sessions.get(id).name + '并申请缓存', 'out');
                                 sessions.get(id).requestBuffer();
                             });
                         }
@@ -455,11 +473,11 @@
                         if (!s) return;
                         const result = s.handleBufferResponse(msg);
                         if (result === 'skip') {
-                            addFrontendLog('缓冲区无变化，跳过回放 (' + s.name + ')');
+                            addFrontendLog('缓冲区无变化，跳过回放 (' + s.name + ')', 'in');
                         } else if (result === 'incremental') {
-                            addFrontendLog(`缓冲区增量 ${msg.data.length} 字节 (${s.name})`);
+                            addFrontendLog(`缓冲区增量 ${msg.data.length} 字节 (${s.name})`, 'in');
                         } else if (result === 'full') {
-                            addFrontendLog(`缓冲区全量回放 ${msg.data.length} 字节 (${s.name})`);
+                            addFrontendLog(`缓冲区全量回放 ${msg.data.length} 字节 (${s.name})`, 'in');
                         }
                         // 当前终端缓存加载完毕，触发队列中的下一个
                         if (bufferQueue.length > 0) {
@@ -467,7 +485,7 @@
                             const nextSession = sessions.get(nextId);
                             if (nextSession) {
                                 nextSession.requestBuffer();
-                                addFrontendLog('开始加载队列中下一个终端 ' + nextSession.name + ' 的缓存');
+                                addFrontendLog('开始加载队列中下一个终端 ' + nextSession.name + ' 的缓存', 'out');
                             }
                         }
                     } else if (msg.type === 'data') {
@@ -484,7 +502,7 @@
                             document.getElementById('settingsSmallRowsInput').value = sizeSlots.small.rows;
                             document.getElementById('settingsSmallColsInput').value = sizeSlots.small.cols;
                         }
-                        addFrontendLog('尺寸槽位已更新');
+                        addFrontendLog('尺寸槽位已更新', 'in');
                     } else if (msg.type === 'current_size') {
                         currentSize = msg.data;
                         const slot = sizeSlots[currentSize];
@@ -492,31 +510,31 @@
                             sessions.forEach(s => s.resize(slot.cols, slot.rows));
                         }
                         updateSizeToggleText();
-                        addFrontendLog(`当前尺寸切换为 ${currentSize === 'large' ? '大' : '小'} (${slot ? slot.rows + 'x' + slot.cols : '未配置'})`);
+                        addFrontendLog(`当前尺寸切换为 ${currentSize === 'large' ? '大' : '小'} (${slot ? slot.rows + 'x' + slot.cols : '未配置'})`, 'in');
                     } else if (msg.type === 'hotkeys') {
                         hotkeys = msg.data || {};
                         renderHotkeys();
                         if (editorDiv) openHotkeyEditor();
-                        addFrontendLog('快捷键配置已同步');
+                        addFrontendLog('快捷键配置已同步', 'in');
                     } else if (msg.type === 'scroll_interval_terminal') {
                         scrollIntervalTerminal = msg.data;
-                        addFrontendLog('终端按住滚动间隔同步为 ' + scrollIntervalTerminal + ' ms');
+                        addFrontendLog('终端按住滚动间隔同步为 ' + scrollIntervalTerminal + ' ms', 'in');
                     } else if (msg.type === 'scroll_interval_page') {
                         scrollIntervalPage = msg.data;
-                        addFrontendLog('页面按住滚动间隔同步为 ' + scrollIntervalPage + ' ms');
+                        addFrontendLog('页面按住滚动间隔同步为 ' + scrollIntervalPage + ' ms', 'in');
                     } else if (msg.type === 'max_buffer') {
                         maxBuffer = msg.data;
-                        addFrontendLog('缓冲区上限同步为 ' + maxBuffer + ' MB');
+                        addFrontendLog('缓冲区上限同步为 ' + maxBuffer + ' MB', 'in');
                     } else if (msg.type === 'max_frontend_logs') {
                         maxFrontendLogs = msg.data;
-                        addFrontendLog('日志上限同步为 ' + maxFrontendLogs + ' 条');
+                        addFrontendLog('日志上限同步为 ' + maxFrontendLogs + ' 条', 'in');
                     } else if (msg.type === 'client_tail_max') {
                         clientTailMax = msg.data;
                         clientTailMax2 = msg.data * 2;
                         sessions.forEach(s => s.trimClientTail(clientTailMax));
-                        addFrontendLog('buffer 去重比对长度同步为 ' + clientTailMax + ' 字节');
+                        addFrontendLog('buffer 去重比对长度同步为 ' + clientTailMax + ' 字节', 'in');
                     } else if (msg.type === 'restart_server') {
-                        addFrontendLog('服务端确认重启');
+                        addFrontendLog('服务端确认重启', 'in');
                     } else if (msg.type === 'buffer_size') {
                         const usedMB = (msg.used / 1000000).toFixed(2);
                         const maxMB = (msg.max / 1000000).toFixed(2);
@@ -624,13 +642,13 @@
             }
         });
         function createNew() {
-            addFrontendLog('新建终端');
+            addFrontendLog('新建终端', 'out');
             pendingCreate = true;
             wsSend({ type: 'create' });
         }
         function killCurrent() {
             if (activeId == null) return;
-            addFrontendLog('关闭终端 (' + (sessions.get(activeId)?.name || 'Shell #' + activeId) + ')');
+            addFrontendLog('关闭终端 (' + (sessions.get(activeId)?.name || 'Shell #' + activeId) + ')', 'out');
             wsSend({ type: 'kill', id: activeId });
         }
         function renameCurrent() {
@@ -639,11 +657,11 @@
             const name = prompt('重命名当前会话', cur);
             if (name === null) return;
             wsSend({ type: 'rename', id: activeId, data: name });
-            addFrontendLog('终端重命名: ' + (name.trim() || '(空)'));
+            addFrontendLog('终端重命名: ' + (name.trim() || '(空)'), 'out');
         }
         function renameAll() {
             wsSend({ type: 'rename_all' });
-            addFrontendLog('全部终端已重命名');
+            addFrontendLog('全部终端已重命名', 'out');
         }
 
 
@@ -793,7 +811,7 @@
 
         function syncHotkeys() {
             wsSend({ type: 'hot_keys', data: hotkeys });
-            addFrontendLog('快捷键已同步给服务端');
+            addFrontendLog('快捷键已同步给服务端', 'out');
         }
 
         // === 连接状态检测（事件驱动，2026-06-30 由 1Hz 轮询改为事件触发）===
