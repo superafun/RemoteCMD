@@ -192,9 +192,11 @@ wss.on('connection', (ws) => {
         }
         else if (type === 'current_size') {
             // C → S: 切 currentSize + 调整所有 PTY + 落盘 + 广播
+            // 不做"无变化跳过"：用户点"应用"时 size_slots 已更新槽位，
+            // 即使 size 名未变也要按最新槽位 resize PTY 并广播给前端（2026-07-01 修复行数不生效 bug）
+            // 始终广播：前端的 sizeSlots 已由上一条 size_slots 消息更新，current_size 触发 xterm resize 使用新槽位
             const size = p.size;
             if (size !== 'large' && size !== 'small') return;
-            if (config.currentSize === size) return;  // 无变化则跳过
             config.currentSize = size;
             const slot = config.sizeSlots[size];
             resizeAllPtys(slot.rows, slot.cols);
