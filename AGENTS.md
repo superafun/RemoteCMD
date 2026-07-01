@@ -230,7 +230,7 @@ server.js
     - 完整链路：前端变量 → WebSocket `max_frontend_logs` 消息 → server.js 持久化到 config.json → 连接时同步所有客户端
     - `loadConfig` 兜底：非数字/超范围时回退到 50
 
-26. **大/小尺寸切换 + 双槽位（2026-07-01 引入）**：顶栏 `#sizeToggleBtn` 按钮在 large/small 之间切换。设置弹窗分大/小两节，每节独立设置行/列。协议：`size_slots`（C→S 写槽 + S→C 全量广播）/ `current_size`（C→S 切换 + S→C 广播当前尺寸）。旧的 `resize` 消息整条删除（C→S 和 S→C 双向）。**应用 = 切换 + 写槽**：用户点"应用"发两条消息（先 `size_slots` 写槽，再 `current_size` 切尺寸）。**默认值**：large=60×120, small=24×80。**记忆**：服务端通过 `config.currentSize` 字段记忆上次切换结果，连接建立时下发。**校验**：服务端对 sizeMode/size 必须是 'large'/'small'，rows/cols 必须在 20-200 整数范围内，非法值拒收。`config.sizeSlots` 字段是对象，键为 'large'/'small'，值为 `{rows, cols}`。
+26. **大/小尺寸切换 + 双槽位（2026-07-01 引入）**：顶栏 `#sizeToggleBtn` 按钮在 large/small 之间切换。设置弹窗分大/小两节，每节独立设置行/列。协议：`size_slots`（C→S 写槽 + S→C 全量广播）/ `current_size`（C→S 切换 + S→C 广播当前尺寸）。旧的 `resize` 消息整条删除（C→S 和 S→C 双向）。**应用 = 切换 + 写槽**：用户点"应用"发两条消息（先 `size_slots` 写槽，再 `current_size` 切尺寸）。**默认值**：large=60×120, small=24×80。**记忆**：服务端通过 `config.currentSize` 字段记忆上次切换结果，连接建立时下发。**校验**：服务端对 sizeMode/size 必须是 'large'/'small'，rows/cols 必须在 20-200 整数范围内，非法值拒收。`config.sizeSlots` 字段是对象，键为 'large'/'small'，值为 `{rows, cols}`。**`current_size` 处理器无"无变化跳过"**（2026-07-01 修复行数不生效 bug）：用户在大尺寸时修改大尺寸行数，size_slots 已更新槽位，但 size 名未变 —— 若早返回则 PTY 和 xterm 都不 resize，必须刷新浏览器才能看到。修复后 `current_size` 始终按最新槽位 resize PTY + 落盘 + 广播。前端的 `sizeSlots` 已由上一条 `size_slots` 广播更新，`current_size` 处理器用 `sizeSlots[currentSize]` resize xterm 时拿到新槽位 → xterm 即时刷新。
 
 ## 开发工作流
 
