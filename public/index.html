@@ -212,9 +212,8 @@
         function applySettingsScrollInterval() {
             const v = parseInt(document.getElementById('settingsScrollIntervalInput').value);
             if (Number.isInteger(v) && v >= 1 && v <= 1000) {
-                scrollInterval = v;
-                wsSend({ type: 'scroll_interval', data: scrollInterval });
-                addFrontendLog('按住滚动间隔变更为 ' + v + ' ms');
+                // 客户端不立即修改 scrollInterval：等服务端广播回来再更新（避免 ws 失败时本地与服务端不一致）
+                wsSend({ type: 'scroll_interval', data: v });
                 fbBtn('btn-apply-scrollInterval', true);
             } else {
                 fbBtn('btn-apply-scrollInterval', false);
@@ -224,9 +223,7 @@
         function applySettingsMaxBuffer() {
             const v = parseInt(document.getElementById('settingsMaxBufferInput').value);
             if (Number.isInteger(v) && v >= 1 && v <= 90) {
-                maxBuffer = v;  // 存 MB
-                wsSend({ type: 'max_buffer', data: maxBuffer });
-                addFrontendLog('缓冲区上限变更为 ' + v + ' MB');
+                wsSend({ type: 'max_buffer', data: v });
                 fbBtn('btn-apply-maxBuffer', true);
             } else {
                 fbBtn('btn-apply-maxBuffer', false);
@@ -236,9 +233,7 @@
         function applySettingsMaxFrontendLogs() {
             const v = parseInt(document.getElementById('settingsMaxFrontendLogsInput').value);
             if (Number.isInteger(v) && v >= 10 && v <= 10000) {
-                maxFrontendLogs = v;
-                wsSend({ type: 'max_frontend_logs', data: maxFrontendLogs });
-                addFrontendLog('日志上限变更为 ' + v + ' 条');
+                wsSend({ type: 'max_frontend_logs', data: v });
                 fbBtn('btn-apply-maxFrontendLogs', true);
             } else {
                 fbBtn('btn-apply-maxFrontendLogs', false);
@@ -248,10 +243,7 @@
         function applySettingsClientTailMax() {
             const v = parseInt(document.getElementById('settingsClientTailMaxInput').value);
             if (Number.isInteger(v) && v >= 64 && v <= 65536) {
-                clientTailMax = v;
-                clientTailMax2 = v * 2;
-                wsSend({ type: 'client_tail_max', data: clientTailMax });
-                addFrontendLog('buffer 去重比对长度变更为 ' + v + ' 字节');
+                wsSend({ type: 'client_tail_max', data: v });
                 fbBtn('btn-apply-clientTailMax', true);
             } else {
                 fbBtn('btn-apply-clientTailMax', false);
