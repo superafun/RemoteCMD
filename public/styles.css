@@ -64,19 +64,22 @@
         .modal-box input:focus, .modal-box select:focus {
             border-color: #0078d4;
         }
-        .modal-box button {
+        /* ===== 通用按钮基础样式 ===== */
+        button {
+            padding: 6px 14px;
             background: #3c3c3c;
             border: 1px solid #555;
             color: #d4d4d4;
-            padding: 6px 14px;
             border-radius: 4px;
             font-size: 13px;
             cursor: pointer;
-            transition: background 0.15s, border-color 0.15s;
         }
-        .modal-box button:hover {
+        button:hover {
             background: #505050;
             border-color: #6a6a6a;
+        }
+        .modal-box button {
+            transition: background 0.15s, border-color 0.15s;
         }
         .modal-box .btn-primary {
             background: #0078d4;
@@ -173,6 +176,30 @@
             gap: 4px;
             align-items: center;
             /* width 由 #page flex 列布局默认 stretch 提供 */
+        }
+        .dropdown-menu {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            background: #1e1e1e;
+            border: 1px solid #555;
+            min-width: 100%;
+            white-space: nowrap;
+        }
+        .dropdown-menu.open {
+            display: block;
+        }
+        .dropdown-menu button {
+            display: block;
+            width: 100%;
+            text-align: left;
+            background: none;
+            border: none;
+            color: #ccc;
+            padding: 6px 14px;
+        }
+        .dropdown-menu button:hover {
+            background: #333;
         }
         .toolbar button, #hotkeys-bar button {
             min-width: 60px;  /* 防止短文字按钮（如 ▲、编辑）被压缩到看不清 */

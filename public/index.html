@@ -14,7 +14,8 @@
 <body>
     <div id="page">
     <div class="toolbar">
-        <select id="sessionSelect"></select>
+        <button id="sessionSelectBtn"></button>
+        <div id="sessionDropdown" class="dropdown-menu"></div>
         <button onclick="renameCurrent()">重命名</button>
         <button onclick="renameAll()">重命名全部</button>
         <button onclick="createNew()">新建终端</button>
@@ -429,6 +430,8 @@
             if (term) new ResizeObserver(syncLayoutWidths).observe(term);
         }
 
+        // 初始渲染会话选择按钮文本
+        renderSessionSelect();
         connect();
         document.getElementById('editBtn').onclick = openHotkeyEditor;
         document.getElementById('scrollUpBtn').onclick = scrollUp;
@@ -452,29 +455,48 @@
         setupHoldScroll('scrollXtermDownBtn', scrollXtermDown);
         
         function renderSessionSelect() {
-            const sel = document.getElementById('sessionSelect');
-            sel.innerHTML = '';
+            const btn = document.getElementById('sessionSelectBtn');
+            btn.textContent = sessions.get(activeId)?.name || (activeId != null ? 'Shell #' + activeId : '选择终端');
+            const dd = document.getElementById('sessionDropdown');
+            dd.innerHTML = '';
             sessions.forEach((s, id) => {
-                const opt = document.createElement('option');
-                opt.value = id;
-                opt.textContent = s.name || ('Shell #' + id);
-                if (id === activeId) opt.selected = true;
-                sel.appendChild(opt);
+                const optBtn = document.createElement('button');
+                optBtn.textContent = s.name || ('Shell #' + id);
+                optBtn.addEventListener('click', () => {
+                    switchSession(id);
+                    dd.classList.remove('open');
+                });
+                dd.appendChild(optBtn);
             });
         }
         function switchSession(id) {
-            const idNum = parseInt(id);  // 兼容 select.onchange 传 string
+            const idNum = parseInt(id);
             if (activeId === idNum) return;
             if (activeId != null) sessions.get(activeId)?.hide();
             activeId = idNum;
             sessions.get(idNum)?.show();
-            document.getElementById('sessionSelect').value = idNum;
+            document.getElementById('sessionSelectBtn').textContent = sessions.get(activeId)?.name || ('Shell #' + activeId);
             // 弹窗打开时同步「检测」按钮的可用性
             const queryBtn = document.getElementById('queryBufferSizeBtn');
             if (queryBtn) queryBtn.disabled = !activeId;
         }
-        document.getElementById('sessionSelect').addEventListener('change', (e) => {
-            switchSession(e.target.value);
+        // 点击按钮切换下拉菜单
+        document.getElementById('sessionSelectBtn').addEventListener('click', (e) => {
+            const btn = e.currentTarget;
+            const dd = document.getElementById('sessionDropdown');
+            const rect = btn.getBoundingClientRect();
+            dd.style.top = rect.bottom + 'px';
+            dd.style.left = rect.left + 'px';
+            dd.style.minWidth = rect.width + 'px';
+            dd.classList.toggle('open');
+        });
+        // 点击下拉菜单外部时关闭
+        document.addEventListener('click', (e) => {
+            const btn = document.getElementById('sessionSelectBtn');
+            const dd = document.getElementById('sessionDropdown');
+            if (!btn.contains(e.target) && !dd.contains(e.target)) {
+                dd.classList.remove('open');
+            }
         });
         function createNew() {
             addFrontendLog('新建终端');
