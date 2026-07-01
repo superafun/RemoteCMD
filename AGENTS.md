@@ -241,15 +241,17 @@ server.js
 
 28. **服务端权威 + 客户端不乐观更新（2026-07-01 修复）**：设置类 `apply*` 处理器**不应在 `wsSend` 之前修改本地状态**，否则 ws 失败时本地已变但服务器没变，下次重连被服务器覆盖 → "看似应用了" 实际没生效的不一致。**正确模式**：只 `wsSend`，本地状态由 `ws.onmessage` 收到 broadcast 后统一更新（接收侧已有 `xxx = msg.data` 赋值）。**已修复**：`applySettingsScrollIntervalTerminal` / `applySettingsScrollIntervalPage` / `applySettingsMaxBuffer` / `applySettingsMaxFrontendLogs` / `applySettingsClientTailMax` —— 删除 `scrollIntervalTerminal = v` / `scrollIntervalPage = v` / `maxBuffer = v` / `maxFrontendLogs = v` / `clientTailMax = v; clientTailMax2 = v * 2` 5 处本地 mutation，删除对应发送侧 `addFrontendLog`（与接收侧 'X 同步为 Y' 重复）。**已是正确模式**（无需改）：`applySettingsSizeFor` / `toggleSize`（size 类只读 sizeSlots/currentSize 不修改）/ `renameCurrent` / `renameAll` / `createNew`（pendingCreate 是创建标志位非配置）/ `killCurrent`（本地 term 由 list 处理器统一删）/ `restartServer` / `syncHotkeys`（hotkeys 已在用户编辑时改）。**fbBtn 保持立即调用**："指令已发出"语义；wsSend 失败时 `wsSend` 内部 catch 会 log 失败原因。**新增 apply 类处理器时**：只发不发本地状态，本地状态由 `ws.onmessage` 接收侧负责更新。
 
-29. **WS 消息顺序：先设置后 list（2026-07-02 重构）**：服务端 `wss.on('connection')` 下发顺序为 `size_slots → current_size → list`（参考 [server.js L141-L143](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/server.js#L141-L143)），前端 list 处理器 newIds 分支可直接 `s.resize(sizeSlots[currentSize].cols, sizeSlots[currentSize].rows)` 无条件 resize（参考 [public/index.html L388-L397](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/public/index.html#L388-L397)），不区分"首次连接"和"后续新建"两条路径。
-    - **设计动机**：bug「新建终端时终端变小」原修复是 list 处理器 newIds 加 `if (slot) resize` 守卫（slot 取不到时跳过），由 `current_size` 处理器 `sessions.forEach` 兜底首次连接场景。用户提出两条路径应统一，**根本办法是调整 WS 消息顺序**：让 list 之前一定有 size_slots/current_size，newIds 一定能取到 slot。
+29. **WS 消息顺序：先设置后 list（2026-07-02 重构 + 同日扩展）**：服务端 `wss.on('connection')` 下发顺序为 `size_slots → current_size → client_tail_max → list`（参考 [server.js L142-L145](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/server.js#L142-L145)），前端 list 处理器 newIds 分支可直接 `s.resize(sizeSlots[currentSize].cols, sizeSlots[currentSize].rows)` 无条件 resize（参考 [public/index.html L388-L397](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/public/index.html#L388-L397)），`requestBuffer()` 也能用真实的 `clientTailMax` 截断 `clientTail`（不再用默认 4096）。不区分"首次连接"和"后续新建"两条路径。
+    - **设计动机**：bug「新建终端时终端变小」原修复是 list 处理器 newIds 加 `if (slot) resize` 守卫（slot 取不到时跳过），由 `current_size` 处理器 `sessions.forEach` 兜底首次连接场景。用户提出两条路径应统一，**根本办法是调整 WS 消息顺序**：让 list 之前一定有 size_slots/current_size，newIds 一定能取到 slot。**同日扩展**：用户进一步指出 `client_tail_max` 也应该前置——`requestBuffer()` 内部用 `clientTailMax` 截断 `this.clientTail`，若 list 之前没到，list 处理器后续 if 块（isFirstList / pendingCreate / else）调用 `requestBuffer()` 时用的是默认 4096 而不是 config 真实值，可能截断过短导致服务端 lastIndexOf 没命中走档 3 全量（性能问题，非正确性 bug）。
+    - **"影响 list 处理的设置"判定标准**：在 list 处理器（含后续 if 块）中会被立即读取的 JS 变量。当前三条：`sizeSlots` / `currentSize` / `clientTailMax`。其他设置（`hotkeys` / `scroll_interval_*` / `max_buffer` / `max_frontend_logs`）在 list 之后下发不影响 list 处理，按原顺序保持。
     - **current_size 处理器保留**（[public/index.html L484-L491](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/public/index.html#L484-L491)）：`sessions.forEach(s => s.resize(...))` 仍负责"用户切换大/小尺寸"时的全量 resize。首次连接时 sessions Map 还没填充（list 未到），forEach 是 no-op；后续 list 到达时 list 处理器统一 resize 新会话。两条路径职责分明：list = 创建新会话并 resize，current_size = 调整现有会话尺寸。
+    - **client_tail_max 处理器保留**（[public/index.html L509-L513](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/public/index.html#L509-L513)）：`clientTailMax = msg.data; clientTailMax2 = msg.data * 2; sessions.forEach(s => s.trimClientTail(clientTailMax))` 仍负责"用户在设置弹窗调整 clientTailMax"时立即按新阈值裁剪已有 clientTail + 更新本地变量。首次连接时 sessions 还没填充（list 未到），forEach 是 no-op；客户端变量同步由 connection 时的 client_tail_max 消息兜底。
     - **安全性**：
-      - 首次连接：size_slots → current_size → list 顺序下发，list 到达时 sizeSlots/currentSize 已就绪，newIds 无条件 resize ✓
-      - 非首次连接的新建：客户端 JS 变量 sizeSlots/currentSize 保留，list 到达时立即 resize ✓
-      - 断网重连：服务端不重发 size_slots/current_size，但客户端变量不丢；list 到达时 resize ✓
+      - 首次连接：size_slots → current_size → client_tail_max → list 顺序下发，list 到达时三个变量都已就绪 ✓
+      - 非首次连接的新建：客户端 JS 变量 sizeSlots/currentSize/clientTailMax 保留，list 到达时立即 resize + requestBuffer 用真实 clientTailMax ✓
+      - 断网重连：服务端不重发这些设置（客户端变量不丢），list 到达时正常处理 ✓
       - 用户刷新页面后 100ms 内点新建：connection 还没建立时 wsSend 直接 return（pendingCreate 置位但 create 消息未发出），无 list 处理 ✓
-    - **不要回退消息顺序**：原顺序（list 在最前）会导致"首次连接场景 current_size 处理器兜底" vs "后续新建场景 list 处理器守卫"两条路径并存，逻辑分裂。
+    - **不要回退消息顺序**：原顺序（list 在最前）会导致两条逻辑分裂的兜底路径。
 
 ## 开发工作流
 
