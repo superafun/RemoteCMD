@@ -109,37 +109,37 @@
             html += '<div class="modal-row">';
             html += '行 <input type="number" id="settingsRowsInput" min="20" max="200" style="width:80px;">';
             html += '列 <input type="number" id="settingsColsInput" min="20" max="200" style="width:80px;">';
-            html += '<button class="btn-primary" onclick="applySettingsSize()">应用</button>';
+            html += '<button class="btn-primary" id="btn-apply-size" onclick="applySettingsSize()">应用</button>';
             html += '</div>';
 
             // 滚动行数
             html += '<div class="modal-row">';
             html += '终端滚动行数 <input type="number" id="settingsScrollStepInput" min="1" max="100" style="width:80px;">';
-            html += '<button class="btn-primary" onclick="applySettingsScrollStep()">应用</button>';
+            html += '<button class="btn-primary" id="btn-apply-scrollStep" onclick="applySettingsScrollStep()">应用</button>';
             html += '</div>';
 
             // 按住滚动间隔 (ms)
             html += '<div class="modal-row">';
             html += '按住滚动间隔 (ms) <input type="number" id="settingsScrollIntervalInput" min="1" max="1000" step="10" style="width:80px;">';
-            html += '<button class="btn-primary" onclick="applySettingsScrollInterval()">应用</button>';
+            html += '<button class="btn-primary" id="btn-apply-scrollInterval" onclick="applySettingsScrollInterval()">应用</button>';
             html += '</div>';
 
             // 缓冲区上限 (MB)
             html += '<div class="modal-row">';
             html += '缓冲区上限 (MB) <input type="number" id="settingsMaxBufferInput" min="1" max="90" style="width:80px;">';
-            html += '<button class="btn-primary" onclick="applySettingsMaxBuffer()">应用</button>';
+            html += '<button class="btn-primary" id="btn-apply-maxBuffer" onclick="applySettingsMaxBuffer()">应用</button>';
             html += '</div>';
 
             // 日志上限 (条)
             html += '<div class="modal-row">';
             html += '日志上限 (条) <input type="number" id="settingsMaxFrontendLogsInput" min="10" max="10000" step="10" style="width:80px;">';
-            html += '<button class="btn-primary" onclick="applySettingsMaxFrontendLogs()">应用</button>';
+            html += '<button class="btn-primary" id="btn-apply-maxFrontendLogs" onclick="applySettingsMaxFrontendLogs()">应用</button>';
             html += '</div>';
 
             // buffer 去重比对长度 (bytes)
             html += '<div class="modal-row">';
             html += 'buffer 去重比对长度 (bytes) <input type="number" id="settingsClientTailMaxInput" min="64" max="65536" step="64" style="width:80px;">';
-            html += '<button class="btn-primary" onclick="applySettingsClientTailMax()">应用</button>';
+            html += '<button class="btn-primary" id="btn-apply-clientTailMax" onclick="applySettingsClientTailMax()">应用</button>';
             html += '</div>';
 
             // 缓冲区占用（自动检测，弹窗打开即拉取）
@@ -194,12 +194,23 @@
             document.body.appendChild(div.firstElementChild);
         }
 
+        function fbBtn(id, ok) {
+            const btn = document.getElementById(id);
+            if (!btn) return;
+            btn.textContent = ok ? '✓已应用' : '✗无效';
+            btn.style.color = ok ? '#4caf50' : '#f44336';
+            setTimeout(() => { btn.textContent = '应用'; btn.style.color = ''; }, 1500);
+        }
+
         function applySettingsSize() {
             const r = parseInt(document.getElementById('settingsRowsInput').value);
             const c = parseInt(document.getElementById('settingsColsInput').value);
             if (Number.isInteger(r) && Number.isInteger(c)) {
                 wsSend({ type: 'resize', id: 0, data: { rows: r, cols: c } });
                 addFrontendLog('终端尺寸变更为 ' + r + 'x' + c);
+                fbBtn('btn-apply-size', true);
+            } else {
+                fbBtn('btn-apply-size', false);
             }
         }
 
@@ -209,6 +220,9 @@
                 scrollStep = v;
                 wsSend({ type: 'scroll_step', data: scrollStep });
                 addFrontendLog('滚动步长变更为 ' + v);
+                fbBtn('btn-apply-scrollStep', true);
+            } else {
+                fbBtn('btn-apply-scrollStep', false);
             }
         }
 
@@ -218,6 +232,9 @@
                 scrollInterval = v;
                 wsSend({ type: 'scroll_interval', data: scrollInterval });
                 addFrontendLog('按住滚动间隔变更为 ' + v + ' ms');
+                fbBtn('btn-apply-scrollInterval', true);
+            } else {
+                fbBtn('btn-apply-scrollInterval', false);
             }
         }
 
@@ -227,6 +244,9 @@
                 maxBuffer = v;  // 存 MB
                 wsSend({ type: 'max_buffer', data: maxBuffer });
                 addFrontendLog('缓冲区上限变更为 ' + v + ' MB');
+                fbBtn('btn-apply-maxBuffer', true);
+            } else {
+                fbBtn('btn-apply-maxBuffer', false);
             }
         }
 
@@ -236,6 +256,9 @@
                 maxFrontendLogs = v;
                 wsSend({ type: 'max_frontend_logs', data: maxFrontendLogs });
                 addFrontendLog('日志上限变更为 ' + v + ' 条');
+                fbBtn('btn-apply-maxFrontendLogs', true);
+            } else {
+                fbBtn('btn-apply-maxFrontendLogs', false);
             }
         }
 
@@ -245,6 +268,9 @@
                 clientTailMax = v;
                 wsSend({ type: 'client_tail_max', data: clientTailMax });
                 addFrontendLog('buffer 去重比对长度变更为 ' + v + ' 字节');
+                fbBtn('btn-apply-clientTailMax', true);
+            } else {
+                fbBtn('btn-apply-clientTailMax', false);
             }
         }
 
