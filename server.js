@@ -12,7 +12,8 @@ function loadConfig() {
             sizeSlots: { large: { rows: 60, cols: 120 }, small: { rows: 24, cols: 80 } },
             currentSize: 'large',
             hotkeys: {},
-            scrollInterval: 100,
+            scrollIntervalTerminal: 100,
+            scrollIntervalPage: 100,
             maxBuffer: 10,
             maxFrontendLogs: 50,
             clientTailMax: 4096
