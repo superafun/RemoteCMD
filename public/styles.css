@@ -207,6 +207,12 @@
         .toolbar button, #hotkeys-bar button {
             min-width: 60px;  /* 防止短文字按钮（如 ▲、编辑）被压缩到看不清 */
         }
+        /* 5 个滚动按钮的文字已经有 4 字 + 1 符号,不需要默认 14px 横向 padding */
+        #scrollGroup button {
+            padding-left: 6px;
+            padding-right: 6px;
+            min-width: 0;  /* 取消通用 min-width: 60px,允许按内容收缩 */
+        }
         #wsStatus {
             margin-left: 4px;
             user-select: none;
