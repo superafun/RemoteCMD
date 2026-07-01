@@ -207,4 +207,8 @@
         .toolbar button, #hotkeys-bar button {
             min-width: 60px;  /* 防止短文字按钮（如 ▲、编辑）被压缩到看不清 */
         }
+        #wsStatus {
+            user-select: none;
+            -webkit-user-select: none;
+        }
     
