@@ -94,7 +94,7 @@ server.js
 |------|------|
 | `server.js` | **整个后端** —— Express 5、WebSocket（/cmd/）、node-pty 创建子进程 |
 | `public/index.html` | **整个前端** —— 内联 JS、xterm.js v6、无打包工具 |
-| `config.json` | 运行时持久化配置（rows、cols、hotkeys、scrollStep、scrollInterval、maxBuffer、maxFrontendLogs） |
+| `config.json` | 运行时持久化配置（rows、cols、hotkeys、scrollInterval、maxBuffer、maxFrontendLogs、clientTailMax） |
 | `package.json` | 依赖：express ^5、ws ^8、node-pty ^1、@xterm/xterm ^6、3 个 addon；scripts：start/restart/stop（PM2） |
 | `reasonix.toml` | CodeWhale IDE 配置（非项目运行时配置） |
 
@@ -176,7 +176,7 @@ server.js
     
     其他 8 个候选点（`min-width: 60px` 移动端点击区域、`availableKeys` 手机点选、`computeSmartName` 命名连贯、70 行 `.modal-box` CSS、3 个独立"应用"按钮、`maxBufferChars` 缓存等）经用户确认均为合理设计或可选优化，**不在本次范围**。完整审查记录见 [docs/superpowers/specs/2026-06-30-over-engineering-audit-design.md](docs/superpowers/specs/2026-06-30-over-engineering-audit-design.md)。**新增/修改代码时如果引入新的 state 容器，优先用 JS 变量**，不再用 hidden input。
 
-18. **滚动行数分离**：2026-06-30 修改。`scrollStep`（设置弹窗中的"终端滚动行数"）现在**只控制 ▲上滑终端/▼下滑终端**（SGR 滚轮事件发送次数）。**▲上滑页面/▼下滑页面**（xterm 视口滚动）固定每次滚动 1 行，不受 scrollStep 影响。
+18. **滚动行数分离（2026-07-01 已移除 scrollStep）**：2026-06-30 引入 scrollStep 控制 ▲上滑终端/▼下滑终端的 SGR 滚轮事件发送次数。2026-07-01 完全移除 scrollStep，所有滚动按钮统一固定每次 1 行 + 按住滚动模式，设置弹窗中不再有"终端滚动行数"输入项。config.json 中的 scrollStep 字段已删除。
 
 19. **PM2 进程管理 + 前端重启**：2026-06-30 引入。服务器由 PM2 管理（`pm2 start server.js --name remote-cmd`），`npm start` 启动。前端设置弹窗新增「重启服务器」按钮（`restartServer()`），发送 `{type:'restart_server'}` 到服务端。服务端回复确认后杀掉所有 PowerShell 子进程，200ms 后 `process.exit(1)` 退出，PM2 检测到非零退出码自动重启新实例。前端 `ws.onclose` 触发 1 秒后自动重连。**PM2 安装**：`npm install -g pm2`（一次性）。**常用命令**：`npm start`（启动）、`npm run restart`（重启）、`npm run stop`（停止）。**Trae 环境例外（2026-06-30）**：Trae PowerShell 工具下 PM2 daemon 反复 EPERM（Windows 命名管道权限），PM2 不可用。`server.js` 实际由独立的 node 守护进程（PID 101804）拉起，113036 是当前 remote-cmd 服务进程。`process.exit(1)` 后 101804 会自动重新 spawn 新的 server.js 实例，前端 ws.onclose 触发 1 秒后自动重连。**恢复 PM2 管理**：需在 Trae 外的 PowerShell 手动执行 `pm2 start server.js --name remote-cmd` + `pm2 save`，或在 `c:\Users\fmy3\.pm2` 不存在的全新环境下使用。
 
@@ -202,6 +202,28 @@ server.js
     - **删除了 `fallbackId` 参数**，调用处 `createSession()` 同步改为 `computeSmartName()`（无参）。
     - **`rename` 清空时复用**：用户重命名为空字符串时，调用 `computeSmartName()` 自动计算新名称，不再产生 `null`。
     - **影响**：后端永远不产生 `null` 名称，前端无需额外防御。
+
+22. **`cls` 清屏同步已删除（2026-06-30）**：后端 `onData` 中检测 `\x1b[2J`（ESC[2J）后清空 `sessions[id].buffer` 的功能已删除。
+    - **原因**：node-pty 的 `onData` 回调可能将转义序列拆分到多个 chunk 中（如 chunk1: `\x1b[2`，chunk2: `J`），导致 `d.includes('\x1b[2J')` 永远检测不到。修复需要跨 chunk 拼接检测，实现复杂且易引入新 bug。
+    - **影响**：执行 `cls` / `Clear-Host` 只会清空前端 xterm 显示，后端 buffer 不受影响。缓冲区管理完全由滞回式截断和设置弹窗中的缓冲区上限控制。
+
+23. **Alt+快捷键编码规则（2026-06-30 确认）**：Alt+字母应编码为 Escape+小写字母，而非 Escape+大写字母。
+    - 正确：`Alt+A → \x1ba`，`Alt+Z → \x1bz`
+    - 错误：`Alt+A → \x1bA`，`Alt+Z → \x1bZ`
+    - **原因**：Windows Terminal / PowerShell 对 `\x1bA`（大写）的响应与 `\x1ba`（小写）不同。大写序列可能被解释为其他控制功能而非 Alt+字母快捷键。
+
+24. **按住滚动间隔可配置（2026-06-30）**：按住上滑/下滑按钮时连续触发的间隔毫秒数改为 config.json 可配置项。
+    - 字段名：`scrollInterval`，默认 100ms，范围 1-1000ms
+    - WebSocket 消息类型：`scroll_interval`（双向同步）
+    - 前端 `setupHoldScroll` 每次 `setInterval` 触发时重新读取全局 `scrollInterval` 变量
+    - 设置弹窗中「按住滚动间隔 (ms)」输入框，step=10，min=1
+
+25. **前端日志上限可配置（2026-06-30）**：前端日志上限从硬编码 500 改为 config.json 可配置项。
+    - 默认值 50（用户明确指定），范围 10-10000，step=10
+    - 滞回式截断：`frontendLogs.length > maxFrontendLogs * 2` 时触发，截断到 `maxFrontendLogs` 条
+    - 截断方式：`frontendLogs = frontendLogs.slice(-maxFrontendLogs)`
+    - 完整链路：前端变量 → WebSocket `max_frontend_logs` 消息 → server.js 持久化到 config.json → 连接时同步所有客户端
+    - `loadConfig` 兜底：非数字/超范围时回退到 50
 
 ## 开发工作流
 
