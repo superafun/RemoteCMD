@@ -140,7 +140,8 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify(buildSizeSlotsMsg()));
     ws.send(JSON.stringify({ type: 'current_size', data: config.currentSize }));
     ws.send(JSON.stringify({ type: 'hotkeys', data: config.hotkeys }));
-    ws.send(JSON.stringify({ type: 'scroll_interval', data: config.scrollInterval }));
+    ws.send(JSON.stringify({ type: 'scroll_interval_terminal', data: config.scrollIntervalTerminal }));
+    ws.send(JSON.stringify({ type: 'scroll_interval_page', data: config.scrollIntervalPage }));
     ws.send(JSON.stringify({ type: 'max_buffer', data: config.maxBuffer }));
     ws.send(JSON.stringify({ type: 'max_frontend_logs', data: config.maxFrontendLogs }));
     ws.send(JSON.stringify({ type: 'client_tail_max', data: config.clientTailMax }));
