@@ -174,7 +174,7 @@
         .toolbar, #hotkeys-bar {
             display: flex;
             flex-wrap: wrap;
-            gap: 4px;
+            gap: 0;
             align-items: center;
             /* width 由 #page flex 列布局默认 stretch 提供 */
         }
