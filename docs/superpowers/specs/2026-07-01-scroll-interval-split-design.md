@@ -127,7 +127,7 @@ function applySettingsScrollIntervalPage() {
 
 ### setupHoldScroll 改造
 
-扩展为 `setupHoldScroll(btnId, fn, intervalGetter)`，定时器触发时通过 getter 读最新值（保留"设置变更后立即生效"的现有行为）：
+扩展为 `setupHoldScroll(btnId, fn, intervalGetter)`。**保持与现有代码完全相同的行为**：`setInterval` 创建时调用 `intervalGetter()` 读一次周期值，定时器周期随之锁定；按住期间改设置不会影响当前定时器，需释放并再次按住才按新周期生效。`intervalGetter` 形式（vs 直接传值）的好处是不同按钮的 getter 闭包能各自捕获自己的全局变量，避免在 4 个按钮间共享同一个变量名。
 
 ```javascript
 function setupHoldScroll(btnId, fn, intervalGetter) {
@@ -257,7 +257,7 @@ else if (type === 'scroll_interval_page') {
 
 ## 与现有功能的关系
 
-- **AGENTS.md 注意事项 24**：当前描述"`scrollInterval`（默认 100ms，范围 1-1000ms）"应更新为"`scrollIntervalTerminal`（终端 SGR 滚轮按钮，默认 100ms）+ `scrollIntervalPage`（页面 xterm 滚视图按钮，默认 100ms），范围 1-1000ms"。
+- **AGENTS.md 注意事项 24**：当前描述"`scrollInterval`（默认 100ms，范围 1-1000ms）"应更新为"`scrollIntervalTerminal`（终端 SGR 滚轮按钮，默认 100ms）+ `scrollIntervalPage`（页面 xterm 滚视图按钮，默认 100ms），范围 1-1000ms"。同时该注意事项末尾"前端 `setupHoldScroll` 每次 `setInterval` 触发时重新读取全局 `scrollInterval` 变量"一句是错误的——实际代码在 `setInterval` 创建时读取一次周期值，运行期间不变。本次实施时一并修正。
 - **AGENTS.md 注意事项 28（服务端权威）**：本次新增的 `applySettingsScrollIntervalTerminal` / `applySettingsScrollIntervalPage` 必须遵循"只发不发本地状态"模式（已在设计代码块中体现）。
 - **setupHoldScroll 调用点**：4 个调用全部更新（从 2 参数变 3 参数）。
 - **PM2 重启**：不受影响（重启后从 config 读新值）。
