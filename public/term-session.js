@@ -53,7 +53,6 @@ class TermSession {
         }
         this.pendingBuffer = true;
         wsSend({ type: 'buffer', id: this.id, tail: this.clientTail });
-        addFrontendLog('开始拉取 ' + this.name + ' 缓存');
         this.showBufferLoading();
     }
 
