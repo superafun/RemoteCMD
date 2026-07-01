@@ -208,6 +208,7 @@
             min-width: 60px;  /* 防止短文字按钮（如 ▲、编辑）被压缩到看不清 */
         }
         #wsStatus {
+            margin-left: 4px;
             user-select: none;
             -webkit-user-select: none;
         }
