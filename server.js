@@ -135,18 +135,19 @@ function createSession() {
 
 wss.on('connection', (ws) => {
     if (Object.keys(sessions).length === 0) createSession();
-    // === 先发设置（size_slots + current_size），再发 list ===
-    // 这样前端 list 处理器可以无条件从 sizeSlots[currentSize] 取值 resize 新会话，
-    // 不区分"首次连接"和"后续新建"两条路径（2026-07-02 重构）
+    // === 先发影响 list 处理的设置（size_slots + current_size + client_tail_max），再发 list ===
+    // 这样前端 list 处理器可以无条件从 sizeSlots[currentSize] 取值 resize 新会话,
+    // requestBuffer 也用真实的 clientTailMax 截断 clientTail（不再用默认 4096）
+    // 不区分"首次连接"和"后续新建"两条路径（2026-07-02 重构 + 2026-07-02 扩展）
     ws.send(JSON.stringify(buildSizeSlotsMsg()));
     ws.send(JSON.stringify({ type: 'current_size', data: config.currentSize }));
+    ws.send(JSON.stringify({ type: 'client_tail_max', data: config.clientTailMax }));
     ws.send(JSON.stringify(buildListMsg()));
     ws.send(JSON.stringify({ type: 'hotkeys', data: config.hotkeys }));
     ws.send(JSON.stringify({ type: 'scroll_interval_terminal', data: config.scrollIntervalTerminal }));
     ws.send(JSON.stringify({ type: 'scroll_interval_page', data: config.scrollIntervalPage }));
     ws.send(JSON.stringify({ type: 'max_buffer', data: config.maxBuffer }));
     ws.send(JSON.stringify({ type: 'max_frontend_logs', data: config.maxFrontendLogs }));
-    ws.send(JSON.stringify({ type: 'client_tail_max', data: config.clientTailMax }));
     ws.on('message', (msg) => {
         const p = JSON.parse(msg.toString());
         const { type, id, data } = p;
