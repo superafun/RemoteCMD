@@ -8,24 +8,40 @@ const pty = require('node-pty');
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 function loadConfig() {
     if (!fs.existsSync(CONFIG_PATH)) {
-        const def = { rows: 60, cols: 118, hotkeys: {}, scrollInterval: 100, maxBuffer: 10, maxFrontendLogs: 50, clientTailMax: 4096 };
+        const def = {
+            sizeSlots: { large: { rows: 60, cols: 120 }, small: { rows: 24, cols: 80 } },
+            currentSize: 'large',
+            hotkeys: {},
+            scrollInterval: 100,
+            maxBuffer: 10,
+            maxFrontendLogs: 50,
+            clientTailMax: 4096
+        };
         fs.writeFileSync(CONFIG_PATH, JSON.stringify(def, null, 2));
         return def;
     }
     const cfg = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
-    // 迁移：旧 maxBuffer 字段是字符数（如 10000），新格式是 MB（如 10）
-    // 检测规则：值 >= 1000 视为旧字符数（10 MB = 10,000,000 字符远大于 1000）
+
+    // === sizeSlots 兜底：缺失/非法时填默认值 ===
+    if (!cfg.sizeSlots || typeof cfg.sizeSlots !== 'object') cfg.sizeSlots = {};
+    if (!cfg.sizeSlots.large) cfg.sizeSlots.large = { rows: 60, cols: 120 };
+    if (!cfg.sizeSlots.small) cfg.sizeSlots.small = { rows: 24, cols: 80 };
+    for (const k of ['large', 'small']) {
+        const s = cfg.sizeSlots[k];
+        if (!Number.isInteger(s.rows) || s.rows < 20 || s.rows > 200) s.rows = k === 'large' ? 60 : 24;
+        if (!Number.isInteger(s.cols) || s.cols < 20 || s.cols > 200) s.cols = k === 'large' ? 120 : 80;
+    }
+    // === currentSize 兜底：非 'large'/'small' 时填 'large' ===
+    if (cfg.currentSize !== 'large' && cfg.currentSize !== 'small') cfg.currentSize = 'large';
+
+    // 保留：旧 maxBuffer 字段是字符数（如 10000），新格式是 MB（如 10）
     if (typeof cfg.maxBuffer === 'number' && cfg.maxBuffer >= 1000) {
         const mb = Math.round(cfg.maxBuffer / 1000000);
         cfg.maxBuffer = (mb >= 1 && mb <= 90) ? mb : 10;
         console.log(`[migration] maxBuffer 自动从字符数转换为 ${cfg.maxBuffer} MB`);
         fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2));
     }
-    // 兜底：缺失或非法值
-    if (typeof cfg.maxBuffer !== 'number' || cfg.maxBuffer < 1 || cfg.maxBuffer > 90) {
-        cfg.maxBuffer = 10;
-    }
-    // 防御性默认：老用户 config.json 缺此字段时避免 undefined
+    if (typeof cfg.maxBuffer !== 'number' || cfg.maxBuffer < 1 || cfg.maxBuffer > 90) cfg.maxBuffer = 10;
     if (cfg.clientTailMax == null) cfg.clientTailMax = 4096;
     return cfg;
 }
@@ -47,6 +63,16 @@ app.use('/addon-unicode11', express.static(path.join(__dirname, 'node_modules/@x
 
 const sessions = {};
 let sessionCounter = 1;
+
+// 构造 size_slots 全量广播消息
+function buildSizeSlotsMsg() {
+    return { type: 'size_slots', data: config.sizeSlots };
+}
+
+// 调整所有 PTY 尺寸
+function resizeAllPtys(rows, cols) {
+    Object.values(sessions).forEach(s => s.pty.resize(cols, rows));
+}
 
 function broadcast(msg) {
     wss.clients.forEach(c => c.readyState === 1 && c.send(JSON.stringify(msg)));
@@ -80,10 +106,11 @@ function computeSmartName() {
 
 function createSession() {
     const newId = sessionCounter++;
+    const slot = config.sizeSlots[config.currentSize];
     const ptyProcess = pty.spawn('powershell.exe', [], {
         name: 'xterm-color',
-        cols: config.cols,
-        rows: config.rows,
+        cols: slot.cols,
+        rows: slot.rows,
         cwd: process.env.USERPROFILE,
         env: process.env
     });
@@ -106,7 +133,9 @@ function createSession() {
 wss.on('connection', (ws) => {
     if (Object.keys(sessions).length === 0) createSession();
     ws.send(JSON.stringify(buildListMsg()));
-    ws.send(JSON.stringify({ type: 'resize', id: 0, data: { rows: config.rows, cols: config.cols } }));
+    // === 新增：大/小尺寸槽位 + 当前尺寸（替代旧 resize 下发） ===
+    ws.send(JSON.stringify(buildSizeSlotsMsg()));
+    ws.send(JSON.stringify({ type: 'current_size', data: config.currentSize }));
     ws.send(JSON.stringify({ type: 'hotkeys', data: config.hotkeys }));
     ws.send(JSON.stringify({ type: 'scroll_interval', data: config.scrollInterval }));
     ws.send(JSON.stringify({ type: 'max_buffer', data: config.maxBuffer }));
@@ -149,11 +178,28 @@ wss.on('connection', (ws) => {
                 ws.send(JSON.stringify({ type: 'buffer', id, data, pos }));
             }
         }
-        else if (type === 'resize') {
-            config.rows = data.rows; config.cols = data.cols;
-            Object.values(sessions).forEach(s => s.pty.resize(data.cols, data.rows));
-            broadcast({ type: 'resize', id: 0, data: { rows: config.rows, cols: config.cols } });
+        else if (type === 'size_slots') {
+            // C → S: 写 sizeSlots[sizeMode] + 落盘 + 全量广播
+            const sizeMode = p.sizeMode;
+            if (sizeMode !== 'large' && sizeMode !== 'small') return;
+            const r = parseInt(p.rows);
+            const c = parseInt(p.cols);
+            if (!Number.isInteger(r) || r < 20 || r > 200) return;
+            if (!Number.isInteger(c) || c < 20 || c > 200) return;
+            config.sizeSlots[sizeMode] = { rows: r, cols: c };
             saveConfig(config);
+            broadcast(buildSizeSlotsMsg());
+        }
+        else if (type === 'current_size') {
+            // C → S: 切 currentSize + 调整所有 PTY + 落盘 + 广播
+            const size = p.size;
+            if (size !== 'large' && size !== 'small') return;
+            if (config.currentSize === size) return;  // 无变化则跳过
+            config.currentSize = size;
+            const slot = config.sizeSlots[size];
+            resizeAllPtys(slot.rows, slot.cols);
+            saveConfig(config);
+            broadcast({ type: 'current_size', data: size });
         }
         else if (type === 'hot_keys') {
             config.hotkeys = data || {};
