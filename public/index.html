@@ -710,8 +710,8 @@
             wsStatusEl.style.color = ok ? 'green' : 'red';
         }
 
-        // 移动端：阻止按钮 mousedown 默认行为，避免软键盘因焦点转移而收起
-        document.addEventListener('mousedown', e => { if (e.target.tagName === 'BUTTON') e.preventDefault(); });
+        // 移动端：阻止按钮 mousedown 默认行为，避免软键盘因焦点转移而收起，但后来发现，不用这条也行，完全通过css屏蔽更好，于是去掉
+        // document.addEventListener('mousedown', e => { if (e.target.tagName === 'BUTTON') e.preventDefault(); });
         // 浏览器报告网络恢复时立即重连（不等 3 秒 backoff）
         window.addEventListener('online', () => { addFrontendLog('网络恢复，触发重连'); connect(); });
     </script>
