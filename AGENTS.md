@@ -43,7 +43,7 @@ server.js
 |--------|------|-------|---------------|
 | 后端 | `server.js` | 100 | Express 静态服务器 + WebSocket 处理器 + node-pty 会话生命周期 + PM2 重启 |
 | 前端 | `public/index.html` | 320 | 单页应用：xterm.js v6 终端、会话切换器、快捷键编辑器、滚动控制、自动重连、重启服务器 |
-| 配置 | `config.json` | ~21 | 持久化配置：`rows`、`cols`、`hotkeys`（名称→转义序列）、`scrollStep`、`scrollInterval`、`maxBuffer`、`maxFrontendLogs`、`clientTailMax`（buffer 尾部比对长度，单位：bytes，默认 4096） |
+| 配置 | `config.json` | ~21 | 持久化配置：`rows`、`cols`、`hotkeys`（名称→转义序列）、`scrollInterval`、`maxBuffer`、`maxFrontendLogs`、`clientTailMax`（buffer 尾部比对长度，单位：bytes，默认 4096） |
 
 ### WebSocket 协议（JSON，type 字段）
 
@@ -56,7 +56,6 @@ server.js
 | `buffer` | 历史缓冲区响应（id + data + 可选 pos）。`pos` 存在 = 档 2 增量推送（客户端只 write 追加）；`pos` 缺席 + `data === ''` = 档 1 未变更（客户端跳过）；`pos` 缺席 + `data !== ''` = 档 3 全量回放（客户端 reset + write） |
 | `resize` | 终端尺寸变更广播（id: 0, data: {rows, cols}） |
 | `hotkeys` | 快捷键配置同步 |
-| `scroll_step` | 滚动步长值 |
 | `scroll_interval` | 按住滚动间隔（单位：ms） |
 | `max_buffer` | 缓冲区上限值（单位：MB） |
 | `max_frontend_logs` | 前端日志上限值（单位：条） |
@@ -74,7 +73,6 @@ server.js
 | `buffer` | 请求会话的缓冲区回放（id + 可选 tail，tail 是客户端最近 N 字节原始字符串，默认 N = config.clientTailMax）。服务端按 `endsWith` → `lastIndexOf` → 全量 三档响应（见注意事项 18） |
 | `resize` | 调整所有终端尺寸（id: 0, data: {rows, cols}） |
 | `hot_keys` | 更新快捷键配置（data） |
-| `scroll_step` | 更新滚动步长（data） |
 | `scroll_interval` | 更新按住滚动间隔（data，单位：ms） |
 | `max_buffer` | 更新缓冲区上限（单位：MB） |
 | `max_frontend_logs` | 更新前端日志上限（单位：条） |

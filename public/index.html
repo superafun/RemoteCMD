@@ -42,7 +42,6 @@
         let activeId = null;         // number | null
         const wsProtocol = location.protocol === 'https:' ? 'wss' : 'ws';
         let hotkeys = {};
-        let scrollStep = 3;
         let scrollInterval = 100;
         let maxBuffer = 50000;
         // rows / cols 替代原 #rowsInput / #colsInput（2026-06-30 移除 hidden input）
@@ -112,12 +111,6 @@
             html += '<button class="btn-primary" id="btn-apply-size" onclick="applySettingsSize()">应用</button>';
             html += '</div>';
 
-            // 滚动行数
-            html += '<div class="modal-row">';
-            html += '终端滚动行数 <input type="number" id="settingsScrollStepInput" min="1" max="100" style="width:80px;">';
-            html += '<button class="btn-primary" id="btn-apply-scrollStep" onclick="applySettingsScrollStep()">应用</button>';
-            html += '</div>';
-
             // 按住滚动间隔 (ms)
             html += '<div class="modal-row">';
             html += '按住滚动间隔 (ms) <input type="number" id="settingsScrollIntervalInput" min="1" max="1000" step="10" style="width:80px;">';
@@ -163,7 +156,6 @@
             // 同步当前值到弹窗
             document.getElementById('settingsRowsInput').value = rows;
             document.getElementById('settingsColsInput').value = cols;
-            document.getElementById('settingsScrollStepInput').value = scrollStep;
             document.getElementById('settingsScrollIntervalInput').value = scrollInterval;
             document.getElementById('settingsMaxBufferInput').value = maxBuffer;
             document.getElementById('settingsMaxFrontendLogsInput').value = maxFrontendLogs;
@@ -211,18 +203,6 @@
                 fbBtn('btn-apply-size', true);
             } else {
                 fbBtn('btn-apply-size', false);
-            }
-        }
-
-        function applySettingsScrollStep() {
-            const v = parseInt(document.getElementById('settingsScrollStepInput').value);
-            if (Number.isInteger(v) && v >= 1 && v <= 100) {
-                scrollStep = v;
-                wsSend({ type: 'scroll_step', data: scrollStep });
-                addFrontendLog('滚动步长变更为 ' + v);
-                fbBtn('btn-apply-scrollStep', true);
-            } else {
-                fbBtn('btn-apply-scrollStep', false);
             }
         }
 
@@ -438,8 +418,6 @@
                         hotkeys = msg.data || {};
                         renderHotkeys();
                         if (editorDiv) openHotkeyEditor();
-                    } else if (msg.type === 'scroll_step') {
-                        scrollStep = msg.data;
                     } else if (msg.type === 'scroll_interval') {
                         scrollInterval = msg.data;
                     } else if (msg.type === 'max_buffer') {
@@ -491,8 +469,6 @@
         renderSessionSelect();
         connect();
         document.getElementById('editBtn').onclick = openHotkeyEditor;
-        document.getElementById('scrollUpBtn').onclick = scrollUp;
-        document.getElementById('scrollDownBtn').onclick = scrollDown;
         document.getElementById('scrollBottomBtn').onclick = scrollBottom;
         // 按住连续滚动（pointerdown 立即触发，pointerup/pointerleave 停止）
         // 每次定时器触发时重新读取 scrollInterval 全局变量，确保设置变更后立即生效
@@ -507,9 +483,9 @@
             const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
             btn.addEventListener('pointerup', stop);
             btn.addEventListener('pointerleave', stop);
-            // 移动端：阻止长按弹出上下文菜单（复制/选中工具条）
-            btn.addEventListener('contextmenu', (e) => e.preventDefault());
         }
+        setupHoldScroll('scrollUpBtn', scrollUp);
+        setupHoldScroll('scrollDownBtn', scrollDown);
         setupHoldScroll('scrollXtermUpBtn', scrollXtermUp);
         setupHoldScroll('scrollXtermDownBtn', scrollXtermDown);
 
@@ -581,11 +557,6 @@
         }
 
 
-        function sendSgrWheel(dir) {
-            const s = sessions.get(activeId);
-            if (!s) return;
-            s.sendSgrWheel(dir);
-        }
         function wsSend(obj) {
             if (!ws || ws.readyState !== 1) return;
             try {
@@ -595,8 +566,8 @@
             }
         }
         function sendInput(data) { if (activeId) wsSend({ type: 'input', id: activeId, data: data }); }
-        function scrollUp() { sendSgrWheel(-1); }
-        function scrollDown() { sendSgrWheel(1); }
+        function scrollUp() { sessions.get(activeId)?.sendSgrWheel(-1); }
+        function scrollDown() { sessions.get(activeId)?.sendSgrWheel(1); }
         function scrollBottom() { sessions.get(activeId)?.scrollToBottom(); }
         function scrollXtermUp() { sessions.get(activeId)?.scrollLines(-1); }
         function scrollXtermDown() { sessions.get(activeId)?.scrollLines(1); }

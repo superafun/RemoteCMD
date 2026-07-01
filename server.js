@@ -8,7 +8,7 @@ const pty = require('node-pty');
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 function loadConfig() {
     if (!fs.existsSync(CONFIG_PATH)) {
-        const def = { rows: 60, cols: 118, hotkeys: {}, scrollStep: 3, scrollInterval: 100, maxBuffer: 10, maxFrontendLogs: 50, clientTailMax: 4096 };
+        const def = { rows: 60, cols: 118, hotkeys: {}, scrollInterval: 100, maxBuffer: 10, maxFrontendLogs: 50, clientTailMax: 4096 };
         fs.writeFileSync(CONFIG_PATH, JSON.stringify(def, null, 2));
         return def;
     }
@@ -104,7 +104,6 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify(buildListMsg()));
     ws.send(JSON.stringify({ type: 'resize', id: 0, data: { rows: config.rows, cols: config.cols } }));
     ws.send(JSON.stringify({ type: 'hotkeys', data: config.hotkeys }));
-    ws.send(JSON.stringify({ type: 'scroll_step', data: config.scrollStep }));
     ws.send(JSON.stringify({ type: 'scroll_interval', data: config.scrollInterval }));
     ws.send(JSON.stringify({ type: 'max_buffer', data: config.maxBuffer }));
     ws.send(JSON.stringify({ type: 'max_frontend_logs', data: config.maxFrontendLogs }));
@@ -162,12 +161,7 @@ wss.on('connection', (ws) => {
             broadcast({ type: 'scroll_interval', data: config.scrollInterval });
             saveConfig(config);
         }
-        else if (type === 'scroll_step') {
-            config.scrollStep = data;
-            broadcast({ type: 'scroll_step', data: config.scrollStep });
-            saveConfig(config);
-        }
-        else if (type === 'max_buffer') {
+	else if (type === 'max_buffer') {
             config.maxBuffer = data;
             maxBufferChars = data * 1000000;  // 关键：更新缓存
             broadcast({ type: 'max_buffer', data: config.maxBuffer });

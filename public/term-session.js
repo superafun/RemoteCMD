@@ -1,7 +1,7 @@
 // public/term-session.js
 // 封装单个终端会话的所有状态与行为。
 // 依赖全局：Terminal, WebLinksAddon, Unicode11Addon,
-//          wsSend, clientTailMax, scrollStep, rows, cols
+//          wsSend, clientTailMax, rows, cols
 class TermSession {
     constructor(id, container) {
         this.id = id;
@@ -112,9 +112,7 @@ class TermSession {
         const y = Math.ceil(this.term.rows / 2);
         const code = dir > 0 ? 65 : 64;
         const seq = '\x1b[<' + code + ';' + y + ';1M';
-        for (let i = 0; i < scrollStep; i++) {
-            wsSend({ type: 'input', id: this.id, data: seq });
-        }
+        wsSend({ type: 'input', id: this.id, data: seq });
     }
 
     // === 尺寸 ===
