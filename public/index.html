@@ -13,26 +13,26 @@
 
 <body>
     <div id="page">
-    <div class="toolbar">
-        <button id="sessionSelectBtn"></button>
-        <div id="sessionDropdown" class="dropdown-menu"></div>
-        <button onclick="renameCurrent()">重命名</button>
-        <button onclick="renameAll()">重命名全部</button>
-        <button onclick="createNew()">新建终端</button>
-        <button onclick="killCurrent()">关闭终端</button>
-        <button onclick="openSettingsModal()">设置</button>
-        <span id="wsStatus" style="margin-left:4px;"></span>
-    </div>
-    <div id="terminal-container"></div>
-    <div id="hotkeys-bar">
-        <div id="hotkeysList" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
-        <button id="editBtn">编辑</button>
-        <button id="scrollUpBtn">▲上滑终端</button>
-        <button id="scrollDownBtn">▼下滑终端</button>
-        <button id="scrollXtermUpBtn">▲上滑页面</button>
-        <button id="scrollXtermDownBtn">▼下滑页面</button>
-        <button id="scrollBottomBtn">▽到底页面</button>
-    </div>
+        <div class="toolbar">
+            <button id="sessionSelectBtn"></button>
+            <div id="sessionDropdown" class="dropdown-menu"></div>
+            <button onclick="renameCurrent()">重命名</button>
+            <button onclick="renameAll()">重命名全部</button>
+            <button onclick="createNew()">新建终端</button>
+            <button onclick="killCurrent()">关闭终端</button>
+            <button onclick="openSettingsModal()">设置</button>
+            <span id="wsStatus" style="margin-left:4px;"></span>
+        </div>
+        <div id="terminal-container"></div>
+        <div id="hotkeys-bar">
+            <div id="hotkeysList" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
+            <button id="editBtn">编辑</button>
+            <button id="scrollUpBtn">▲上滑终端</button>
+            <button id="scrollDownBtn">▼下滑终端</button>
+            <button id="scrollXtermUpBtn">▲上滑页面</button>
+            <button id="scrollXtermDownBtn">▼下滑页面</button>
+            <button id="scrollBottomBtn">▽到底页面</button>
+        </div>
     </div>
     <script src="./xterm/lib/xterm.js"></script>
     <script>
@@ -60,7 +60,7 @@
         // === 前端日志 ===
         let maxFrontendLogs = 50;
         const frontendLogs = [];
-        
+
         function addFrontendLog(msg) {
             const t = new Date();
             const time = t.toLocaleString('zh-CN', { hour12: false });
@@ -84,14 +84,14 @@
             if (map[s]) return map[s];
             let m = s.match(/^Ctrl\+([A-Z])$/i);
             if (m) return String.fromCharCode(m[1].toUpperCase().charCodeAt(0) - 64);
-            
+
             // Alt+字母 → Escape 前缀 + 小写字母（如 Alt+M → \x1bm）
             // 实际键盘 Alt+字母发送的是小写，大写 \x1bM 会被解释为 VT100 控制序列
             m = s.match(/^Alt\+([A-Z])$/i);
             if (m) {
                 return '\x1b' + m[1].toLowerCase();
             }
-            
+
             m = s.match(/^Shift\+(.+)$/);
             if (m) return '\x1b' + m[1];
             return s;
@@ -335,7 +335,11 @@
                                     s.dispose();
                                     sessions.delete(id);
                                 }
-                                if (activeId === id) activeId = null;
+                                if (activeId === id) {
+                                    if (currentIds.length > 0) {
+                                        switchSession(currentIds.reduce((a, b) => a > b ? a : b));
+                                    } else { activeId = null; }
+                                };
                             }
                         });
 
@@ -375,12 +379,6 @@
                                 sessions.get(id).requestBuffer();
                             });
                         }
-
-                        // 当前会话被 kill 后跳到 ID 最大者
-                        if (activeId == null && currentIds.length > 0) {
-                            switchSession(currentIds.reduce((a, b) => a > b ? a : b));
-                        }
-
                         renderSessionSelect();
                     } else if (msg.type === 'buffer') {
                         const s = sessions.get(msg.id);
@@ -486,7 +484,7 @@
         }
         setupHoldScroll('scrollXtermUpBtn', scrollXtermUp);
         setupHoldScroll('scrollXtermDownBtn', scrollXtermDown);
-        
+
         function renderSessionSelect() {
             const btn = document.getElementById('sessionSelectBtn');
             btn.textContent = sessions.get(activeId)?.name || (activeId != null ? 'Shell #' + activeId : '选择终端');
