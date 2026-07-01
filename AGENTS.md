@@ -241,6 +241,12 @@ server.js
 
 28. **服务端权威 + 客户端不乐观更新（2026-07-01 修复）**：设置类 `apply*` 处理器**不应在 `wsSend` 之前修改本地状态**，否则 ws 失败时本地已变但服务器没变，下次重连被服务器覆盖 → "看似应用了" 实际没生效的不一致。**正确模式**：只 `wsSend`，本地状态由 `ws.onmessage` 收到 broadcast 后统一更新（接收侧已有 `xxx = msg.data` 赋值）。**已修复**：`applySettingsScrollIntervalTerminal` / `applySettingsScrollIntervalPage` / `applySettingsMaxBuffer` / `applySettingsMaxFrontendLogs` / `applySettingsClientTailMax` —— 删除 `scrollIntervalTerminal = v` / `scrollIntervalPage = v` / `maxBuffer = v` / `maxFrontendLogs = v` / `clientTailMax = v; clientTailMax2 = v * 2` 5 处本地 mutation，删除对应发送侧 `addFrontendLog`（与接收侧 'X 同步为 Y' 重复）。**已是正确模式**（无需改）：`applySettingsSizeFor` / `toggleSize`（size 类只读 sizeSlots/currentSize 不修改）/ `renameCurrent` / `renameAll` / `createNew`（pendingCreate 是创建标志位非配置）/ `killCurrent`（本地 term 由 list 处理器统一删）/ `restartServer` / `syncHotkeys`（hotkeys 已在用户编辑时改）。**fbBtn 保持立即调用**："指令已发出"语义；wsSend 失败时 `wsSend` 内部 catch 会 log 失败原因。**新增 apply 类处理器时**：只发不发本地状态，本地状态由 `ws.onmessage` 接收侧负责更新。
 
+29. **新建终端时 xterm 尺寸同步（2026-07-02 修复）**：用户报 bug「新建终端时终端变小」。根因是 list 处理器 newIds 分支创建 TermSession 后未调 resize，新 xterm 保持默认 80×24（xterm.js Terminal 构造时未传 cols/rows 的默认值），而服务端 PTY 已用 `config.sizeSlots[config.currentSize]` 创建（如 34×110）。**为什么 current_size 处理器兜不住**：首次连接场景服务端按 `list → size_slots → current_size` 顺序下发，current_size 处理器 `sessions.forEach(s => s.resize(...))` 兜底 OK；但**新建终端场景服务端只 broadcast list，不会重发 current_size**（currentSize 没变），所以新会话保持 80×24。**修复位置**：[public/index.html L388-L398](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/public/index.html#L388-L398) list 处理器 newIds 分支加 `const slot = currentSize && sizeSlots[currentSize]; if (slot) s.resize(slot.cols, slot.rows);`。**安全性**：
+    - 首次连接场景：list 到达时 `currentSize/sizeSlots` 仍为 null，`slot` 取不到跳过；后续 current_size 消息到达时 `sessions.forEach` 兜底 ✓
+    - 非首次连接的新建：`sizeSlots/currentSize` 已有值（首次连接收到过），立即 resize ✓
+    - 断网重连：客户端 JS 变量保留重连前的值，且 list 处理器不加 isFirstList 标记下也会进入新会话分支；服务端 `wss.on('connection')` 不重发 size_slots/current_size 但客户端变量不丢 ✓
+    - 用户刷新页面后极短时间内点新建（100ms 内）：sizeSlots/currentSize 仍为 null 跳过；current_size 后续到达时 `sessions.forEach` 兜底 ✓
+
 ## 开发工作流
 
 - **只改前端时不要重启服务器**：测试前先用 `Get-NetTCPConnection -LocalPort 65433` 检查后端服务器是否在跑。如果在跑就直接连现成的服务器测网页（静态文件刷新即可加载新前端）。只有改了 `server.js` 时才需要重启服务。
