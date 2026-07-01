@@ -212,9 +212,18 @@ wss.on('connection', (ws) => {
             broadcast({ type: 'hotkeys', data: config.hotkeys });
             saveConfig(config);
         }
-        else if (type === 'scroll_interval') {
-            config.scrollInterval = data;
-            broadcast({ type: 'scroll_interval', data: config.scrollInterval });
+        else if (type === 'scroll_interval_terminal') {
+            const v = parseInt(data);
+            if (!Number.isInteger(v) || v < 1 || v > 1000) return;
+            config.scrollIntervalTerminal = v;
+            broadcast({ type: 'scroll_interval_terminal', data: config.scrollIntervalTerminal });
+            saveConfig(config);
+        }
+        else if (type === 'scroll_interval_page') {
+            const v = parseInt(data);
+            if (!Number.isInteger(v) || v < 1 || v > 1000) return;
+            config.scrollIntervalPage = v;
+            broadcast({ type: 'scroll_interval_page', data: config.scrollIntervalPage });
             saveConfig(config);
         }
 	else if (type === 'max_buffer') {
