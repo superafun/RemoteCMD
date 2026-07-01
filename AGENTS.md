@@ -125,8 +125,8 @@ server.js
 
 ### 追踪范围
 
-- **追踪**：`server.js` / `public/index.html` 及未来新增的 `public/term-session.js` / `public/styles.css` / `package.json` / `package-lock.json` / `config.json` / `docs/` / `AGENTS.md`
-- **不追踪**（详见 `.gitignore`）：`node_modules/` / `.pm2/` / `reasonix.toml` / IDE 与 OS 临时文件 / `*.log`
+- **追踪**：`server.js` / `public/index.html` / `public/term-session.js` / `public/styles.css` / `package.json` / `package-lock.json` / `docs/` / `AGENTS.md`
+- **不追踪**（详见 `.gitignore`）：`node_modules/` / `.pm2/` / `config.json` / `reasonix.toml` / IDE 与 OS 临时文件 / `*.log`
 - xterm 静态资源由 `node_modules/@xterm/xterm` 提供（`server.js` 用 `express.static` 挂到 `/xterm`），无需 vendored 副本
 
 ### 提交信息规范

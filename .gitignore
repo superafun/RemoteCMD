@@ -19,6 +19,9 @@ reasonix.toml
 Thumbs.db
 desktop.ini
 
+# === 运行时配置（本地环境差异，不纳入版本控制）===
+config.json
+
 # === 日志 ===
 *.log
 npm-debug.log*
