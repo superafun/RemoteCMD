@@ -325,8 +325,8 @@
                     pendingCreate = false;
                     updateWsStatus();
                     if (navigator.onLine) {
-                        addFrontendLog('1 秒后重连');
-                        reconnectTimer = setTimeout(connect, 1000);
+                        addFrontendLog('0.01 秒后重连');
+                        reconnectTimer = setTimeout(connect, 10);
                     } else {
                         addFrontendLog('网络已断开，等待网络恢复后自动重连');
                     }
