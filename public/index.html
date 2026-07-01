@@ -125,10 +125,16 @@
             html += '<button class="btn-primary" id="btn-apply-smallSize" onclick="applySettingsSmallSize()">应用</button>';
             html += '</div></div>';
 
-            // 按住滚动间隔 (ms)
+            // 按住终端滚动间隔 (ms)
             html += '<div class="modal-row">';
-            html += '按住滚动间隔 (ms) <input type="number" id="settingsScrollIntervalInput" min="1" max="1000" step="10" style="width:80px;">';
-            html += '<button class="btn-primary" id="btn-apply-scrollInterval" onclick="applySettingsScrollInterval()">应用</button>';
+            html += '按住终端滚动间隔 (ms) <input type="number" id="settingsScrollIntervalTerminalInput" min="1" max="1000" step="10" style="width:80px;">';
+            html += '<button class="btn-primary" id="btn-apply-scrollIntervalTerminal" onclick="applySettingsScrollIntervalTerminal()">应用</button>';
+            html += '</div>';
+
+            // 按住页面滚动间隔 (ms)
+            html += '<div class="modal-row">';
+            html += '按住页面滚动间隔 (ms) <input type="number" id="settingsScrollIntervalPageInput" min="1" max="1000" step="10" style="width:80px;">';
+            html += '<button class="btn-primary" id="btn-apply-scrollIntervalPage" onclick="applySettingsScrollIntervalPage()">应用</button>';
             html += '</div>';
 
             // 缓冲区上限 (MB)
