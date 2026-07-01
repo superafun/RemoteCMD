@@ -767,6 +767,8 @@
         // document.addEventListener('mousedown', e => { if (e.target.tagName === 'BUTTON') e.preventDefault(); });
         // 浏览器报告网络恢复时立即重连（不等 3 秒 backoff）
         window.addEventListener('online', () => { addFrontendLog('网络恢复，触发重连'); connect(); });
+        // 移动端：阻止按钮 pointerdown 的焦点转移，保持键盘状态不变
+        document.addEventListener('pointerdown', function(e) { if (e.target.closest('button')) e.preventDefault(); }, { capture: true, passive: false });
     </script>
 </body>
 
