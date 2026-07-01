@@ -43,7 +43,8 @@
         let activeId = null;         // number | null
         const wsProtocol = location.protocol === 'https:' ? 'wss' : 'ws';
         let hotkeys = {};
-        let scrollInterval = 100;
+        let scrollIntervalTerminal = 100;
+        let scrollIntervalPage = 100;
         let maxBuffer = 50000;
         // sizeSlots / currentSize 替代原 rows/cols（2026-07-01 改用 size_slots/current_size 协议）
         // 初始 null：服务端消息到达前不调用 term.resize，也不渲染弹窗默认值
@@ -526,23 +527,23 @@
         document.getElementById('editBtn').onclick = openHotkeyEditor;
         document.getElementById('scrollBottomBtn').onclick = scrollBottom;
         // 按住连续滚动（pointerdown 立即触发，pointerup/pointerleave 停止）
-        // 每次定时器触发时重新读取 scrollInterval 全局变量，确保设置变更后立即生效
-        function setupHoldScroll(btnId, fn) {
+        // setInterval 创建时调用 intervalGetter() 读一次周期，运行期间不变（需释放+再次按住才按新值）
+        function setupHoldScroll(btnId, fn, intervalGetter) {
             const btn = document.getElementById(btnId);
             let timer = null;
             btn.addEventListener('pointerdown', (e) => {
                 e.preventDefault();
                 fn();
-                timer = setInterval(fn, scrollInterval);
+                timer = setInterval(fn, intervalGetter());
             });
             const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
             btn.addEventListener('pointerup', stop);
             btn.addEventListener('pointerleave', stop);
         }
-        setupHoldScroll('scrollUpBtn', scrollUp);
-        setupHoldScroll('scrollDownBtn', scrollDown);
-        setupHoldScroll('scrollXtermUpBtn', scrollXtermUp);
-        setupHoldScroll('scrollXtermDownBtn', scrollXtermDown);
+        setupHoldScroll('scrollUpBtn', scrollUp, () => scrollIntervalTerminal);
+        setupHoldScroll('scrollDownBtn', scrollDown, () => scrollIntervalTerminal);
+        setupHoldScroll('scrollXtermUpBtn', scrollXtermUp, () => scrollIntervalPage);
+        setupHoldScroll('scrollXtermDownBtn', scrollXtermDown, () => scrollIntervalPage);
 
         function renderSessionSelect() {
             const btn = document.getElementById('sessionSelectBtn');
