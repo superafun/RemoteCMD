@@ -507,6 +507,8 @@
             const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
             btn.addEventListener('pointerup', stop);
             btn.addEventListener('pointerleave', stop);
+            // 移动端：阻止长按弹出上下文菜单（复制/选中工具条）
+            btn.addEventListener('contextmenu', (e) => e.preventDefault());
         }
         setupHoldScroll('scrollXtermUpBtn', scrollXtermUp);
         setupHoldScroll('scrollXtermDownBtn', scrollXtermDown);

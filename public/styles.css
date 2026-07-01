@@ -74,6 +74,9 @@
             font-size: 13px;
             line-height: 1.4;  /* 固定行高，避免中英文切换时按钮高度变化 */
             cursor: pointer;
+            touch-action: manipulation;  /* 移动端：只处理点击手势，不触发双击缩放/长按菜单 */
+            user-select: none;  /* 防止文本被选中 */
+            -webkit-user-select: none;  /* 兼容 Safari */
         }
         button:hover {
             background: #505050;
