@@ -160,7 +160,7 @@ wss.on('connection', (ws) => {
             let data;
             let pos = null;
 
-            if (typeof tail === 'string' && tail !== '') {
+            if (tail !== '') {
                 if (buf.endsWith(tail)) {
                     // 档 1：未变更
                     data = '';
