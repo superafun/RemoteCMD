@@ -134,15 +134,25 @@ function createSession() {
 }
 
 wss.on('connection', (ws) => {
-    if (Object.keys(sessions).length === 0) createSession();
     // === 先发影响 list 处理的设置（size_slots + current_size + client_tail_max），再发 list ===
     // 这样前端 list 处理器可以无条件从 sizeSlots[currentSize] 取值 resize 新会话,
     // requestBuffer 也用真实的 clientTailMax 截断 clientTail（不再用默认 4096）
     // 不区分"首次连接"和"后续新建"两条路径（2026-07-02 重构 + 2026-07-02 扩展）
+    //
+    // 2026-07-03 修复:首次连接时 createSession() 内部 broadcast(list) 会发给新 ws(此时 wss.clients 已包含新 ws)
+    // 如果在 createSession() 之后才 ws.send 设置,新 ws 会先收到 list,导致 sizeSlots/currentSize 尚未就绪时报错
+    // 修复方式:先 ws.send 设置,再 createSession()(内部 broadcast 包含新会话的 list 给新 ws,顺序仍在设置之后)
     ws.send(JSON.stringify(buildSizeSlotsMsg()));
     ws.send(JSON.stringify({ type: 'current_size', data: config.currentSize }));
     ws.send(JSON.stringify({ type: 'client_tail_max', data: config.clientTailMax }));
-    ws.send(JSON.stringify(buildListMsg()));
+    if (Object.keys(sessions).length === 0) {
+        // 首次连接：createSession() 内部 broadcast(list) 给所有 ws（含新 ws）
+        // 新 ws 接收顺序：size_slots → current_size → client_tail_max → list
+        createSession();
+    } else {
+        // 非首次：直接 ws.send(list)
+        ws.send(JSON.stringify(buildListMsg()));
+    }
     ws.send(JSON.stringify({ type: 'hotkeys', data: config.hotkeys }));
     ws.send(JSON.stringify({ type: 'scroll_interval_terminal', data: config.scrollIntervalTerminal }));
     ws.send(JSON.stringify({ type: 'scroll_interval_page', data: config.scrollIntervalPage }));
