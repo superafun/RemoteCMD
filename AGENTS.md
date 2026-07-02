@@ -253,6 +253,15 @@ server.js
       - 用户刷新页面后 100ms 内点新建：connection 还没建立时 wsSend 直接 return（pendingCreate 置位但 create 消息未发出），无 list 处理 ✓
     - **不要回退消息顺序**：原顺序（list 在最前）会导致两条逻辑分裂的兜底路径。
 
+30. **首次连接时 createSession 内 broadcast 破坏 list 顺序（2026-07-03 修复）**：上面注意事项 29 说"首次连接顺序下发 size_slots → current_size → client_tail_max → list"，但**实际首版实现漏了一个细节**：`wss.on('connection')` 第一行 `if (Object.keys(sessions).length === 0) createSession();` 在所有 `ws.send` 之前调用，而 `createSession()` 内部 L133 `broadcast(buildListMsg())` 立即把 list 发给所有 `wss.clients`（ws 库的 connection 事件触发时新 ws 已被加入 clients Set，因此新 ws 也会收到）。
+    - **症状**：用户报"首次连接页面报错 Uncaught TypeError: Cannot read properties of undefined (reading 'cols') at L414"。`s.resize(slot.cols, slot.rows)` 的 `slot` 是 `undefined`。原因：list 消息在 size_slots/current_size 之前到达客户端，list 处理器 newIds 分支执行时前端 `sizeSlots` 仍是默认 `{large: null, small: null}`、`currentSize` 仍是默认 `null`，`sizeSlots[null]` = `undefined`。**仅首次连接触发**（后续连接 sessions 非空，跳过 createSession，不触发 broadcast，ws.send 顺序正确）。
+    - **修复**（[server.js L136-L155](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/server.js#L136-L155)）：把 createSession 调用移到 `ws.send(size_slots/current_size/client_tail_max)` 之后，并加 if/else 分流：
+      - 首次连接：`ws.send` × 3 → `createSession()`（内部 broadcast 包含新会话的 list 给新 ws）
+      - 非首次连接：`ws.send` × 3 → `ws.send(list)`
+    - **客户端接收顺序统一**：两种情况都是 `size_slots → current_size → client_tail_max → list`，无重复 list，无顺序错乱。
+    - **历史回顾**（2026-07-02）：之前 `isFirstList` + `if (slot) resize` 兜底正是为了掩盖这个 bug（首版 list 处理器在 size_slots 未到时跳过 resize）。**根因修复后**这条防御仍然存在（`if (slot) resize`），但实际上只要服务端按正确顺序下发，slot 永远不为 null，兜底分支是死代码。**不要简化掉** `if (slot) resize` —— 兜底无成本，保留作为"服务端协议有变动时"的最后一道防线。
+    - **教训**：`broadcast()` 在 `connection` 回调内同步触发的副作用要特别小心 —— 它会发给**所有**已 connected 的 ws，包括当前正在 connection 的那个。任何"先设置后 list"的设计都要确认 broadcast 不会在 ws.send 之前跑出去。**后续协议设计规则**：所有"在 connection 块内对当前 ws 发送的、且 broadcast 不应抢先的消息"，必须确保 broadcast 触发点在所有必要的 ws.send 之后。
+
 ## 开发工作流
 
 - **只改前端时不要重启服务器**：测试前先用 `Get-NetTCPConnection -LocalPort 65433` 检查后端服务器是否在跑。如果在跑就直接连现成的服务器测网页（静态文件刷新即可加载新前端）。只有改了 `server.js` 时才需要重启服务。
