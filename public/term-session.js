@@ -59,9 +59,9 @@ class TermSession {
     handleBufferResponse(msg) {
         this.pendingBuffer = false;
         this.hideBufferLoading();
-        if (msg.data === '' && msg.pos == null) return 'skip';
-        if (msg.pos != null) { this.write(msg.data); return 'incremental'; }
-        if (msg.data)        { this.write(msg.data, 'reset'); return 'full'; }
+        if (msg.data === '') return 'skip';
+        if (msg.reset) { this.write(msg.data, 'reset'); return 'full'; }
+        this.write(msg.data); return 'incremental';
     }
 
     // === 加载动画 ===

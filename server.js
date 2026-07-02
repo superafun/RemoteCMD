@@ -158,32 +158,29 @@ wss.on('connection', (ws) => {
             const buf = sessions[id].buffer;
             const tail = p.tail;
             let data;
-            let pos = null;
+            let reset = true;  // 默认全量模式（档 3），需要清空 xterm 重写
 
             if (tail !== '') {
                 if (buf.endsWith(tail)) {
                     // 档 1：未变更
                     data = '';
+                    reset = false;
                 } else {
                     const i = buf.lastIndexOf(tail);
                     if (i !== -1) {
                         // 档 2：增量推送
-                        pos = i + tail.length;
-                        data = buf.slice(pos);
+                        data = buf.slice(i + tail.length);
+                        reset = false;
                     }
                 }
             }
             if (data === undefined) {
-                // 档 3：全量（tail 缺/空字符串/lastIndexOf 没找到）
+                // 档 3：全量（空串或 lastIndexOf 没找到）
                 data = buf.length > maxBufferChars ? buf.slice(-maxBufferChars) : buf;
+                // reset 保持 true
             }
 
-            // 发送（pos 存在时为增量，缺席时为全量或未变更）
-            if (pos === null) {
-                ws.send(JSON.stringify({ type: 'buffer', id, data }));
-            } else {
-                ws.send(JSON.stringify({ type: 'buffer', id, data, pos }));
-            }
+            ws.send(JSON.stringify({ type: 'buffer', id, data, ...(reset ? { reset: true } : {}) }));
         }
         else if (type === 'size_slots') {
             // C → S: 写 sizeSlots[sizeMode] + 落盘 + 全量广播
