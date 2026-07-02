@@ -48,7 +48,7 @@
         let hotkeys = {};
         let scrollIntervalTerminal = 100;
         let scrollIntervalPage = 100;
-        let maxBuffer = 50000;
+        let maxBuffer = 10;  // 默认值 MB，与服务端 loadConfig 默认一致（避免弹窗打开瞬间 input 被 clamp 到 90）
         // sizeSlots / currentSize 替代原 rows/cols（2026-07-01 改用 size_slots/current_size 协议）
         // 初始 null：服务端消息到达前不调用 term.resize，也不渲染弹窗默认值
         let sizeSlots = { large: null, small: null };
