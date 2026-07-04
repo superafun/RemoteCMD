@@ -262,6 +262,21 @@ server.js
     - **历史回顾**（2026-07-02）：之前 `isFirstList` + `if (slot) resize` 兜底正是为了掩盖这个 bug（首版 list 处理器在 size_slots 未到时跳过 resize）。**根因修复后**这条防御仍然存在（`if (slot) resize`），但实际上只要服务端按正确顺序下发，slot 永远不为 null，兜底分支是死代码。**不要简化掉** `if (slot) resize` —— 兜底无成本，保留作为"服务端协议有变动时"的最后一道防线。
     - **教训**：`broadcast()` 在 `connection` 回调内同步触发的副作用要特别小心 —— 它会发给**所有**已 connected 的 ws，包括当前正在 connection 的那个。任何"先设置后 list"的设计都要确认 broadcast 不会在 ws.send 之前跑出去。**后续协议设计规则**：所有"在 connection 块内对当前 ws 发送的、且 broadcast 不应抢先的消息"，必须确保 broadcast 触发点在所有必要的 ws.send 之后。
 
+31. **`Get-ExecutionPolicy` 模块加载失败修复（2026-07-04）**：`Get-ExecutionPolicy -List` 在 web 终端中报 `CouldNotAutoloadMatchingModule`。
+    - **根因**（排查过程）：
+      1. `-ExecutionPolicy Bypass` 无效 → 不是 execution policy 问题
+      2. `-NoProfile` 无效 → 不是 profile 问题
+      3. 测试发现 `powershell.exe` 通过 PATH 解析到 `C:\WINDOWS\system32\WindowsPowerShell\v1.0\powershell.exe`（Windows PowerShell 5.1），而非 PowerShell 7
+      4. PM2 进程的 `PSModulePath` 环境变量中包含了 PowerShell 7 的模块路径（来自 WindowsApps 的 `...\Modules`）
+      5. PS5.1 自动加载 `Microsoft.PowerShell.Security` 时优先找到 PS7 版本的类型数据文件（`.types.ps1xml`），其定义的类型（`AuditToString` 等）与 PS5.1 不兼容 → `CouldNotAutoloadMatchingModule`
+      6. `Import-Module` 测试确认是**终止错误**（`FormatXmlUpdateException`），模块完全无法加载
+    - **修复**（[server.js L110-L119](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/server.js#L110-L119)）：
+      1. 将 spawn 目标从 `'powershell.exe'` 改为 `'pwsh.exe'`（显式使用 PowerShell 7，而非被 PATH 解析到 PS5.1）
+      2. 参数：`-ExecutionPolicy Bypass`（无 `-NoProfile`，保留 profile 加载）
+      3. **不**过滤 `PSModulePath`：spawn 选项不传 `env`，node-pty 默认继承父进程 env。PS7 的 PSEdition-aware 模块加载能正确挑出 PS7 版本模块，PS5.1 路径在不在 `PSModulePath` 里都不影响。
+    - **历史**：修复当日曾加过 `PSModulePath` 过滤（`!p.includes('windowspowershell')`），同日经对照实验验证后移除：过滤不仅多余（PS7 自身能区分版本），还误删了 `C:\Program Files\WindowsPowerShell\Modules` 这条 PS5.1/PS7 共享的 AllUsers 模块安装路径，导致用户用 `Install-Module -Scope AllUsers` 装的模块在 web 终端里找不到。对照实验：同父进程 env 下，过滤与不过滤两种方式 spawn `pwsh.exe`，`Get-ExecutionPolicy -List` 均正常，`Microsoft.PowerShell.Security` 均加载 7.0.0.0 PS7 版本。
+    - **影响**：终端运行在 PowerShell 7（`pwsh.exe`）。`Get-ExecutionPolicy -List` 等命令正常工作，profile 脚本正常加载。
+
 ## 开发工作流
 
 - **只改前端时不要重启服务器**：测试前先用 `Get-NetTCPConnection -LocalPort 65433` 检查后端服务器是否在跑。如果在跑就直接连现成的服务器测网页（静态文件刷新即可加载新前端）。只有改了 `server.js` 时才需要重启服务。

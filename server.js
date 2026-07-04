@@ -110,12 +110,14 @@ function computeSmartName() {
 function createSession() {
     const newId = sessionCounter++;
     const slot = config.sizeSlots[config.currentSize];
-    const ptyProcess = pty.spawn('powershell.exe', [], {
+    // PowerShell 7 (pwsh.exe)。不传 env → node-pty 默认继承父进程 env。
+    // PS7 的 PSEdition-aware 模块加载能正确挑出 PS7 版本模块，无需过滤 PSModulePath；
+    // 实测过滤反而会误删 `C:\Program Files\WindowsPowerShell\Modules`（PS5.1/PS7 共享的 AllUsers 模块路径）。
+    const ptyProcess = pty.spawn('pwsh.exe', ['-ExecutionPolicy', 'Bypass'], {
         name: 'xterm-color',
         cols: slot.cols,
         rows: slot.rows,
-        cwd: process.env.USERPROFILE,
-        env: process.env
+        cwd: process.env.USERPROFILE
     });
     sessions[newId] = { pty: ptyProcess, buffer: '', name: computeSmartName() };
     ptyProcess.onData((d) => {
