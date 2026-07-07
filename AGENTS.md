@@ -277,6 +277,19 @@ server.js
     - **历史**：修复当日曾加过 `PSModulePath` 过滤（`!p.includes('windowspowershell')`），同日经对照实验验证后移除：过滤不仅多余（PS7 自身能区分版本），还误删了 `C:\Program Files\WindowsPowerShell\Modules` 这条 PS5.1/PS7 共享的 AllUsers 模块安装路径，导致用户用 `Install-Module -Scope AllUsers` 装的模块在 web 终端里找不到。对照实验：同父进程 env 下，过滤与不过滤两种方式 spawn `pwsh.exe`，`Get-ExecutionPolicy -List` 均正常，`Microsoft.PowerShell.Security` 均加载 7.0.0.0 PS7 版本。
     - **影响**：终端运行在 PowerShell 7（`pwsh.exe`）。`Get-ExecutionPolicy -List` 等命令正常工作，profile 脚本正常加载。
 
+32. **快捷键编辑器拖拽排序（2026-07-07 引入）**：快捷键编辑弹窗里的「上移」按钮过于笨拙，改为 HTML5 拖拽。设计要点：
+    - **DOM 结构**：每行 `.hotkey-item` 加 `draggable="true"` + `data-hotkey-name="${n}"`，左侧加 `<span class="drag-handle">☰</span>` 提示可拖。原「上移」按钮删除，对应 `moveUp()` 函数一并删除。
+    - **事件绑定**：拖拽事件不能用 inline（需读 `currentTarget.dataset`），因此在 `openHotkeyEditor()` 末尾调 `bindHotkeyDragSort(editorDiv)`，内部用 `addEventListener` 挂 `dragstart / dragend / dragover / dragleave / drop` 五个。
+    - **插入位置判断**：用 `dragover` 时的 `e.clientY` 与目标项 `getBoundingClientRect()` 中线的相对位置决定：上半部分 → 插到它前面，下半部分 → 插到它后面。不用 `e.target`（避免嵌套子元素 `.drag-handle / .hk-label / button` 事件源判断复杂）。
+    - **数组重建逻辑**：`splice(fromIdx, 1)` 取出后使用 `order.indexOf(targetName)` 重新定位目标的新索引，再根据 `insertBefore` 决定是否 `+1`，最后 `splice(newIdx, 0, draggedName)` 插入。同位置拖回自己的情况被 `draggedName === targetName` 拦截。
+    - **指示反馈**：CSS 加 `.dragging` (opacity 0.4) + `.drag-over-top` (border-top 蓝色 2px) + `.drag-over-bottom` (border-bottom 蓝色 2px)。`dragover` 每次先清除所有 `.hotkey-item` 的两个提示类再加到当前项，避免多项同时点亮。
+    - **`dragleave` 减震**：该事件在进入子元素时也会冒泡触发，需用 `if (!item.contains(e.relatedTarget))` 只在真正离开 `.hotkey-item` 边界时才清除提示类。
+    - **`dragend` 清场**：拖拽被取消（拖出窗口 / Esc）时也会触发，里面要同步清除所有指示类和 `draggedName`。
+    - **`dataTransfer.setData` 必须调**：否则 Firefox 拒绝 drag；`effectAllowed = 'move'` + `dropEffect = 'move'` 保证光标变型。
+    - **服务端透明**：拖完后调 `syncHotkeys()`，服务端 `hotkeys` 协议与上移按钮时完全一致，仅是前端推动顺序的方式变了。`config.json` 保持原有字段，无需迁移。
+    - **性能影响**：拖拽仅限快捷键编辑弹窗内（默认 14 行），事件总量 < 70（14 × 5），DOM 重建仅在 drop 后触发一次（`syncHotkeys` → `服务端广播` → `接收侧 hotkeys 处理器` → `renderHotkeys`）。无内存泄漏。
+    - **不需重启服务器**：纯前端改动，刷新页面即可加载。
+
 ## 开发工作流
 
 - **只改前端时不要重启服务器**：测试前先用 `Get-NetTCPConnection -LocalPort 65433` 检查后端服务器是否在跑。如果在跑就直接连现成的服务器测网页（静态文件刷新即可加载新前端）。只有改了 `server.js` 时才需要重启服务。
