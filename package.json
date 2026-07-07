@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "pm2 start server.js --name remote-cmd",
+    "start": "cmd /c \"set NPM_CONFIG_ALLOW_SCRIPTS=&& pm2 start server.js --name remote-cmd\"",
     "restart": "pm2 restart remote-cmd",
     "stop": "pm2 stop remote-cmd",
     "test": "echo \"Error: no test specified\" && exit 1"
