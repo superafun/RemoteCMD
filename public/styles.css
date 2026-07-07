@@ -135,6 +135,39 @@
             padding: 3px 10px;
             font-size: 12px;
         }
+        /* 拖拽手柄:左侧 ☰ 提示可拖动,鼠标变 grab */
+        .hotkey-item .drag-handle {
+            color: #888;
+            cursor: grab;
+            user-select: none;
+            margin-right: 8px;
+            font-size: 14px;
+            line-height: 1;
+        }
+        .hotkey-item .drag-handle:active {
+            cursor: grabbing;
+        }
+        .hotkey-item .hk-label {
+            font-family: Consolas, 'Courier New', monospace;
+            font-size: 13px;
+            color: #c0c0c0;
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        /* 拖拽中:半透明 */
+        .hotkey-item.dragging {
+            opacity: 0.4;
+        }
+        /* 插入位置指示线:target 项的上/下边一条蓝色亮线 */
+        .hotkey-item.drag-over-top {
+            border-top: 2px solid #4a9eff;
+        }
+        .hotkey-item.drag-over-bottom {
+            border-bottom: 2px solid #4a9eff;
+        }
         .modal-actions {
             display: flex;
             gap: 8px;
