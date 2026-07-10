@@ -17,7 +17,6 @@
             <button id="sessionSelectBtn"></button>
             <div id="sessionDropdown" class="dropdown-menu"></div>
             <button onclick="renameCurrent()">重命名</button>
-            <button onclick="renameAll()">重命名全部</button>
             <button onclick="createNew()">新建终端</button>
             <button onclick="killCurrent()">关闭终端</button>
             <button id="sizeToggleBtn" onclick="toggleSize()">大</button>
@@ -174,6 +173,7 @@
 
             html += '<div class="modal-actions">';
             html += '<button class="btn-danger" onclick="restartServer()">重启服务器</button>';
+            html += '<button onclick="renameAll()">重命名全部</button>';
             html += '<button onclick="openLogModal()">日志</button>';
             html += '<button onclick="closeSettingsModal()" style="margin-left:auto;">关闭</button>';
             html += '</div>';
