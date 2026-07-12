@@ -290,6 +290,14 @@ server.js
     - **性能影响**：拖拽仅限快捷键编辑弹窗内（默认 14 行），事件总量 < 70（14 × 5），DOM 重建仅在 drop 后触发一次（`syncHotkeys` → `服务端广播` → `接收侧 hotkeys 处理器` → `renderHotkeys`）。无内存泄漏。
     - **不需重启服务器**：纯前端改动，刷新页面即可加载。
 
+33. **直接发送快捷键面板「发按键」（2026-07-12 引入）**：底部快捷键栏**最左**新增「发按键」按钮（位于 `#hotkeysList` 之外、`#hotkeys-bar` 直接子元素），点击弹出小面板。面板内勾选修饰键（Ctrl/Alt/Shift，可多勾，`.mod-active` 高亮）+ 点主键（字母/功能键），**点主键即当场把组合序列通过 `sendInput(parseHotkey(组合名))` 发到当前活动终端**，不预设、不持久化、`server.js` 与 WebSocket 协议完全不动。发完面板自动关闭（一次一个），下次打开 `activeMods` 已清空。
+    - **复用**：`parseHotkey()`（Ctrl 大写公式 / Alt 小写 / Shift 规则不变）、`sendInput()`（→ `wsSend input`）、`activeId`。
+    - **新增常量**：`MODIFIER_KEYS = ['Ctrl','Alt','Shift']`、`PRIMARY_KEYS`（与 `availableKeys` 内容相同但是独立常量，原 `availableKeys` 保留不动）。
+    - **新增状态/函数**：全局 `activeMods`（Set）、`openSendKeysPanel` / `closeSendKeysPanel` / `toggleMod` / `clearMods` / `pickAndSend`。面板 DOM 句柄 `sendKeysPanel`（类比 `editorDiv`）。
+    - **按钮位置关键**：放在 `#hotkeysList` **之外**，因为 `renderHotkeys()` 内 `bar.innerHTML=''` 会清空 `#hotkeysList` 全部子节点再重建（只重附 `editBtnEl`/`scrollGroupEl`），放外面可避开被误清。
+    - **性能**：弹窗打开创建约 50 个按钮节点（仅面板生命周期内，关闭即销毁），零新增网络、零协议变更，可忽略。
+    - **纯前端改动**：只改前端不重启服务器，连现有 65433 刷新即可。
+
 ## 开发工作流
 
 - **只改前端时不要重启服务器**：测试前先用 `Get-NetTCPConnection -LocalPort 65433` 检查后端服务器是否在跑。如果在跑就直接连现成的服务器测网页（静态文件刷新即可加载新前端）。只有改了 `server.js` 时才需要重启服务。
