@@ -9,6 +9,24 @@
     <script src="./addon-web-links/lib/addon-web-links.js"></script>
     <script src="./addon-unicode11/lib/addon-unicode11.js"></script>
     <script src="./term-session.js"></script>
+    <style>
+        /* Toast 提示：复制成功/失败 */
+        .toast {
+            position: fixed;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 8px 16px;
+            border-radius: 4px;
+            color: #fff;
+            font-size: 14px;
+            z-index: 2000;
+            pointer-events: none;
+            opacity: 0.95;
+        }
+        .toast-success { background: #2d6cdf; }
+        .toast-error   { background: #d9534f; }
+    </style>
 </head>
 
 <body>
@@ -681,6 +699,15 @@
             }
         }
         function sendInput(data) { if (activeId) wsSend({ type: 'input', id: activeId, data: data }); }
+
+        // 显示短暂 Toast 提示（1.5s 自动消失，允许堆叠）
+        function showToast(message, type = 'success') {
+            const div = document.createElement('div');
+            div.textContent = message;
+            div.className = 'toast toast-' + type;
+            document.body.appendChild(div);
+            setTimeout(() => { div.remove(); }, 1500);
+        }
 
         // === Ctrl+C 选区复制 ===
         // 复制到剪贴板：优先 navigator.clipboard，失败/不可用退回 execCommand 兜底
