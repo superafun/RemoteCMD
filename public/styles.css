@@ -111,6 +111,13 @@
         .modal-row + .modal-row {
             margin-top: 8px;
         }
+
+        /* 修饰键勾选高亮（发按键面板，方案A） */
+        .mod-active {
+            background: #2d6cdf;
+            color: #fff;
+            border-color: #2d6cdf;
+        }
         .hotkey-item {
             display: flex;
             align-items: center;
