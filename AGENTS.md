@@ -298,6 +298,8 @@ server.js
     - **性能**：弹窗打开创建约 50 个按钮节点（仅面板生命周期内，关闭即销毁），零新增网络、零协议变更，可忽略。
     - **纯前端改动**：只改前端不重启服务器，连现有 65433 刷新即可。
 
+34. **Ctrl+C 选区复制（2026-07-12 引入）**：当 xterm 存在选区时，三种发送路径（键盘 onData / 底部快捷键按钮 / 发按键面板）的 Ctrl+C 都改为**复制选区到剪贴板并清除选区**，不再发送中断 `\x03`；无选区时 Ctrl+C 仍正常发 `\x03` 中断。纯前端改动（`public/index.html` + `public/term-session.js`），不动 `server.js`、不加 WebSocket 消息。复制函数：`copyToClipboard`（优先 `navigator.clipboard.writeText`，失败/不可用走 `fallbackCopy` 隐藏 textarea + `execCommand('copy')` 兜底）、`copyTermSelection(term)`（复制 + `term.clearSelection()`，挂 `window` 供 term-session.js 调用）、`sendInputMaybeCopy(data)`（仅拦截 `\x03`）。键盘路径在 `term-session.js` 的 `onData` 用 `this.term.hasSelection()` 判定；按钮与面板改调 `sendInputMaybeCopy`。行为始终开启，无设置开关。
+
 ## 开发工作流
 
 - **只改前端时不要重启服务器**：测试前先用 `Get-NetTCPConnection -LocalPort 65433` 检查后端服务器是否在跑。如果在跑就直接连现成的服务器测网页（静态文件刷新即可加载新前端）。只有改了 `server.js` 时才需要重启服务。
