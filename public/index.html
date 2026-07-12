@@ -735,11 +735,17 @@
             if (prevFocus && prevFocus.focus) prevFocus.focus();
             return ok;
         }
-        // 复制终端选区并清除选区（供键盘路径 term-session.js 调用）
+        // 复制终端选区并清除选区，返回 Promise<boolean>（供键盘路径 term-session.js 调用）
         function copyTermSelection(term) {
             const sel = term.getSelection();
-            if (sel) copyToClipboard(sel);
             term.clearSelection();
+            if (sel) {
+                return copyToClipboard(sel).then(ok => {
+                    showToast(ok ? '已复制' : '复制失败', ok ? 'success' : 'error');
+                    return ok;
+                });
+            }
+            return Promise.resolve(false);
         }
         window.copyTermSelection = copyTermSelection;
 
