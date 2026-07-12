@@ -221,6 +221,17 @@
             align-items: center;
             /* width 由 #page flex 列布局默认 stretch 提供 */
         }
+        /* 发按键：独立组合器入口，与预设快捷键语义不同，保持为 #hotkeys-bar 直接子项
+           flex-shrink:0 保证永不被压缩、始终独占最左；align-self 让 hotkeysList 内部换行至多行时顶端对齐 */
+        #sendKeysBtn {
+            flex-shrink: 0;
+            align-self: flex-start;
+        }
+        /* 预设快捷键列表：占据剩余宽度、内部 flex-wrap 换行（不把自己整体顶到下一行） */
+        #hotkeysList {
+            flex: 1 1 0;
+            min-width: 0;
+        }
         .dropdown-menu {
             display: none;
             position: fixed;
