@@ -26,13 +26,20 @@ class TermSession {
 
         // 输入转发到服务端
         this.term.onData(data => {
-            // 有选区时 Ctrl+C 改为复制并吞掉，不发给服务端
-            if (data === '\x03' && this.term.hasSelection()) {
-                if (window.copyTermSelection) window.copyTermSelection(this.term);
-                return;
-            }
             wsSend({ type: 'input', id: this.id, data: data });
         });
+
+        // 键盘 Ctrl+C：有选区时复制并吞掉，不发给服务端。
+        // 必须在捕获阶段拦截——xterm 处理按键时会先清掉选区再触发 onData，
+        // 若在 onData 里用 hasSelection() 判断，选区已被清，永远判定为「无选区」。
+        this.wrapper.addEventListener('keydown', e => {
+            if (e.ctrlKey && !e.shiftKey && !e.altKey &&
+                (e.key === 'c' || e.key === 'C') && this.term.hasSelection()) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (window.copyTermSelection) window.copyTermSelection(this.term);
+            }
+        }, true);
     }
 
     // === 生命周期 ===
