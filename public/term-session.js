@@ -32,12 +32,12 @@ class TermSession {
         // 键盘 Ctrl+C：有选区时复制并吞掉，不发给服务端。
         // 必须在捕获阶段拦截——xterm 处理按键时会先清掉选区再触发 onData，
         // 若在 onData 里用 hasSelection() 判断，选区已被清，永远判定为「无选区」。
-        this.wrapper.addEventListener('keydown', e => {
+        this.wrapper.addEventListener('keydown', async e => {
             if (e.ctrlKey && !e.shiftKey && !e.altKey &&
                 (e.key === 'c' || e.key === 'C') && this.term.hasSelection()) {
                 e.preventDefault();
                 e.stopPropagation();
-                if (window.copyTermSelection) window.copyTermSelection(this.term);
+                if (window.copyTermSelection) await window.copyTermSelection(this.term);
             }
         }, true);
     }
