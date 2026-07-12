@@ -711,7 +711,6 @@
 
         // === Ctrl+C 选区复制 ===
         // 复制到剪贴板：优先 navigator.clipboard，失败/不可用退回 execCommand 兜底
-        // 复制到剪贴板：优先 navigator.clipboard，失败/不可用退回 execCommand 兜底
         function copyToClipboard(text) {
             if (navigator.clipboard?.writeText) {
                 return navigator.clipboard.writeText(text)
