@@ -750,10 +750,10 @@
         window.copyTermSelection = copyTermSelection;
 
         // 发送输入，但 Ctrl+C 在存在选区时改为复制
-        function sendInputMaybeCopy(data) {
+        async function sendInputMaybeCopy(data) {
             if (data === '\x03') {
                 const s = sessions.get(activeId);
-                if (s && s.term.hasSelection()) { copyTermSelection(s.term); return; }
+                if (s && s.term.hasSelection()) { await copyTermSelection(s.term); return; }
             }
             sendInput(data);
         }
