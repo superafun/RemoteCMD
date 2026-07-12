@@ -110,6 +110,12 @@
             return s;
         }
         const availableKeys = ['Ctrl', 'Alt', 'Shift', '↑', '↓', '→', '←', 'Up', 'Down', 'Right', 'Left', 'Home', 'End', 'PgUp', 'PgDn', 'Insert', 'Delete', 'Tab', 'Enter', 'Esc', 'Backspace', 'Space', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
+        // 直接发送面板用：修饰键（勾选式组合，单独成区）
+        const MODIFIER_KEYS = ['Ctrl', 'Alt', 'Shift'];
+        // 直接发送面板用：主键（字母 + 功能键，点一下即与当前勾选的修饰键组合并发送）
+        const PRIMARY_KEYS = ['↑', '↓', '→', '←', 'Up', 'Down', 'Right', 'Left', 'Home', 'End', 'PgUp', 'PgDn', 'Insert', 'Delete', 'Tab', 'Enter', 'Esc', 'Backspace', 'Space', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
+        // 当前勾选的修饰键（方案A：勾选式组合，非物理按住）
+        let activeMods = new Set();
 
         // === 设置弹窗 ===
         function openSettingsModal() {
