@@ -10,22 +10,28 @@
     <script src="./addon-unicode11/lib/addon-unicode11.js"></script>
     <script src="./term-session.js"></script>
     <style>
-        /* Toast 提示：复制成功/失败 */
+        /* Toast 提示：复制成功/失败（右上角 + 滑入动画） */
         .toast {
             position: fixed;
-            top: 40%;
-            left: 50%;
-            transform: translate(-50%, -50%);
+            top: 16px;
+            right: 16px;
+            transform: translateX(120%);
+            opacity: 0;
             padding: 8px 16px;
             border-radius: 4px;
             color: #fff;
             font-size: 14px;
             z-index: 2000;
             pointer-events: none;
+            transition: transform 0.25s ease, opacity 0.25s ease;
+        }
+        .toast.toast-show {
+            transform: translateX(0);
             opacity: 0.95;
         }
         .toast-success { background: #2d6cdf; }
         .toast-error   { background: #d9534f; }
+        /* 右上角：top/right 16px，transform: translateX(120%) 初始在屏幕右侧外，加 .toast-show 滑入；停留 1.5s 后滑出，允许堆叠（每个偏移 40px） */
     </style>
 </head>
 
@@ -706,10 +712,14 @@
             const div = document.createElement('div');
             div.textContent = message;
             div.className = 'toast toast-' + type;
-            div.style.top = 'calc(40% + ' + (toastCount * 36) + 'px)';
+            div.style.top = (16 + toastCount * 40) + 'px';
             toastCount++;
             document.body.appendChild(div);
-            setTimeout(() => { div.remove(); toastCount = Math.max(0, toastCount - 1); }, 1500);
+            requestAnimationFrame(() => div.classList.add('toast-show'));
+            setTimeout(() => {
+                div.classList.remove('toast-show');
+                setTimeout(() => { div.remove(); toastCount = Math.max(0, toastCount - 1); }, 250);
+            }, 1500);
         }
 
         // === Ctrl+C 选区复制 ===
