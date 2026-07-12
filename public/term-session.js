@@ -26,6 +26,11 @@ class TermSession {
 
         // 输入转发到服务端
         this.term.onData(data => {
+            // 有选区时 Ctrl+C 改为复制并吞掉，不发给服务端
+            if (data === '\x03' && this.term.hasSelection()) {
+                if (window.copyTermSelection) window.copyTermSelection(this.term);
+                return;
+            }
             wsSend({ type: 'input', id: this.id, data: data });
         });
     }
