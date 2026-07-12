@@ -697,10 +697,12 @@
             ta.value = text;
             ta.style.position = 'fixed';
             ta.style.opacity = '0';
+            const prevFocus = document.activeElement;
             document.body.appendChild(ta);
             ta.select();
             try { document.execCommand('copy'); } catch (e) {}
             ta.remove();
+            if (prevFocus && prevFocus.focus) prevFocus.focus();
         }
         // 复制终端选区并清除选区（供键盘路径 term-session.js 调用）
         function copyTermSelection(term) {
