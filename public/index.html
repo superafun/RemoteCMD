@@ -681,6 +681,44 @@
             }
         }
         function sendInput(data) { if (activeId) wsSend({ type: 'input', id: activeId, data: data }); }
+
+        // === Ctrl+C 选区复制 ===
+        // 复制到剪贴板：优先 navigator.clipboard，失败/不可用退回 execCommand 兜底
+        function copyToClipboard(text) {
+            if (navigator.clipboard?.writeText) {
+                navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+            } else {
+                fallbackCopy(text);
+            }
+        }
+        // 非 secure 上下文兜底（用户环境为 HTTPS，此路径仅作保险）
+        function fallbackCopy(text) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); } catch (e) {}
+            ta.remove();
+        }
+        // 复制终端选区并清除选区（供键盘路径 term-session.js 调用）
+        function copyTermSelection(term) {
+            const sel = term.getSelection();
+            if (sel) copyToClipboard(sel);
+            term.clearSelection();
+        }
+        window.copyTermSelection = copyTermSelection;
+
+        // 发送输入，但 Ctrl+C 在存在选区时改为复制
+        function sendInputMaybeCopy(data) {
+            if (data === '\x03') {
+                const s = sessions.get(activeId);
+                if (s && s.term.hasSelection()) { copyTermSelection(s.term); return; }
+            }
+            sendInput(data);
+        }
+
         function scrollUp() { sessions.get(activeId)?.sendSgrWheel(-1); }
         function scrollDown() { sessions.get(activeId)?.sendSgrWheel(1); }
         function scrollBottom() { sessions.get(activeId)?.scrollToBottom(); }
