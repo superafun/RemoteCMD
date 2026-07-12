@@ -36,4 +36,7 @@ yarn-error.log*
 *.orig
 
 # === Subagent-Driven Development scratch ===
-.superpowers/sdd/
+.superpowers/
+
+# === 临时测试脚本（WebSocket 等一次性验证用，非项目源码）===
+_wstest.js
