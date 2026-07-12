@@ -76,16 +76,27 @@ function sendInputMaybeCopy(data) {
 
 ### 4. term-session.js 键盘路径修改
 
-`TermSession` 构造内的 `term.onData` 回调增加拦截：Ctrl+C 且自身 term 有选区时复制并 `return`，否则照旧 `wsSend`。用 `this.term` 判断选区（焦点所在会话，比 `activeId` 更精确）；无选区时仍按原 `this.id` 发送。
+> **⚠️ 实现修正（2026-07-12，实测后）**：原方案在 `term.onData` 回调里用 `this.term.hasSelection()` 拦截 Ctrl+C，**无效**。原因：xterm.js 在处理按键时会**先清掉选区再触发 `onData`**，所以 `onData` 执行时 `hasSelection()` 已为 `false`，永远判定为「无选区」→ 直接发 `\x03` 中断。底部按钮/面板走 `sendInputMaybeCopy`（不进 `onData`，选区仍在）所以有效，暴露出此差异。
+>
+> **正确做法**：用 `wrapper` 上的**捕获阶段 `keydown` 监听**抢在 xterm 清选区前拦截。判定 `e.ctrlKey && !e.shiftKey && !e.altKey && (e.key==='c'||e.key==='C') && term.hasSelection()`，命中则 `preventDefault()` + `stopPropagation()` + `copyTermSelection(term)`。`onData` 恢复为原样直接 `wsSend`（Ctrl+C 已被 keydown 拦截，不会到达）。
+
+`TermSession` 构造内：
 
 ```js
+// 输入转发到服务端（onData 不再拦截，键盘 Ctrl+C 改由下方 keydown 捕获处理）
 this.term.onData(data => {
-  if (data === '\x03' && this.term.hasSelection()) {
-    if (window.copyTermSelection) window.copyTermSelection(this.term);
-    return;
-  }
   wsSend({ type: 'input', id: this.id, data });
 });
+
+// 键盘 Ctrl+C：有选区时复制并吞掉，不发给服务端（捕获阶段，先于 xterm 清选区）
+this.wrapper.addEventListener('keydown', e => {
+  if (e.ctrlKey && !e.shiftKey && !e.altKey &&
+      (e.key === 'c' || e.key === 'C') && this.term.hasSelection()) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (window.copyTermSelection) window.copyTermSelection(this.term);
+  }
+}, true);
 ```
 
 ### 5. 调用点替换
@@ -102,9 +113,10 @@ this.term.onData(data => {
 ```
 用户选中文本，按/点 Ctrl+C
   │
-  ├─ 键盘 → term.onData('\x03')
-  │        └─ term.hasSelection() 真 → copyTermSelection(term) → 复制+清除选区，不发服务端
-  │        └─ 假 → wsSend('\x03')  （原行为，中断）
+  ├─ 键盘 → wrapper 捕获阶段 keydown 监听（先于 xterm 清选区）
+  │        └─ ctrl+c && term.hasSelection() 真 → preventDefault + stopPropagation
+  │              → copyTermSelection(term) → 复制+清除选区，onData 不再收到该键
+  │        └─ 假（无选区）→ 不拦截，xterm 正常处理 → onData('\x03') → wsSend 中断
   │
   ├─ 底部按钮 → sendInputMaybeCopy('\x03')
   │        └─ activeId 会话 hasSelection() 真 → copyTermSelection
@@ -116,13 +128,13 @@ this.term.onData(data => {
 
 ## 性能影响
 
-- 零新增事件监听器、零轮询。
+- 每个 `TermSession` 新增 1 个捕获阶段 `keydown` 监听器（无选区时 `hasSelection()` 为 O(1) 早退，无额外开销）；`onData` 无新增逻辑。
 - `term.hasSelection()` 为 O(1)；`getSelection()` / `clearSelection()` 仅在每次触发 Ctrl+C 时执行，开销可忽略。
 - 纯前端改动，不重启服务器，刷新页面即可生效。
 
 ## 测试
 
-用安卓真机走 LAN HTTP 访问，验证：
+用安卓真机走 HTTPS 访问，验证：
 
 1. 选中文本后，点击底部 `Ctrl+C` 按钮 → 选区内容进入剪贴板、选区被清除、终端未被中断。
 2. 选中文本后，在「发按键」面板拼出并点 `Ctrl+C` → 同上。
