@@ -294,7 +294,7 @@ server.js
     - **复用**：`parseHotkey()`（Ctrl 大写公式 / Alt 小写 / Shift 规则不变）、`sendInput()`（→ `wsSend input`）、`activeId`。
     - **新增常量**：`MODIFIER_KEYS = ['Ctrl','Alt','Shift']`、`PRIMARY_KEYS`（与 `availableKeys` 内容相同但是独立常量，原 `availableKeys` 保留不动）。
     - **新增状态/函数**：全局 `activeMods`（Set）、`openSendKeysPanel` / `closeSendKeysPanel` / `toggleMod` / `clearMods` / `pickAndSend`。面板 DOM 句柄 `sendKeysPanel`（类比 `editorDiv`）。
-    - **按钮位置关键**：放在 `#hotkeysList` **之外**，因为 `renderHotkeys()` 内 `bar.innerHTML=''` 会清空 `#hotkeysList` 全部子节点再重建（只重附 `editBtnEl`/`scrollGroupEl`），放外面可避开被误清。
+    - **按钮位置关键**：放在 `#hotkeysList` **之外**（作为 `#hotkeys-bar` 直接子元素），因为 `renderHotkeys()` 内 `bar.innerHTML=''` 会清空 `#hotkeysList` 全部子节点再重建（只重附 `editBtnEl`/`scrollGroupEl`），放外面可避开被误清。发按键本质是与预设快捷键**不同语义**的独立组合器入口，刻意不混进预设键列表。**布局修复（2026-07-12）**：曾出现发按键独占一行的 bug——`#sendKeysBtn` 与 `#hotkeysList` 是 `#hotkeys-bar` 的两个 flex 子项，`#hotkeysList` 展开宽度逼近终端宽度时 `flex-wrap` 把它挤到下一行。修复用纯 CSS：`#sendKeysBtn{flex-shrink:0;align-self:flex-start}`（永不被压缩、始终最左、多行时顶端对齐）+ `#hotkeysList{flex:1 1 0;min-width:0}`（占剩余宽、内部 `flex-wrap` 换行而非把自己顶到下一行），两者稳定同行并排。
     - **性能**：弹窗打开创建约 50 个按钮节点（仅面板生命周期内，关闭即销毁），零新增网络、零协议变更，可忽略。
     - **纯前端改动**：只改前端不重启服务器，连现有 65433 刷新即可。
 
