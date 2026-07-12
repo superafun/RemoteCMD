@@ -705,6 +705,67 @@
             bar.appendChild(scrollGroupEl);
         }
 
+        // === 直接发送快捷键面板（发按键，方案A：勾选式组合，不预设不持久化）===
+        let sendKeysPanel = null;
+        function openSendKeysPanel() {
+            if (sendKeysPanel) { sendKeysPanel.remove(); sendKeysPanel = null; }
+            activeMods.clear();  // 每次打开重置勾选
+            let html = '<div class="modal-overlay" style="z-index:1000;">';
+            html += '<div class="modal-box" style="min-width:360px;">';
+            html += '<h3>发送按键</h3>';
+            // 修饰键勾选区
+            html += '<div class="modal-row" style="flex-direction:column;align-items:flex-start;gap:4px;">';
+            html += '<div style="color:#a0a0a0;">修饰键（可多选）</div>';
+            html += '<div style="display:flex;gap:6px;flex-wrap:wrap;">';
+            MODIFIER_KEYS.forEach(k => {
+                html += `<button type="button" onclick="toggleMod(this)" data-mod="${k}">${k}</button>`;
+            });
+            html += '<button type="button" onclick="clearMods()">清空修饰键</button>';
+            html += '</div></div>';
+            // 主键区（点一下即发送）
+            html += '<div class="modal-row" style="flex-direction:column;align-items:flex-start;gap:4px;">';
+            html += '<div style="color:#a0a0a0;">主键（点一下即发送到当前终端）</div>';
+            html += '<div style="display:flex;gap:4px;flex-wrap:wrap;">';
+            PRIMARY_KEYS.forEach(k => {
+                html += `<button type="button" onclick="pickAndSend(this)">${k}</button>`;
+            });
+            html += '</div></div>';
+            html += '<div class="modal-actions">';
+            html += '<button onclick="closeSendKeysPanel()" style="margin-left:auto;">关闭</button>';
+            html += '</div></div></div>';
+            const div = document.createElement('div');
+            div.innerHTML = html;
+            sendKeysPanel = div.firstElementChild;
+            document.body.appendChild(sendKeysPanel);
+        }
+        function closeSendKeysPanel() {
+            if (sendKeysPanel) { sendKeysPanel.remove(); sendKeysPanel = null; }
+            activeMods.clear();
+        }
+        // 勾选/取消修饰键，toggle 按钮高亮
+        function toggleMod(btn) {
+            const mod = btn.dataset.mod;
+            if (activeMods.has(mod)) {
+                activeMods.delete(mod);
+                btn.classList.remove('mod-active');
+            } else {
+                activeMods.add(mod);
+                btn.classList.add('mod-active');
+            }
+        }
+        // 清空所有修饰键勾选
+        function clearMods() {
+            activeMods.clear();
+            document.querySelectorAll('.modal-box button.mod-active').forEach(b => b.classList.remove('mod-active'));
+        }
+        // 点主键：与当前勾选的修饰键拼成组合名，当场发送并关闭面板（一次一个）
+        function pickAndSend(btn) {
+            const name = [...activeMods, btn.textContent].join('+');
+            sendInput(parseHotkey(name));
+            addFrontendLog('直接发送: ' + name, 'out');
+            closeSendKeysPanel();
+        }
+
         function openHotkeyEditor() {
             if (editorDiv) { editorDiv.remove(); editorDiv = null; }
             const names = Object.keys(hotkeys);
