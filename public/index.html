@@ -701,12 +701,15 @@
         function sendInput(data) { if (activeId) wsSend({ type: 'input', id: activeId, data: data }); }
 
         // 显示短暂 Toast 提示（1.5s 自动消失，允许堆叠）
+        let toastCount = 0;
         function showToast(message, type = 'success') {
             const div = document.createElement('div');
             div.textContent = message;
             div.className = 'toast toast-' + type;
+            div.style.top = 'calc(40% + ' + (toastCount * 36) + 'px)';
+            toastCount++;
             document.body.appendChild(div);
-            setTimeout(() => { div.remove(); }, 1500);
+            setTimeout(() => { div.remove(); toastCount = Math.max(0, toastCount - 1); }, 1500);
         }
 
         // === Ctrl+C 选区复制 ===
@@ -743,7 +746,7 @@
                 return copyToClipboard(sel).then(ok => {
                     showToast(ok ? '已复制' : '复制失败', ok ? 'success' : 'error');
                     return ok;
-                });
+                }).catch(() => false);
             }
             return Promise.resolve(false);
         }
