@@ -732,7 +732,7 @@
             Object.keys(hotkeys).forEach(name => {
                 const btn = document.createElement('button');
                 btn.textContent = name;
-                btn.onclick = () => sendInput(hotkeys[name]);
+                btn.onclick = () => sendInputMaybeCopy(hotkeys[name]);
                 bar.appendChild(btn);
             });
             // 「编辑」按钮和 #scrollGroup 是 hotkeyList 的固定尾部元素
@@ -799,7 +799,7 @@
         // 点主键：与当前勾选的修饰键拼成组合名，当场发送并关闭面板（一次一个）
         function pickAndSend(btn) {
             const name = [...activeMods, btn.textContent].join('+');
-            sendInput(parseHotkey(name));
+            sendInputMaybeCopy(parseHotkey(name));
             addFrontendLog('直接发送: ' + name, 'out');
             closeSendKeysPanel();
         }
