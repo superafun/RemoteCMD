@@ -113,7 +113,8 @@
         }
 
         /* 修饰键勾选高亮（发按键面板，方案A） */
-        .mod-active {
+        .mod-active,
+        .mod-active:hover {
             background: #2d6cdf;
             color: #fff;
             border-color: #2d6cdf;
