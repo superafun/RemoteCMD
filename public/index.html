@@ -969,15 +969,24 @@
             autoGrow(inputBarText);
             inputBarText.focus();
         }
-        function closeInputBar() {
+        function closeInputBar(clear = true) {
             // 先交还终端焦点，避免 textarea 隐藏瞬间失焦导致移动端软键盘收回
             // （与其他快捷键按钮一致：点完后焦点仍在终端输入框，键盘不收）
             sessions.get(activeId)?.focus();
             inputBarWrap.style.display = 'none';
             inputBarBtn.style.display = '';          // 恢复输入条按钮
             hotkeysListEl.style.display = 'flex';    // 恢复快捷键栏
+            if (clear) { inputBarText.value = ''; }
+            inputBarText.style.height = 'auto';
+        }
+        // 保留草稿地关闭（焦点移出用）：不清空内容，下次点开仍可见
+        function closeInputBarPreserve() { closeInputBar(false); }
+        // 清空内容但保持展开、焦点留在输入框（Esc / 发送后用）
+        function clearInputBar() {
             inputBarText.value = '';
             inputBarText.style.height = 'auto';
+            autoGrow(inputBarText);
+            // 不移动焦点：桌面端光标留在输入框；移动端软键盘不收回，可连续输入
         }
         // textarea 自动增高：原生 textarea 不随内容变高，需按 scrollHeight 手动撑高
         function autoGrow(ta) {
