@@ -1025,6 +1025,12 @@
             if (e.key === 'Escape') { e.preventDefault(); closeInputBar(); }
             else if (e.key === 'Enter') { e.preventDefault(); sendInputBar(); }  // 回车=发送（与换行按钮对调）
         });
+        inputBarText.addEventListener('blur', (e) => {
+            if (inputBarWrap.style.display !== 'flex') return;   // 已关闭则忽略，防止程序化 close 后的二次触发
+            const r = e.relatedTarget;
+            if (r && inputBarWrap.contains(r)) return;            // 焦点仍在输入条内（如换行按钮），不关闭
+            closeInputBarPreserve();                             // 点外部/终端：关闭但保留草稿
+        });
 
         function openHotkeyEditor() {
             if (editorDiv) { editorDiv.remove(); editorDiv = null; }
