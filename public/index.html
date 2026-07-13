@@ -614,19 +614,51 @@
         // editBtn 引用已保留为 editBtnEl（被 renderHotkeys 重新附加），上行的 getElementById 在首次
         // init 时拿到引用并赋值 onclick 即可，后续即使元素被摘下再附加，onclick 仍在同一 JS 对象上
         document.getElementById('scrollBottomBtn').onclick = scrollBottom;
-        // 按住连续滚动（pointerdown 立即触发，pointerup/pointerleave 停止）
+        // 按住连续滚动（pointerdown 触发，pointerup/pointerleave/pointercancel 停止）
         // setInterval 创建时调用 intervalGetter() 读一次周期，运行期间不变（需释放+再次按住才按新值）
+        // 触摸/笔：先判定是否为「滑动手势」——pointerdown 后位移超阈值视为横滑底部栏，
+        //   取消滚动动作（不发送序列），避免横滑底部栏时误把「按住滚动」当成 SGR 滚轮序列发到后端
         function setupHoldScroll(btnId, fn, intervalGetter) {
             const btn = document.getElementById(btnId);
-            let timer = null;
+            let timer = null;        // 持续滚动的 setInterval
+            let startTimer = null;   // 触摸下延迟首发的定时器
+            let pointerId = null;
+            let startX = 0, startY = 0, swiped = false, activated = false;
+            const stop = () => {
+                if (timer)     { clearInterval(timer);     timer = null; }
+                if (startTimer){ clearTimeout(startTimer); startTimer = null; }
+            };
             btn.addEventListener('pointerdown', (e) => {
                 e.preventDefault();
-                fn();
-                timer = setInterval(fn, intervalGetter());
+                pointerId = e.pointerId;
+                startX = e.clientX; startY = e.clientY;
+                swiped = false; activated = false;
+                if (e.pointerType === 'mouse') {
+                    // 鼠标无滑动手势，按下即发 + 持续
+                    activated = true;
+                    fn();
+                    timer = setInterval(fn, intervalGetter());
+                } else {
+                    // 触摸/笔：延迟 120ms 再发首次；若其间发生位移（滑动），startTimer 被清掉 → 零误发
+                    startTimer = setTimeout(() => {
+                        if (!swiped) { activated = true; fn(); timer = setInterval(fn, intervalGetter()); }
+                    }, 120);
+                }
             });
-            const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
-            btn.addEventListener('pointerup', stop);
+            btn.addEventListener('pointermove', (e) => {
+                if (e.pointerId !== pointerId) return;
+                if (Math.abs(e.clientX - startX) > 8 || Math.abs(e.clientY - startY) > 8) {
+                    swiped = true;
+                    stop();
+                }
+            });
+            btn.addEventListener('pointerup', (e) => {
+                if (e.pointerId !== pointerId) return;
+                if (!swiped && !activated) fn();   // 触摸快速轻点 = 发一次
+                stop();
+            });
             btn.addEventListener('pointerleave', stop);
+            btn.addEventListener('pointercancel', stop);
         }
         setupHoldScroll('scrollUpBtn', scrollUp, () => scrollIntervalTerminal);
         setupHoldScroll('scrollDownBtn', scrollDown, () => scrollIntervalTerminal);
