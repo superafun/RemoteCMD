@@ -837,6 +837,22 @@
         }
         window.copyTermSelection = copyTermSelection;
 
+        // === Ctrl+V 粘贴 ===
+        // 读取系统剪贴板并写进 PTY，模拟右键"粘贴"行为。
+        // 与 Ctrl+C 选区复制对称：复制是写剪贴板，粘贴是读剪贴板。
+        // 换行归一化与 xterm 默认 paste 一致（\r\n→\r，\n→\r），
+        // 使 TUI 把换行解释为确认而非字段内换行。
+        async function pasteFromClipboard(term, id) {
+            let text = null;
+            if (navigator.clipboard?.readText) {
+                try { text = await navigator.clipboard.readText(); } catch (e) { text = null; }
+            }
+            if (text == null) { showToast('粘贴失败(无法访问剪贴板)', 'error'); return; }
+            text = text.replace(/\r\n/g, '\r').replace(/\n/g, '\r');
+            if (text) wsSend({ type: 'input', id, data: text });
+        }
+        window.pasteFromClipboard = pasteFromClipboard;
+
         // 发送输入，但 Ctrl+C 在存在选区时改为复制
         async function sendInputMaybeCopy(data) {
             if (data === '\x03') {
