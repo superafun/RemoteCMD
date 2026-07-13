@@ -965,7 +965,7 @@
             inputBarBtn.style.display = 'none';      // 展开时连同输入条按钮一起隐藏
             hotkeysListEl.style.display = 'none';    // 展开时隐藏快捷键栏
             inputBarWrap.style.display = 'flex';     // 输入条独占整行
-            inputBarText.value = '';
+            // 不再清空 value：保留上次未发送草稿，autoGrow 按现有内容重算高度
             autoGrow(inputBarText);
             inputBarText.focus();
         }
