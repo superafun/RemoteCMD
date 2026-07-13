@@ -32,15 +32,22 @@ class TermSession {
             wsSend({ type: 'input', id: this.id, data: data });
         });
 
-        // 键盘 Ctrl+C：有选区时复制并吞掉，不发给服务端。
-        // 必须在捕获阶段拦截——xterm 处理按键时会先清掉选区再触发 onData，
-        // 若在 onData 里用 hasSelection() 判断，选区已被清，永远判定为「无选区」。
+        // 键盘 Ctrl+C：有选区时复制并吞掉，不发给服务端（见注意事项 34）。
+        // 键盘 Ctrl+V：粘贴系统剪贴板内容，覆盖 xterm 默认的 \x16 转发（见注意事项 38）。
+        // 二者都必须在捕获阶段拦截——xterm 处理按键时若先动作，默认行为会抢先。
         this.wrapper.addEventListener('keydown', async e => {
             if (e.ctrlKey && !e.shiftKey && !e.altKey &&
                 (e.key === 'c' || e.key === 'C') && this.term.hasSelection()) {
                 e.preventDefault();
                 e.stopPropagation();
                 if (window.copyTermSelection) await window.copyTermSelection(this.term);
+                return;
+            }
+            if (e.ctrlKey && !e.shiftKey && !e.altKey &&
+                (e.key === 'v' || e.key === 'V')) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (window.pasteFromClipboard) await window.pasteFromClipboard(this.term, this.id);
             }
         }, true);
     }
