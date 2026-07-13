@@ -300,6 +300,8 @@ server.js
 
 34. **Ctrl+C 选区复制 + Toast 提示（2026-07-12 引入）**：当 xterm 存在选区时，三种发送路径（键盘 / 底部快捷键按钮 / 发按键面板）的 Ctrl+C 都改为**复制选区到剪贴板并清除选区**，不再发送中断 `\x03`；无选区时 Ctrl+C 仍正常发 `\x03` 中断。复制成功时在终端右上角显示蓝底 Toast「已复制」，复制失败时显示红底 Toast「复制失败」，停留 1.5 秒后自动消失（带从右侧滑入/滑出的 CSS 过渡动画），允许堆叠（每个向上偏移 40px）。纯前端改动（`public/index.html` + `public/term-session.js`），不动 `server.js`、不加 WebSocket 消息。`copyToClipboard` / `fallbackCopy` 返回实际写入结果（`Promise<boolean>`），`copyTermSelection` 内部统一显示 Toast。键盘路径用 `term-session.js` 构造里的 `wrapper` 捕获阶段 `keydown` 监听拦截；按钮与面板改调 `sendInputMaybeCopy`。行为始终开启，无设置开关。
 
+35. **底部输入条（2026-07-13 引入）**：「发按键」右侧新增「输入条」按钮，点开后在同一行内联展开一个多行输入框（`#inputBarText`，`scrollHeight` 自动增高，`max-height:160px` 后转滚动）。点「发送」(`#inputBarSend`) 把内容发到当前 xterm：先 `replace(/\n+$/,'')` 去末尾换行，空则仅关闭不发送，否则 `\n→\r` 并补末尾 `\r`（`sendInput(t.replace(/\n/g,'\r')+'\r')`）触发执行，随后自动关闭。展开时 `#hotkeysList`（编辑/滚动按钮）`display:none` 隐藏、输入条独占整行；收起/再点按钮/Esc 恢复。`Esc` 收起不发送。`sendInputBar()` 复用 `sendInput()`（→`wsSend input`），**不动 `server.js`、不加 WebSocket 消息**。纯前端改动：改 `public/index.html`（DOM + `toggleInputBar/openInputBar/closeInputBar/autoGrow/sendInputBar`）+ `public/styles.css`，刷新网页即生效。
+
 ## 开发工作流
 
 - **只改前端时不要重启服务器**：测试前先用 `Get-NetTCPConnection -LocalPort 65433` 检查后端服务器是否在跑。如果在跑就直接连现成的服务器测网页（静态文件刷新即可加载新前端）。只有改了 `server.js` 时才需要重启服务。
