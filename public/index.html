@@ -1012,7 +1012,7 @@
             if (!t) { return; }                                  // 空内容：不发送、不关闭（回车发送语义）
             const targetId = activeId;                            // 捕获目标会话，防止发送途中切换会话串台
             const seq = t.replace(/\n/g, '\r') + '\r';           // \n→\r 并补末尾回车
-            closeInputBar();                                      // 先收起输入条、把焦点交还终端
+            clearInputBar();                                      // 清空内容但保持展开，焦点仍在输入框
             addFrontendLog('输入条发送: ' + t, 'out');
             for (const ch of seq) {
                 if (!targetId) break;                             // 捕获时无活动会话（activeId 为 null）则不发送
@@ -1022,7 +1022,7 @@
         }
         inputBarText.addEventListener('input', () => autoGrow(inputBarText));
         inputBarText.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') { e.preventDefault(); closeInputBar(); }
+            if (e.key === 'Escape') { e.preventDefault(); clearInputBar(); }
             else if (e.key === 'Enter') { e.preventDefault(); sendInputBar(); }  // 回车=发送（与换行按钮对调）
         });
         inputBarText.addEventListener('blur', (e) => {
