@@ -943,7 +943,7 @@
             closeInputBar();                                      // 先收起输入条、把焦点交还终端
             addFrontendLog('输入条发送: ' + t, 'out');
             for (const ch of seq) {
-                if (!targetId) break;                             // 连接已断开则中止剩余发送
+                if (!targetId) break;                             // 捕获时无活动会话（activeId 为 null）则不发送
                 wsSend({ type: 'input', id: targetId, data: ch });
                 await sleep(TYPING_DELAY);
             }
