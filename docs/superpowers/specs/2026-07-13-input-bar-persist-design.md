@@ -10,9 +10,9 @@
 同时明确内容保留语义：
 
 - **焦点移出（点终端 / 页面空白等）关闭 → 保留草稿**，下次再点开输入条时，上次写的内容原样显示。
-- **按回车(Enter)发送 → 清空**（内容已"用掉"，下次打开是干净的）。
-- **按 Esc → 清空**（显式取消）。
-- 「换行」按钮空内容时退出（此时本就无内容，无保留问题）。
+- **按回车(Enter)发送 → 清空内容，但输入条不关闭**（保持展开、焦点仍在输入框，便于连续输入下一条）。
+- **按 Esc → 清空内容，但输入条不关闭**（仅清掉草稿，框继续开着、仍可输入）。
+- 「换行」按钮空内容时退出（关闭，此时本就无内容，无保留问题）。
 
 核心动机：防止"手滑点错地方"把辛辛苦苦打的内容弄丢。
 
@@ -37,10 +37,19 @@
 新增 `clear` 形参：仅当 `clear` 为真时才执行 `inputBarText.value = ''`。
 - `style.height = 'auto'` 重置保留（关闭时收起，打开时由 `autoGrow` 重算）。
 - 其余显隐逻辑（`inputBarBtn` / `hotkeysList` / `display`）不变。
+- 用于"焦点移出保留"（`closeInputBarPreserve`）与「换行」空内容退出（默认清空）。
 
-### 3. 新增 `closeInputBarPreserve()`
+### 3. 新增 `closeInputBarPreserve()` 与 `clearInputBar()`
 ```js
-function closeInputBarPreserve() { closeInputBar(false); }  // 保留草稿地关闭
+function closeInputBarPreserve() { closeInputBar(false); }  // 保留草稿地关闭（焦点移出用）
+
+// 清空内容但保持展开、焦点留在输入框（Esc / 发送后用）
+function clearInputBar() {
+    inputBarText.value = '';
+    inputBarText.style.height = 'auto';
+    autoGrow(inputBarText);
+    // 不移动焦点：桌面端光标留在输入框；移动端软键盘不收回，可连续输入
+}
 ```
 
 ### 4. 新增 `blur` 监听（textarea）
@@ -54,13 +63,13 @@ inputBarText.addEventListener('blur', (e) => {
 ```
 
 ### 5. 调用方语义表
-| 触发路径 | 调用 | 内容处理 |
-|----------|------|----------|
-| 焦点移出（点终端 / 页面空白等） | `closeInputBarPreserve()` | **保留** |
-| 回车 Enter 发送 | `closeInputBar()` | **清空** |
-| Esc | `closeInputBar()` | **清空** |
-| 「换行」空内容退出 | `closeInputBar()` | 无内容，等同清空 |
-| 输入条按钮再点（展开时该按钮隐藏，实际不可达） | `closeInputBar()` | 清空 |
+| 触发路径 | 调用 | 内容处理 | 输入条状态 |
+|----------|------|----------|------------|
+| 焦点移出（点终端 / 页面空白等） | `closeInputBarPreserve()` | **保留** | 关闭 |
+| 回车 Enter 发送 | `clearInputBar()` | **清空** | **保持展开** |
+| Esc | `clearInputBar()` | **清空** | **保持展开** |
+| 「换行」空内容退出 | `closeInputBar()` | 无内容，等同清空 | 关闭 |
+| 输入条按钮再点（展开时该按钮隐藏，实际不可达） | `closeInputBar()` | 清空 | 关闭 |
 
 ## 数据流 / 状态
 
@@ -70,6 +79,7 @@ inputBarText.addEventListener('blur', (e) => {
 ## 时序与边界
 
 - **防止二次触发**：`closeInputBar()` 内部先 `sessions.get(activeId)?.focus()` 把焦点交还终端（引发一次 textarea `blur`），再置 `display='none'`。`blur` 事件是异步派发的，等它真正触发时 `display` 已是 `'none'`，守卫 `if (display !== 'flex') return` 会拦掉这次程序化失焦，不会重复关闭、不会误清空。
+- **发送 / Esc 不触发 `blur` 关闭**：`clearInputBar()` 只清空 `value` + 重算高度，**不移动焦点**（textarea 仍聚焦），因此不会引发 `blur`，输入条稳定保持展开。焦点移出路径（关闭）与之互斥，不会冲突。
 - **点被全局 `pointerdown` 拦截的按钮（如「设置」）**：因 `preventDefault` 焦点未实际转移，textarea 不 `blur`，输入条不会关闭（设置弹窗盖在上面，关掉后输入条仍在）。这属于"焦点没真的移出"，与需求定义一致，不做特殊处理。
 - **点「换行」按钮**：焦点移入「换行」按钮（`#inputBarWrap` 内部）→ `blur` 守卫 `contains` 命中 → 不关闭；随后 `insertNewline()` 正常执行（插入换行 / 空内容退出），与现有行为一致。
 
@@ -83,7 +93,7 @@ inputBarText.addEventListener('blur', (e) => {
 
 1. 展开输入条，输入一段文字，鼠标点终端区域 → 输入条关闭。
 2. 再点「输入条」按钮展开 → 刚才的文字原样显示、高度正确。
-3. 展开输入条，输入文字，按回车发送 → 输入条关闭，再展开为**空**。
-4. 展开输入条，输入文字，按 Esc → 输入条关闭，再展开为**空**。
+3. 展开输入条，输入文字，按回车发送 → 输入条**不关闭、内容清空**，焦点仍在输入框，可继续输入下一条；再点终端才关闭并保留（此时为空）。
+4. 展开输入条，输入文字，按 Esc → 输入条**不关闭、内容清空**，焦点仍在输入框。
 5. 展开输入条，点「换行」按钮（有内容）→ 不关闭、在光标处插入换行；空内容 → 关闭。
-6. 桌面 + Android 真机均验证上述路径；真机点终端收起软键盘符合预期。
+6. 桌面 + Android 真机均验证上述路径；真机发送/Esc 后软键盘不收回（保持展开）符合预期。
