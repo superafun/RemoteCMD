@@ -389,8 +389,9 @@
             if (!selectionMode) return;
             const btn = document.getElementById('selectModeBtn');
             const s = sessions.get(activeId);
-            if (s) s.disableNativeSelection();   // 恢复 TUI 鼠标追踪
-            console.log('[选区模式] 退出：活动会话#' + activeId);
+            const restored = s ? s.disableNativeSelection() : null;  // 恢复 xterm 鼠标追踪
+            console.log('[选区模式] 退出：活动会话#' + activeId +
+                (restored ? '，已恢复鼠标追踪(' + restored + ')' : '，无需恢复'));
             selectionMode = false;
             window.selectionMode = false;
             btn.classList.remove('mod-active');

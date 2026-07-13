@@ -143,9 +143,11 @@ class TermSession {
     disableNativeSelection() {
         if (this._savedMouseMode) {
             this.term.write('\x1b[?' + this._savedMouseMode + 'h');
-            console.log(`[选区模式] 退出：恢复 xterm 鼠标追踪（${this._savedMouseMode}）`);
+            const m = this._savedMouseMode;
             this._savedMouseMode = null;
+            return m;   // 返回恢复的鼠标模式编码，由 exitSelectMode 统一打日志
         }
+        return null;
     }
 
     sendSgrWheel(dir) {
