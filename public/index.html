@@ -861,6 +861,51 @@
             closeSendKeysPanel();
         }
 
+        // === 底部输入条（内联多行输入框，发送补回车执行）===
+        const inputBarBtn = document.getElementById('inputBarBtn');
+        const inputBarWrap = document.getElementById('inputBarWrap');
+        const inputBarText = document.getElementById('inputBarText');
+        const inputBarSend = document.getElementById('inputBarSend');
+        const hotkeysListEl = document.getElementById('hotkeysList');
+
+        // 切换：开↔关
+        function toggleInputBar() {
+            if (inputBarWrap.style.display === 'flex') {
+                closeInputBar();
+            } else {
+                openInputBar();
+            }
+        }
+        function openInputBar() {
+            hotkeysListEl.style.display = 'none';   // 展开时隐藏快捷键栏
+            inputBarWrap.style.display = 'flex';     // 输入条独占整行
+            inputBarText.value = '';
+            autoGrow(inputBarText);
+            inputBarText.focus();
+        }
+        function closeInputBar() {
+            inputBarWrap.style.display = 'none';
+            hotkeysListEl.style.display = 'flex';    // 恢复快捷键栏
+            inputBarText.value = '';
+            inputBarText.style.height = 'auto';
+        }
+        // textarea 自动增高：原生 textarea 不随内容变高，需按 scrollHeight 手动撑高
+        function autoGrow(ta) {
+            ta.style.height = 'auto';
+            ta.style.height = ta.scrollHeight + 'px';
+        }
+        function sendInputBar() {
+            const t = inputBarText.value.replace(/\n+$/, '');  // 去掉末尾换行，避免多发空行
+            if (!t) { closeInputBar(); return; }               // 空内容：仅关闭不发送
+            sendInput(t.replace(/\n/g, '\r') + '\r');          // \n→\r 并补末尾回车执行
+            addFrontendLog('输入条发送: ' + t, 'out');
+            closeInputBar();                                   // 发送后自动关闭
+        }
+        inputBarText.addEventListener('input', () => autoGrow(inputBarText));
+        inputBarText.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') { e.preventDefault(); closeInputBar(); }
+        });
+
         function openHotkeyEditor() {
             if (editorDiv) { editorDiv.remove(); editorDiv = null; }
             const names = Object.keys(hotkeys);
