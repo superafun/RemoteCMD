@@ -364,9 +364,9 @@
             // 按钮文字由服务端广播 current_size 后回填，避免乐观更新与服务端不一致
         }
 
-        // === 选区模式（method 2：拦截鼠标序列自建选区，纯前端）===
-        // 进入：仅置位标志，不动程序/PTY 的鼠标状态；
-        // 拖拽时由 term-session.js 拦截 SGR 鼠标序列并自行调 term.select 画选区。
+        // === 选区模式（method 1：DECRST 关 xterm 鼠标追踪 + 原生拖选，纯前端）===
+        // 进入：term-session.js 用 term.write 发 DECRST 关掉 xterm 自身鼠标追踪，
+        //       xterm 回到原生拖选；退出时发 DECSET 按保存模式精确恢复。
         // 所有观察信息打到浏览器控制台（DevTools）。
         let selectionMode = false;
 
