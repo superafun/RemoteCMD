@@ -247,14 +247,13 @@
         }
         #inputBarWrap {
             display: flex;
-            flex: 0 0 auto;        /* 不为填满整行而拉伸，输入条与换行按钮组成紧邻的整体 */
+            flex: 1 1 0;           /* 填满整行：发按键(最左)与换行(最右)之间全部是输入条 */
             min-width: 0;
-            gap: 6px;
+            gap: 0;                /* 输入框右边缘紧贴换行按钮，不留空隙 */
             align-items: flex-start;
         }
         #inputBarText {
-            flex: none;            /* 固定宽度、绝不收缩，避免被挤压成细条；换行按钮紧邻其右 */
-            width: 320px;
+            flex: 1;               /* 占满中间全部空间，尽可能宽 */
             min-width: 0;
             resize: none;
             overflow: auto;
