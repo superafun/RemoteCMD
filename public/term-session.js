@@ -137,28 +137,36 @@ class TermSession {
         const x = parseInt(m[2], 10);   // 1 基列
         const y = parseInt(m[3], 10);   // 1 基行（视口相对）
         const suffix = m[4];
-        console.log(`[选区模式][鼠标] 序列=${JSON.stringify(data)} b=${b} x=${x} y=${y} suffix=${suffix}`);
-        const cols = this.term.cols;
+        const button = b & 3;            // 0=左 1=中 2=右 3=无按键
+        const isMotion = (b & 32) !== 0;
+
+        // 无按键的纯移动(hover)：原样转发给程序，不打日志（避免刷屏）
+        if (button === 3) return false;
+
         const bufRow = (y - 1) + this.term.buffer.active.viewportY;  // 视口行 -> 缓冲区行
         const col0 = x - 1;
+
         if (suffix === 'm') {
-            // 松开：定稿
+            // 松开：定稿（只在确有选区时记录）
+            if (this._selActive) {
+                const s = this._selStart;
+                console.log(`[选区模式][鼠标] 松开,选区定稿 起=(${s ? s.col : '?'},${s ? s.row : '?'}) 终=(${col0},${bufRow})`);
+            }
             this._selActive = false;
             this._selStart = null;
-            console.log('[选区模式][鼠标] 松开，选区定稿');
             return true;
         }
+
         // suffix === 'M'：按下或拖动
-        if ((b & 32) === 0 && (b & 3) === 0) {
+        if (!isMotion && button === 0) {
             // 左键按下：开始选区
             this._selStart = { col: col0, row: bufRow };
             this._selActive = true;
             this.term.select(col0, bufRow, 1);
             console.log(`[选区模式][鼠标] 开始选区 col=${col0} row=${bufRow}`);
-        } else if ((b & 32) !== 0 && this._selActive) {
-            // 左键拖动：延伸选区
+        } else if (isMotion && this._selActive) {
+            // 左键拖动：延伸选区（过程不打日志，避免刷屏）
             this._applySelection(col0, bufRow);
-            console.log(`[选区模式][鼠标] 延伸选区 -> col=${col0} row=${bufRow}`);
         }
         return true;
     }
