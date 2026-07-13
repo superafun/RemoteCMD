@@ -258,14 +258,12 @@
             resize: none;
             overflow: auto;
             max-height: 160px;
-            height: 32px;            /* 单行时与底部按钮同高 */
-            box-sizing: border-box;
             background: #1e1e1e;
             color: #eee;
             border: 1px solid #555;
             font: inherit;
             line-height: 1.4;
-            padding: 5px;            /* 比按钮少 1px，避免单行内容区(20px)低于行高(18.2px)触发竖向滚动条；height:32px 仍与按钮同高 */
+            padding: 4px 6px;
         }
         #inputBarSend {
             flex-shrink: 0;

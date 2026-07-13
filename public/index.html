@@ -982,7 +982,7 @@
         // textarea 自动增高：原生 textarea 不随内容变高，需按 scrollHeight 手动撑高
         function autoGrow(ta) {
             ta.style.height = 'auto';
-            ta.style.height = Math.max(ta.scrollHeight, 32) + 'px';  // 至少与按钮同高
+            ta.style.height = ta.scrollHeight + 'px';
         }
         // 逐字符发送时每个字符之间的延时（ms），模拟真人敲键节奏；如需更慢/更快改这里
         const TYPING_DELAY = 15;
