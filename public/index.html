@@ -50,6 +50,11 @@
         <div id="terminal-container"></div>
         <div id="hotkeys-bar">
             <button id="sendKeysBtn" onclick="openSendKeysPanel()">发按键</button>
+            <button id="inputBarBtn" onclick="toggleInputBar()">输入条</button>
+            <div id="inputBarWrap" style="display:none;">
+                <textarea id="inputBarText" placeholder="输入内容，回车换行，点发送执行" rows="1"></textarea>
+                <button id="inputBarSend" onclick="sendInputBar()">发送</button>
+            </div>
             <div id="hotkeysList" style="display:flex;gap:0;flex-wrap:wrap;">
                 <button id="editBtn">编辑</button>
                 <div id="scrollGroup" style="display:flex;flex-shrink:0;margin-left:auto;">
