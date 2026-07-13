@@ -125,23 +125,25 @@ class TermSession {
     scrollToBottom() { this.term.scrollToBottom(); }
     scrollLines(n)   { this.term.scrollLines(n); }
 
-    // === 选区模式(method 1)：关闭/恢复鼠标追踪，让 xterm 回到原生拖选 ===
-    // 进入：读 TUI 当前鼠标追踪模式并保存，发 DECRST 关闭 1000/1002/1003，
-    //       这样 xterm 不再把鼠标事件转发给 PTY，而是像普通网页终端一样自身拖选。
-    // 退出：发 DECSET 把保存的模式重新打开，TUI 恢复鼠标交互。
+    // === 选区模式(method 1)：关闭/恢复 xterm 自身鼠标追踪，回到原生拖选 ===
+    // 关键：鼠标追踪是 xterm 的状态（由 TUI 的 DECSET 输出序列设定），
+    // 所以必须用 term.write 把 DECRST/DECSET 当作【终端输出】写给 xterm 自己，
+    // 不能用 wsSend input 发给 pty（那样 xterm 不处理、会被 shell 回显成乱码）。
+    // 进入：读 TUI 当前鼠标追踪模式并保存，写 DECRST 关闭 1000/1002/1003。
+    // 退出：写 DECSET 把保存的模式重新打开。
     enableNativeSelection() {
-        // 读 TUI 当前鼠标追踪模式并保存，用于退出时精确还原。
+        // 读当前鼠标追踪模式并保存，用于退出时精确还原。
         // 注意 xterm 内部命名：1000→'vt200'、1002→'drag'、1003→'any'、9→'x10'。
         const mm = this.term.modes.mouseTrackingMode;  // 'none'|'x10'|'vt200'|'drag'|'any'
         this._savedMouseMode = ({ x10: 1000, vt200: 1000, drag: 1002, any: 1003 })[mm] || null;
-        wsSend({ type: 'input', id: this.id, data: '\x1b[?1000l\x1b[?1002l\x1b[?1003l' });
-        console.log(`[选区模式] 进入：关闭鼠标追踪（原模式=${mm}${this._savedMouseMode ? '=' + this._savedMouseMode : ''}）`);
+        this.term.write('\x1b[?1000l\x1b[?1002l\x1b[?1003l');
+        console.log(`[选区模式] 进入：关闭 xterm 鼠标追踪（原模式=${mm}${this._savedMouseMode ? '=' + this._savedMouseMode : ''}）`);
     }
 
     disableNativeSelection() {
         if (this._savedMouseMode) {
-            wsSend({ type: 'input', id: this.id, data: '\x1b[?' + this._savedMouseMode + 'h' });
-            console.log(`[选区模式] 退出：恢复鼠标追踪（${this._savedMouseMode}）`);
+            this.term.write('\x1b[?' + this._savedMouseMode + 'h');
+            console.log(`[选区模式] 退出：恢复 xterm 鼠标追踪（${this._savedMouseMode}）`);
             this._savedMouseMode = null;
         }
     }
