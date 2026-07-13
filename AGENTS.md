@@ -308,6 +308,8 @@ server.js
 
 37. **触摸横滑底部栏不再误发 SGR 滚轮序列（2026-07-13 修复）**：注意事项 36 引入单行横滑后，真机横滑若落点在滚动按钮（`scrollUp/Down`、`scrollXtermUp/Down`）上，原 `setupHoldScroll` 的 `pointerdown` 立即 `fn()` + `setInterval` 会因**触摸隐式指针捕获**（`pointerleave` 整个手势期间不触发）持续把 SGR 滚轮序列（`\x1b[<64;y;1M`/`\x1b[<65;y;1M`，见 `term-session.js` `sendSgrWheel`）灌到后端。修复（`public/index.html` `setupHoldScroll`）：鼠标保持「按下即发 + 持续」；触摸/笔改为延迟 120ms 首发，期间若 `pointermove` 位移超 8px 判定为横滑底部栏 → 取消、零误发；轻点（未超阈值且未激活）= 发一次，按住 = 持续。新增 `pointercancel` 停止。纯前端改动，刷新网页即生效，不需重启服务器。
 
+38. **Ctrl+V 粘贴（2026-07-13 引入）**：捕获阶段 `keydown` 监听（现用于 Ctrl+C 复制，见注意事项 34）中新增 Ctrl+V 分支——拦截 `Ctrl+V`（`preventDefault` + `stopPropagation`），调 `pasteFromClipboard(term, id)` 读系统剪贴板并写进 PTY，覆盖 xterm 默认的 `\x16` 转发。**根因**：右键"粘贴"走 xterm 默认 `paste` 事件（读剪贴板链路）所以通；Ctrl+V 被 xterm 当键盘字符 `\x16` 吞掉并 `preventDefault` 掉浏览器原生 paste 事件，所以失效。**范围**：仅 `Ctrl+V`（不含 `Ctrl+Shift+V` / `Shift+Insert`），全局生效（含普通 PowerShell 变粘贴语义），成功不弹 Toast、仅失败时弹红色「粘贴失败(无法访问剪贴板)」。换行归一化 `\r\n`→`\r`、单 `\n`→`\r`（与 xterm 默认 paste 一致）。用 `this.id` 直接发避免切会话串台。纯前端改动（`public/index.html` 新增 `pasteFromClipboard` + `public/term-session.js` 扩展监听），不动 `server.js`、不加 WebSocket 消息、不加协议，刷新即生效。安全上下文：`localhost`/`https` 可用 `navigator.clipboard.readText()`；仅"局域网 IP + http"拿不到，降级为失败 Toast（浏览器限制，无读取兜底）。
+
 ## 开发工作流
 
 - **只改前端时不要重启服务器**：测试前先用 `Get-NetTCPConnection -LocalPort 65433` 检查后端服务器是否在跑。如果在跑就直接连现成的服务器测网页（静态文件刷新即可加载新前端）。只有改了 `server.js` 时才需要重启服务。
