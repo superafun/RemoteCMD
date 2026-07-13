@@ -373,13 +373,12 @@
         function toggleSelectMode() {
             const btn = document.getElementById('selectModeBtn');
             const s = sessions.get(activeId);
-            if (!s) { console.log('[选区模式] 无活动会话，忽略'); return; }
+            if (!s) { return; }
             if (!selectionMode) {
                 selectionMode = true;
                 window.selectionMode = true;
                 btn.classList.add('mod-active');
                 s.enableNativeSelection();   // 关鼠标追踪，xterm 回到原生拖选
-                showToast('选区模式：拖选后按 Ctrl+C 复制（再点或复制完自动恢复鼠标）', 'success');
             } else {
                 exitSelectMode();
             }
@@ -389,9 +388,7 @@
             if (!selectionMode) return;
             const btn = document.getElementById('selectModeBtn');
             const s = sessions.get(activeId);
-            const restored = s ? s.disableNativeSelection() : null;  // 恢复 xterm 鼠标追踪
-            console.log('[选区模式] 退出：活动会话#' + activeId +
-                (restored ? '，已恢复鼠标追踪(' + restored + ')' : '，无需恢复'));
+            if (s) s.disableNativeSelection();   // 恢复 xterm 鼠标追踪
             selectionMode = false;
             window.selectionMode = false;
             btn.classList.remove('mod-active');
@@ -721,7 +718,7 @@
         }
         function switchSession(id) {
             const idNum = parseInt(id);
-            if (selectionMode) { console.log('[选区模式] 切换会话，先退出选区模式'); exitSelectMode(); }
+            if (selectionMode) { exitSelectMode(); }
             if (activeId === idNum) return;
             if (activeId != null) sessions.get(activeId)?.hide();
             activeId = idNum;
@@ -832,7 +829,7 @@
             if (sel) {
                 return copyToClipboard(sel).then(ok => {
                     showToast(ok ? '已复制' : '复制失败', ok ? 'success' : 'error');
-                    if (ok && selectionMode) { console.log('[选区模式] 复制成功，自动退出'); exitSelectMode(); }
+                    if (ok && selectionMode) { exitSelectMode(); }
                     return ok;
                 }).catch(() => false);
             }

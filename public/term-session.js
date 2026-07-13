@@ -137,7 +137,6 @@ class TermSession {
         const mm = this.term.modes.mouseTrackingMode;  // 'none'|'x10'|'vt200'|'drag'|'any'
         this._savedMouseMode = ({ x10: 1000, vt200: 1000, drag: 1002, any: 1003 })[mm] || null;
         this.term.write('\x1b[?1000l\x1b[?1002l\x1b[?1003l');
-        console.log(`[选区模式] 进入：关闭 xterm 鼠标追踪（原模式=${mm}${this._savedMouseMode ? '=' + this._savedMouseMode : ''}）`);
     }
 
     disableNativeSelection() {
