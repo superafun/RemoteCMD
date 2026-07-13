@@ -10,9 +10,9 @@ class TermSession {
         this.name = 'Shell #' + id;
         this.clientTail = '';
         this.pendingBuffer = false;
-        // 选区模式(method 2)：拦截鼠标序列时用的临时选区状态
-        this._selStart = null;
-        this._selActive = false;
+        // 选区模式(method 1)：进入时关闭鼠标追踪让 xterm 回到原生选区，
+        // 退出时恢复 TUI 原本的鼠标追踪模式。
+        this._savedMouseMode = null;  // 进入前 TUI 的鼠标追踪编码：1000/1002/1003 或 null
 
         // 创建 DOM 包装层
         this.wrapper = document.createElement('div');
@@ -27,9 +27,8 @@ class TermSession {
         this.term.loadAddon(new Unicode11Addon.Unicode11Addon());
         this.term.unicode.activeVersion = '11';
 
-        // 输入转发到服务端；选区模式开启时拦截 SGR 鼠标序列，自行构建选区
+        // 输入原样转发到服务端
         this.term.onData(data => {
-            if (window.selectionMode && this._consumeMouseReport(data)) return;
             wsSend({ type: 'input', id: this.id, data: data });
         });
 
@@ -126,65 +125,25 @@ class TermSession {
     scrollToBottom() { this.term.scrollToBottom(); }
     scrollLines(n)   { this.term.scrollLines(n); }
 
-    // === 选区模式(method 2)：拦截 SGR 鼠标序列，自行解析坐标画选区 ===
-    // 当选区模式开启时，TUI 的鼠标拖拽不再转发给 PTY，而是被解析成 xterm 选区。
-    // 返回 true 表示这是一条被消费的鼠标序列（已自行处理，不应再转发）。
-    _consumeMouseReport(data) {
-        // 仅处理 SGR 1006 序列：ESC [ < 按键 ; 列 ; 行 (M|m)
-        const m = /^\x1b\[<(\d+);(\d+);(\d+)(M|m)$/.exec(data);
-        if (!m) return false;
-        const b = parseInt(m[1], 10);
-        const x = parseInt(m[2], 10);   // 1 基列
-        const y = parseInt(m[3], 10);   // 1 基行（视口相对）
-        const suffix = m[4];
-        const button = b & 3;            // 0=左 1=中 2=右 3=无按键
-        const isMotion = (b & 32) !== 0;
-
-        // 无按键的纯移动(hover)：原样转发给程序，不打日志（避免刷屏）
-        if (button === 3) return false;
-
-        const bufRow = (y - 1) + this.term.buffer.active.viewportY;  // 视口行 -> 缓冲区行
-        const col0 = x - 1;
-
-        if (suffix === 'm') {
-            // 松开：定稿（只在确有选区时记录）
-            if (this._selActive) {
-                const s = this._selStart;
-                console.log(`[选区模式][鼠标] 松开,选区定稿 起=(${s ? s.col : '?'},${s ? s.row : '?'}) 终=(${col0},${bufRow})`);
-            }
-            this._selActive = false;
-            this._selStart = null;
-            return true;
-        }
-
-        // suffix === 'M'：按下或拖动
-        if (!isMotion && button === 0) {
-            // 左键按下：开始选区
-            this._selStart = { col: col0, row: bufRow };
-            this._selActive = true;
-            this.term.select(col0, bufRow, 1);
-            console.log(`[选区模式][鼠标] 开始选区 col=${col0} row=${bufRow}`);
-        } else if (isMotion && this._selActive) {
-            // 左键拖动：延伸选区（过程不打日志，避免刷屏）
-            this._applySelection(col0, bufRow);
-        }
-        return true;
+    // === 选区模式(method 1)：关闭/恢复鼠标追踪，让 xterm 回到原生拖选 ===
+    // 进入：读 TUI 当前鼠标追踪模式并保存，发 DECRST 关闭 1000/1002/1003，
+    //       这样 xterm 不再把鼠标事件转发给 PTY，而是像普通网页终端一样自身拖选。
+    // 退出：发 DECSET 把保存的模式重新打开，TUI 恢复鼠标交互。
+    enableNativeSelection() {
+        // 读 TUI 当前鼠标追踪模式并保存，用于退出时精确还原。
+        // 注意 xterm 内部命名：1000→'vt200'、1002→'drag'、1003→'any'、9→'x10'。
+        const mm = this.term.modes.mouseTrackingMode;  // 'none'|'x10'|'vt200'|'drag'|'any'
+        this._savedMouseMode = ({ x10: 1000, vt200: 1000, drag: 1002, any: 1003 })[mm] || null;
+        wsSend({ type: 'input', id: this.id, data: '\x1b[?1000l\x1b[?1002l\x1b[?1003l' });
+        console.log(`[选区模式] 进入：关闭鼠标追踪（原模式=${mm}${this._savedMouseMode ? '=' + this._savedMouseMode : ''}）`);
     }
 
-    _applySelection(col1, row1) {
-        if (!this._selStart) return;
-        const s = this._selStart;
-        const cols = this.term.cols;
-        // 归一化拖拽方向，按读序计算选区长度
-        let c0 = s.col, r0 = s.row, c1 = col1, r1 = row1;
-        if (r1 < r0 || (r1 === r0 && c1 < c0)) {
-            c0 = col1; r0 = row1; c1 = s.col; r1 = s.row;
+    disableNativeSelection() {
+        if (this._savedMouseMode) {
+            wsSend({ type: 'input', id: this.id, data: '\x1b[?' + this._savedMouseMode + 'h' });
+            console.log(`[选区模式] 退出：恢复鼠标追踪（${this._savedMouseMode}）`);
+            this._savedMouseMode = null;
         }
-        let length;
-        if (r1 === r0) length = c1 - c0 + 1;
-        else length = (cols - c0) + (r1 - r0 - 1) * cols + (c1 + 1);
-        if (length <= 0) length = 1;
-        this.term.select(c0, r0, length);
     }
 
     sendSgrWheel(dir) {
