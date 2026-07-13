@@ -930,6 +930,11 @@
             ta.style.height = 'auto';
             ta.style.height = ta.scrollHeight + 'px';
         }
+        // 逐字符发送时每个字符之间的延时（ms），模拟真人敲键节奏；如需更慢/更快改这里
+        const TYPING_DELAY = 15;
+
+        function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
         function sendInputBar() {
             const t = inputBarText.value.replace(/\n+$/, '');  // 去掉末尾换行，避免多发空行
             if (!t) { closeInputBar(); return; }               // 空内容：仅关闭不发送
