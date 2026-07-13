@@ -304,6 +304,8 @@ server.js
 
 36. **底部快捷键栏单行横向溢出滚动（2026-07-13 引入）**：底部栏（`#hotkeys-bar`）从 `flex-wrap: wrap`（多行换行）改为 `flex-wrap: nowrap; overflow-x: auto`（单行、超宽则横向溢出滚动）。`#hotkeysList` 从 `flex: 1 1 0; min-width: 0`（撑满）改为 `flex: 0 0 auto`（按内容真实宽度排列，超宽才溢出），其内联样式 `flex-wrap: wrap` 改 `nowrap`。底部栏所有按钮追加 `#hotkeys-bar button { flex-shrink: 0; white-space: nowrap }`，横滑时不被压缩、文字不折行。`#hotkeys-bar { touch-action: pan-x }` 兜底移动端横向 pan（手指从按钮上起滑也能横滑，不受全局 `pointerdown` `preventDefault` 影响）。**范围**：`发按键`/`输入条`/快捷键/`编辑`/滚动按钮全部在同一行一起随滑动移出屏幕（不钉住左侧）；纯 CSS 改动（`public/styles.css` + `public/index.html` 一行内联），不动 `server.js`、不加 WebSocket 消息、不加 JS 事件、不加 DOM 节点。输入条展开模式（隐藏 `#hotkeysList`、`#inputBarWrap` 独占整行）不受影响。验收：桌面端出现横向滚动条 + Shift+滚轮横滑；Android 真机手指横滑把最右「编辑/滚动按钮」拉回屏幕。
 
+37. **触摸横滑底部栏不再误发 SGR 滚轮序列（2026-07-13 修复）**：注意事项 36 引入单行横滑后，真机横滑若落点在滚动按钮（`scrollUp/Down`、`scrollXtermUp/Down`）上，原 `setupHoldScroll` 的 `pointerdown` 立即 `fn()` + `setInterval` 会因**触摸隐式指针捕获**（`pointerleave` 整个手势期间不触发）持续把 SGR 滚轮序列（`\x1b[<64;y;1M`/`\x1b[<65;y;1M`，见 `term-session.js` `sendSgrWheel`）灌到后端。修复（`public/index.html` `setupHoldScroll`）：鼠标保持「按下即发 + 持续」；触摸/笔改为延迟 120ms 首发，期间若 `pointermove` 位移超 8px 判定为横滑底部栏 → 取消、零误发；轻点（未超阈值且未激活）= 发一次，按住 = 持续。新增 `pointercancel` 停止。纯前端改动，刷新网页即生效，不需重启服务器。
+
 ## 开发工作流
 
 - **只改前端时不要重启服务器**：测试前先用 `Get-NetTCPConnection -LocalPort 65433` 检查后端服务器是否在跑。如果在跑就直接连现成的服务器测网页（静态文件刷新即可加载新前端）。只有改了 `server.js` 时才需要重启服务。
