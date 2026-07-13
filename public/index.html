@@ -53,8 +53,8 @@
             <button id="sendKeysBtn" onclick="openSendKeysPanel()">发按键</button>
             <button id="inputBarBtn" onclick="toggleInputBar()">输入条</button>
             <div id="inputBarWrap" style="display:none;">
-                <textarea id="inputBarText" placeholder="输入内容，回车换行，点发送执行" rows="1"></textarea>
-                <button id="inputBarSend" onclick="sendInputBar()">发送</button>
+                <textarea id="inputBarText" placeholder="输入内容，回车发送，点换行键换一行" rows="1"></textarea>
+                <button id="inputBarSend" onclick="insertNewline()">换行</button>
             </div>
             <div id="hotkeysList" style="display:flex;gap:0;flex-wrap:nowrap;">
                 <button id="editBtn">编辑</button>
@@ -982,16 +982,25 @@
         // textarea 自动增高：原生 textarea 不随内容变高，需按 scrollHeight 手动撑高
         function autoGrow(ta) {
             ta.style.height = 'auto';
-            ta.style.height = ta.scrollHeight + 'px';
+            ta.style.height = Math.max(ta.scrollHeight, 32) + 'px';  // 至少与按钮同高
         }
         // 逐字符发送时每个字符之间的延时（ms），模拟真人敲键节奏；如需更慢/更快改这里
         const TYPING_DELAY = 15;
 
         function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+        // 换行按钮：在光标处插入一个换行；空内容时不做事并退出输入条
+        function insertNewline() {
+            if (!inputBarText.value) { closeInputBar(); return; }
+            const s = inputBarText.selectionStart, e = inputBarText.selectionEnd;
+            inputBarText.value = inputBarText.value.slice(0, s) + '\n' + inputBarText.value.slice(e);
+            inputBarText.selectionStart = inputBarText.selectionEnd = s + 1;
+            autoGrow(inputBarText);
+            inputBarText.focus();
+        }
         async function sendInputBar() {
             const t = inputBarText.value.replace(/\n+$/, '');   // 去末尾换行，避免多发空行
-            if (!t) { closeInputBar(); return; }                 // 空内容：仅关闭不发送
+            if (!t) { return; }                                  // 空内容：不发送、不关闭（回车发送语义）
             const targetId = activeId;                            // 捕获目标会话，防止发送途中切换会话串台
             const seq = t.replace(/\n/g, '\r') + '\r';           // \n→\r 并补末尾回车
             closeInputBar();                                      // 先收起输入条、把焦点交还终端
@@ -1005,6 +1014,7 @@
         inputBarText.addEventListener('input', () => autoGrow(inputBarText));
         inputBarText.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') { e.preventDefault(); closeInputBar(); }
+            else if (e.key === 'Enter') { e.preventDefault(); sendInputBar(); }  // 回车=发送（与换行按钮对调）
         });
 
         function openHotkeyEditor() {
