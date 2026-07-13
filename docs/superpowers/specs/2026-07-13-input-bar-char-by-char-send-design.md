@@ -46,7 +46,7 @@ async function sendInputBar() {
     closeInputBar();                                      // 先收起输入条、把焦点交还终端
     addFrontendLog('输入条发送: ' + t, 'out');
     for (const ch of seq) {
-        if (!targetId) break;                             // 连接已断开则中止
+        if (!targetId) break;                             // 捕获时无活动会话（activeId 为 null）则不发送
         wsSend({ type: 'input', id: targetId, data: ch });
         await sleep(TYPING_DELAY);
     }
@@ -60,7 +60,7 @@ async function sendInputBar() {
 3. **目标会话捕获**：发送前捕获 `targetId = activeId`，发送时直接 `wsSend({type:'input', id: targetId, ...})`，避免在 ~0.75s 的逐字符发送过程中若用户切换会话，导致剩余字符跑到别的终端。
 4. **`closeInputBar()` 先调用**：与现版一致（发完即关），且先 `sessions.get(activeId)?.focus()` 把焦点交还终端，移动端软键盘不收回；文本已捕获到 `t`，清空 `inputBarText.value` 不影响发送。
 5. **`TYPING_DELAY` 常量**：固定 15ms，单一易调常量。50 字符命令约 0.75s，属"打字"可接受范围。
-6. **断续保护**：循环内 `if (!targetId) break`，连接断开时中止剩余发送，避免无意义消息。
+6. **断续保护**：循环内 `if (!targetId) break` 仅保护「捕获时无活动会话（`activeId` 为 null）」情形；真正断连时 `targetId` 仍为原数字，`wsSend` 内部 `readyState===1` 检查会静默丢弃该消息，无需额外处理。
 
 ### 3.4 不改动的部分
 
