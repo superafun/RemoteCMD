@@ -253,7 +253,8 @@
             align-items: flex-start;
         }
         #inputBarText {
-            flex: 0 1 320px;       /* 固定合理宽度，换行按钮紧邻其右；窄屏可收缩 */
+            flex: none;            /* 固定宽度、绝不收缩，避免被挤压成细条；换行按钮紧邻其右 */
+            width: 320px;
             min-width: 0;
             resize: none;
             overflow: auto;
