@@ -935,12 +935,18 @@
 
         function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-        function sendInputBar() {
-            const t = inputBarText.value.replace(/\n+$/, '');  // 去掉末尾换行，避免多发空行
-            if (!t) { closeInputBar(); return; }               // 空内容：仅关闭不发送
-            sendInput(t.replace(/\n/g, '\r') + '\r');          // \n→\r 并补末尾回车执行
+        async function sendInputBar() {
+            const t = inputBarText.value.replace(/\n+$/, '');   // 去末尾换行，避免多发空行
+            if (!t) { closeInputBar(); return; }                 // 空内容：仅关闭不发送
+            const targetId = activeId;                            // 捕获目标会话，防止发送途中切换会话串台
+            const seq = t.replace(/\n/g, '\r') + '\r';           // \n→\r 并补末尾回车
+            closeInputBar();                                      // 先收起输入条、把焦点交还终端
             addFrontendLog('输入条发送: ' + t, 'out');
-            closeInputBar();                                   // 发送后自动关闭
+            for (const ch of seq) {
+                if (!targetId) break;                             // 连接已断开则中止剩余发送
+                wsSend({ type: 'input', id: targetId, data: ch });
+                await sleep(TYPING_DELAY);
+            }
         }
         inputBarText.addEventListener('input', () => autoGrow(inputBarText));
         inputBarText.addEventListener('keydown', (e) => {
