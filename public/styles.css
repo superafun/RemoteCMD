@@ -231,7 +231,7 @@
             touch-action: pan-x;     /* 移动端授权横向 pan，禁掉竖向误滚 */
         }
         /* 发按键：独立组合器入口，与预设快捷键语义不同，保持为 #hotkeys-bar 直接子项
-           flex-shrink:0 保证永不被压缩、始终独占最左；align-self 让 hotkeysList 内部换行至多行时顶端对齐 */
+           flex-shrink:0 保证永不被压缩、始终独占最左；align-self 让输入条模式 textarea 更高时按钮顶端对齐 */
         #sendKeysBtn {
             flex-shrink: 0;
             align-self: flex-start;
