@@ -364,30 +364,20 @@
             // 按钮文字由服务端广播 current_size 后回填，避免乐观更新与服务端不一致
         }
 
-        // === 选区模式（2026-07-13 最小可测版，纯前端）===
-        // 进入：往 xterm 自身写 DECRST 关闭底层 TUI 的鼠标追踪，xterm 退回原生拖选；
-        // 退出：按进入前记录的原始鼠标模式写 DECSET 恢复。
-        // 所有观察信息打到浏览器控制台（DevTools），看全过程是否生效。
+        // === 选区模式（method 2：拦截鼠标序列自建选区，纯前端）===
+        // 进入：仅置位标志，不动程序/PTY 的鼠标状态；
+        // 拖拽时由 term-session.js 拦截 SGR 鼠标序列并自行调 term.select 画选区。
+        // 所有观察信息打到浏览器控制台（DevTools）。
         let selectionMode = false;
-        let savedMouseMode = null;
-
-        // 原始鼠标模式 -> 恢复用的 DECSET 序列
-        function mouseRestoreSeq(mode) {
-            const codeMap = { x10: '\x1b[?1000h', drag: '\x1b[?1002h', vt200: '\x1b[?1003h', any: '\x1b[?1003h' };
-            return codeMap[mode] || '';
-        }
 
         function toggleSelectMode() {
             const btn = document.getElementById('selectModeBtn');
             const s = sessions.get(activeId);
             if (!s) { console.log('[选区模式] 无活动会话，忽略'); return; }
             if (!selectionMode) {
-                savedMouseMode = s.term.modes.mouseTrackingMode;
-                console.log('[选区模式] 进入：活动会话#' + activeId + ' 当前鼠标模式=' + savedMouseMode);
-                // 实际生效：写 DECRST 到 xterm 自身（不是 pty），关闭鼠标追踪
-                s.term.write('\x1b[?1000l\x1b[?1002l\x1b[?1003l');
-                console.log('[选区模式] 已向 xterm 写入 DECRST 1000/1002/1003（关闭鼠标追踪）');
+                console.log('[选区模式] 进入：活动会话#' + activeId + '（拦截鼠标序列自行选区，不动程序鼠标状态）');
                 selectionMode = true;
+                window.selectionMode = true;
                 btn.classList.add('mod-active');
                 showToast('选区模式：拖选后按 Ctrl+C 复制', 'success');
             } else {
@@ -398,22 +388,9 @@
         function exitSelectMode() {
             if (!selectionMode) return;
             const btn = document.getElementById('selectModeBtn');
-            const s = sessions.get(activeId);
-            console.log('[选区模式] 退出：活动会话#' + activeId + ' 恢复鼠标模式=' + savedMouseMode);
-            if (s) {
-                const seq = mouseRestoreSeq(savedMouseMode);
-                if (seq) {
-                    s.term.write(seq);
-                    const label = savedMouseMode === 'x10' ? 'DECSET 1000' : savedMouseMode === 'drag' ? 'DECSET 1002' : 'DECSET 1003';
-                    console.log('[选区模式] 已向 xterm 写入 ' + label + '（恢复鼠标追踪）');
-                } else {
-                    console.log('[选区模式] 原始模式为 none，无需恢复');
-                }
-            } else {
-                console.log('[选区模式] 退出时无活动会话，仅本地复位');
-            }
+            console.log('[选区模式] 退出：活动会话#' + activeId);
             selectionMode = false;
-            savedMouseMode = null;
+            window.selectionMode = false;
             btn.classList.remove('mod-active');
         }
 
@@ -451,7 +428,7 @@
         function connect() {
             // 重连后 UI 状态复位（选区模式是本地状态，重连视为全新开始）
             selectionMode = false;
-            savedMouseMode = null;
+            window.selectionMode = false;
             const smBtn = document.getElementById('selectModeBtn');
             if (smBtn) smBtn.classList.remove('mod-active');
             // 清理上一个待执行的定时器
@@ -1199,14 +1176,6 @@
         // document.addEventListener('mousedown', e => { if (e.target.tagName === 'BUTTON') e.preventDefault(); });
         // 浏览器报告网络恢复时立即重连（不等 3 秒 backoff）
         window.addEventListener('online', () => { addFrontendLog('网络恢复，触发重连'); connect(); });
-        // 离开页面前尽力恢复鼠标追踪，避免程序永久失去鼠标
-        window.addEventListener('beforeunload', () => {
-            if (selectionMode) {
-                const s = sessions.get(activeId);
-                const seq = mouseRestoreSeq(savedMouseMode);
-                if (s && seq) s.term.write(seq);
-            }
-        });
         // 移动端：阻止按钮 pointerdown 的焦点转移，保持键盘状态不变
         document.addEventListener('pointerdown', function(e) { if (e.target.closest('button')) e.preventDefault(); }, { capture: true, passive: false });
     </script>
