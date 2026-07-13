@@ -236,7 +236,7 @@
             flex-shrink: 0;
             align-self: flex-start;
         }
-        /* 预设快捷键列表：占据剩余宽度、内部 flex-wrap 换行（不把自己整体顶到下一行） */
+        /* 预设快捷键列表：按内容真实宽度排列，不撑满/不挤压/不换行，超宽随父容器 #hotkeys-bar 横向溢出滚动 */
         #hotkeysList {
             flex: 0 0 auto;   /* 按内容真实宽度排列，不撑满、不挤压，超宽才溢出 */
         }
@@ -293,6 +293,11 @@
         }
         .toolbar button, #hotkeys-bar button {
             min-width: 60px;  /* 防止短文字按钮（如 ▲、编辑）被压缩到看不清 */
+        }
+        /* 底部栏按钮：单行横滑时不被压缩、文字不折行 */
+        #hotkeys-bar button {
+            flex-shrink: 0;
+            white-space: nowrap;
         }
         /* 5 个滚动按钮的文字已经有 4 字 + 1 符号,不需要默认 14px 横向 padding */
         #scrollGroup button {
