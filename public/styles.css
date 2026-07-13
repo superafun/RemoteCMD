@@ -233,6 +233,34 @@
             flex: 1 1 0;
             min-width: 0;
         }
+        /* 输入条：发按键右侧的内联多行输入框；展开时隐藏快捷键栏、独占整行 */
+        #inputBarBtn {
+            flex-shrink: 0;
+            align-self: flex-start;
+        }
+        #inputBarWrap {
+            display: flex;
+            flex: 1 1 0;
+            min-width: 0;
+            gap: 6px;
+            align-items: flex-start;
+        }
+        #inputBarText {
+            flex: 1;
+            min-width: 0;
+            resize: none;
+            overflow: hidden;
+            max-height: 160px;
+            background: #1e1e1e;
+            color: #eee;
+            border: 1px solid #555;
+            font: inherit;
+            line-height: 1.4;
+            padding: 4px 6px;
+        }
+        #inputBarSend {
+            flex-shrink: 0;
+        }
         .dropdown-menu {
             display: none;
             position: fixed;
