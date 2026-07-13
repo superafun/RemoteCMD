@@ -882,6 +882,9 @@
             inputBarText.focus();
         }
         function closeInputBar() {
+            // 先交还终端焦点，避免 textarea 隐藏瞬间失焦导致移动端软键盘收回
+            // （与其他快捷键按钮一致：点完后焦点仍在终端输入框，键盘不收）
+            sessions.get(activeId)?.focus();
             inputBarWrap.style.display = 'none';
             hotkeysListEl.style.display = 'flex';    // 恢复快捷键栏
             inputBarText.value = '';
