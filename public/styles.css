@@ -215,12 +215,20 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
-        .toolbar, #hotkeys-bar {
+        .toolbar {
             display: flex;
             flex-wrap: wrap;
             gap: 0;
             align-items: center;
             /* width 由 #page flex 列布局默认 stretch 提供 */
+        }
+        #hotkeys-bar {
+            display: flex;
+            flex-wrap: nowrap;       /* 不换行，单行 */
+            overflow-x: auto;        /* 超宽横向溢出可滚动 */
+            gap: 0;
+            align-items: center;
+            touch-action: pan-x;     /* 移动端授权横向 pan，禁掉竖向误滚 */
         }
         /* 发按键：独立组合器入口，与预设快捷键语义不同，保持为 #hotkeys-bar 直接子项
            flex-shrink:0 保证永不被压缩、始终独占最左；align-self 让 hotkeysList 内部换行至多行时顶端对齐 */
