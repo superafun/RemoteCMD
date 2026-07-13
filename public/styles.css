@@ -249,7 +249,7 @@
             flex: 1;
             min-width: 0;
             resize: none;
-            overflow: hidden;
+            overflow: auto;
             max-height: 160px;
             background: #1e1e1e;
             color: #eee;
