@@ -268,7 +268,7 @@
             border: 1px solid #555;
             font: inherit;
             line-height: 1.4;
-            padding: 4px 6px;
+            padding: 4px 6px 2px;   /* 底部 2px：收紧文字到框底的距离，整体高度贴近侧边按键 */
         }
         #inputBarSend {
             flex-shrink: 0;
