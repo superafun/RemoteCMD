@@ -320,6 +320,12 @@ server.js
     - **性能**：仅变量/class/按钮合并，无额外 DOM 节点或监听器开销；纯设置类改动。
     - **范围**：改了 `server.js`（Task 1 后端配置链路）→ 需 PM2 重启后端才生效；前端刷新即加载新静态文件。
 
+40. **输入条高度对齐侧边按键（2026-07-14 修复）**：底部栏输入条展开后，textarea（`#inputBarText`）高度原先比左右按键（发按键/换行）高出一截、且文字离框底有较大的空白，视觉不和谐。
+    - **根因**：单行/空状态的 textarea 高度由 `autoGrow()`（`public/index.html`）设 `height = scrollHeight`（内容高 + 上下 padding，不含边框）决定，与按钮高度公式相同，差异在**垂直 padding**（textarea 原上下各 4px，按钮上下各 6px）+ 真实浏览器单行行盒渲染使底部留白偏大。
+    - **修复**：`public/styles.css` `#inputBarText` 的 `padding` 由 `4px 6px` 逐步收紧为 `4px 6px 2px` 最终 `4px 6px 0`（仅收底部，顶部与左右不变），文字贴框底、整体高度贴近侧边按键，用户验收"刚好对齐"。
+    - **不含写死高度**：保持 `autoGrow`（`height = scrollHeight`）+ `overflow: auto` + `max-height: 160px`，单行内容恰好塞进框、**无滚动条**；多行照常增长。此前"强行写死 height"导致滚动条的坑不复现。
+    - **范围**：纯前端 `styles.css` 一处改动，刷新即生效，不动 `server.js`/协议；如需像素级锁死对齐，备选方案为运行时读取「换行」按钮 `clientHeight` 反推 textarea 高度（未采用，当前 padding 法已满足）。
+
 ## 开发工作流
 
 - **只改前端时不要重启服务器**：测试前先用 `Get-NetTCPConnection -LocalPort 65433` 检查后端服务器是否在跑。如果在跑就直接连现成的服务器测网页（静态文件刷新即可加载新前端）。只有改了 `server.js` 时才需要重启服务。
