@@ -642,6 +642,8 @@
             const term = document.getElementById('terminal-container');
             if (term) new ResizeObserver(syncLayoutWidths).observe(term);
         }
+        // 触摸滑动模拟鼠标滚轮（捕获阶段监听，全局只挂一次）
+        setupTouchScroll();
 
         // 初始渲染会话选择按钮文本
         renderSessionSelect();
@@ -867,6 +869,70 @@
         function scrollBottom() { sessions.get(activeId)?.scrollToBottom(); }
         function scrollXtermUp() { sessions.get(activeId)?.scrollLines(-1); }
         function scrollXtermDown() { sessions.get(activeId)?.scrollLines(1); }
+
+        // 统一滚动：与真实鼠标滚轮同逻辑（TUI 鼠标追踪开→发 SGR 给 PTY；否则→滚 xterm 视口）
+        function smartScroll(dir) {            // dir: -1 上滑（看更早内容）, +1 下滑
+            const s = sessions.get(activeId);
+            if (!s) return;
+            if (s.term.modes.mouseTrackingMode !== 'none')
+                s.sendSgrWheel(dir);          // TUI 自己滚
+            else
+                s.scrollLines(dir);           // 普通 CLI：xterm 滚视口看历史
+        }
+
+        // === 触摸滑动模拟鼠标滚轮（纯前端，详见设计文档）===
+        const SWIPE_THRESHOLD = 24;   // 每累计多少 px 触发一次滚动，真机调
+        const SWIPE_CLASSIFY  = 10;   // 超过此位移且纵向占优才判定为滚动
+        let swipeTouchId = null;      // 当前处理的触点 identifier，null=无
+        let swipeActive  = false;     // 本次手势是否已判定为滚动
+        let swipeStartX = 0, swipeStartY = 0, swipeLastY = 0, swipeAccum = 0;
+
+        function setupTouchScroll() {
+            document.addEventListener('touchstart',  onTouchScrollStart, { capture: true });
+            document.addEventListener('touchmove',   onTouchScrollMove,  { capture: true });
+            document.addEventListener('touchend',    onTouchScrollEnd,   { capture: true });
+            document.addEventListener('touchcancel', onTouchScrollEnd,   { capture: true });
+        }
+
+        function onTouchScrollStart(e) {
+            if (selectionMode) { swipeTouchId = null; swipeActive = false; return; }  // 选区模式交给 xterm 原生拖选
+            if (e.touches.length !== 1) { swipeTouchId = null; swipeActive = false; return; }  // 仅单指
+            const t = e.touches[0];
+            if (!t.target || !t.target.closest || !t.target.closest('#terminal-container')) {
+                swipeTouchId = null; swipeActive = false; return;   // 终端区域外（底部栏等）放行
+            }
+            swipeTouchId = t.identifier;
+            swipeStartX = t.clientX; swipeStartY = t.clientY;
+            swipeLastY = t.clientY; swipeAccum = 0; swipeActive = false;
+            // 注意：此处不 preventDefault，让轻点聚焦 / 长按选区照常
+        }
+
+        function onTouchScrollMove(e) {
+            if (swipeTouchId === null) return;
+            let t = null;
+            for (const c of e.changedTouches) if (c.identifier === swipeTouchId) { t = c; break; }
+            if (!t) return;
+            if (!swipeActive) {
+                const dy = t.clientY - swipeStartY;
+                const dx = t.clientX - swipeStartX;
+                if (Math.abs(dy) > SWIPE_CLASSIFY && Math.abs(dy) > Math.abs(dx)) {
+                    swipeActive = true; swipeAccum = 0; swipeLastY = t.clientY;  // 竖向占优→判定为滚动
+                } else {
+                    return;  // 未达阈值 / 横滑 / 轻点：放行给 xterm
+                }
+            }
+            e.preventDefault();
+            e.stopPropagation();   // 捕获阶段 stopPropagation 可截住 xterm 的冒泡阶段选区监听
+            const dyStep = t.clientY - swipeLastY;
+            swipeAccum += dyStep;
+            swipeLastY = t.clientY;
+            while (swipeAccum >= SWIPE_THRESHOLD)  { smartScroll(1);  swipeAccum -= SWIPE_THRESHOLD; }  // 下滑
+            while (swipeAccum <= -SWIPE_THRESHOLD) { smartScroll(-1); swipeAccum += SWIPE_THRESHOLD; }  // 上滑
+        }
+
+        function onTouchScrollEnd() {
+            swipeTouchId = null; swipeActive = false;
+        }
 
         // === 快捷键 ===
         function renderHotkeys() {

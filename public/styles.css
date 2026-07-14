@@ -191,6 +191,10 @@
         }
         .term-wrapper {
             position: relative;  /* 让 .buffer-loading 绝对定位参照 */
+            touch-action: pan-x;  /* 触摸滑动：浏览器只管横向手势，纵向交给 JS 模拟滚轮 */
+        }
+        .xterm {
+            touch-action: pan-x;  /* 同上，更具体保底（xterm 自身可能设过 touch-action） */
         }
         .buffer-loading {
             position: absolute;
