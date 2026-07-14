@@ -310,10 +310,21 @@ server.js
 
 38. **Ctrl+V 粘贴（2026-07-13 引入）**：捕获阶段 `keydown` 监听（现用于 Ctrl+C 复制，见注意事项 34）中新增 Ctrl+V 分支——拦截 `Ctrl+V`（`preventDefault` + `stopPropagation`），调 `pasteFromClipboard(term, id)` 读系统剪贴板并写进 PTY，覆盖 xterm 默认的 `\x16` 转发。**根因**：右键"粘贴"走 xterm 默认 `paste` 事件（读剪贴板链路）所以通；Ctrl+V 被 xterm 当键盘字符 `\x16` 吞掉并 `preventDefault` 掉浏览器原生 paste 事件，所以失效。**范围**：仅 `Ctrl+V`（不含 `Ctrl+Shift+V` / `Shift+Insert`），全局生效（含普通 PowerShell 变粘贴语义），成功不弹 Toast、仅失败时弹红色「粘贴失败(无法访问剪贴板)」。换行归一化 `\r\n`→`\r`、单 `\n`→`\r`（与 xterm 默认 paste 一致）。用 `this.id` 直接发避免切会话串台。纯前端改动（`public/index.html` 新增 `pasteFromClipboard` + `public/term-session.js` 扩展监听），不动 `server.js`、不加 WebSocket 消息、不加协议，刷新即生效。安全上下文：`localhost`/`https` 可用 `navigator.clipboard.readText()`；仅"局域网 IP + http"拿不到，降级为失败 Toast（浏览器限制，无读取兜底）。
 
+39. **滑动手感设置 + 按钮合并 + 显隐（2026-07-14 引入）**：把触摸滑动阈值/判定阈值做成多端同步设置、把 4 个滚动按钮合并为 2 个、并新增滚动按钮显隐的多端同步设置。
+    - **配置字段**：`config.json` 新增 `swipeThreshold`(24, 1-200) / `swipeClassify`(10, 1-100) / `showScrollButtons`(true)。`loadConfig` 仅默认值兜底，无老用户迁移（单一用户）。
+    - **WebSocket 消息**：`swipe_threshold` / `swipe_classify` / `show_scroll_buttons`（C→S 设置 + S→C 广播），字符串与前端 `apply`/`接收` 完全一致。服务端 handler 校验范围后落盘 `saveConfig` + 广播所有客户端；连接建立时下发（在 `scroll_interval_page` 之后）。
+    - **按钮合并 4→2**：`#scrollGroup` 内 `▲上滑`/`▼下滑`/`▽到底页面` 三个按钮（原 4 个含"上滑/下滑页面"已删）。`setupHoldScroll` 绑定改为 `scrollUpBtn`→`smartScroll(-1)`、`scrollDownBtn`→`smartScroll(1)`，按住间隔由新 `getScrollInterval()` 按当前会话模式自适应（TUI 鼠标追踪开→`scrollIntervalTerminal`，否则→`scrollIntervalPage`）。原 `scrollUp`/`scrollDown`/`scrollXtermUp`/`scrollXtermDown` 四个函数因被 `smartScroll` 完全取代已删除。`scrollBottomBtn` 仍绑 `scrollBottom`。
+    - **滑动手感参数可变**：原触摸块内 `const SWIPE_THRESHOLD/SWIPE_CLASSIFY` 改为顶部全局 `let swipeThreshold/swipeClassify`，`onTouchScrollMove` 引用随之替换，连接建立后由 `swipe_threshold`/`swipe_classify` 广播更新、实时生效无需刷新。
+    - **显隐**：`styles.css` 新增 `.hidden { display:none !important }`；`applyScrollButtonsVisibility()` 按 `showScrollButtons` 给 `#scrollGroup` 切 `.hidden`（含"到底页面"一起隐藏），初始化调用一次，接收侧 `show_scroll_buttons` 时调用。设置弹窗"显示滚动按钮"勾选框 + 应用按钮。
+    - **设置弹窗**：`buildSettingsModal` 在"按住页面滚动间隔"行后加 3 行（滑动滚动阈值/滑动判定阈值/显示滚动按钮），`openSettingsModal` 同步当前值，`applySettingsSwipeThreshold/Classify/ShowScrollButtons` 三个 apply 函数只 `wsSend`（服务端权威，不本地改状态），接收侧 3 分支更新全局变量 + `applyScrollButtonsVisibility` + 前端日志。
+    - **性能**：仅变量/class/按钮合并，无额外 DOM 节点或监听器开销；纯设置类改动。
+    - **范围**：改了 `server.js`（Task 1 后端配置链路）→ 需 PM2 重启后端才生效；前端刷新即加载新静态文件。
+
 ## 开发工作流
 
 - **只改前端时不要重启服务器**：测试前先用 `Get-NetTCPConnection -LocalPort 65433` 检查后端服务器是否在跑。如果在跑就直接连现成的服务器测网页（静态文件刷新即可加载新前端）。只有改了 `server.js` 时才需要重启服务。
 - **PM2 重启纪律**：以后所有重启操作必须通过 PM2（`npm run restart` 或前端设置弹窗的「重启服务器」按钮），**禁止直接 taskkill / kill 进程**，否则会破坏 PM2 的进程管理状态。非 PM2 方式杀进程后，PM2 会误认为进程仍在管理下，导致 `pm2 restart` 失败。
+- **AI 禁止私自重启服务器（2026-07-14 用户明确）**：改完 `server.js` 后代码可以照常提交，但**重启动作只能通知用户、由用户自己执行**（"请运行 `npm run restart`"），AI 绝不可自己执行 `npm run restart` / `pm2 restart` 等任何重启命令。**唯一例外**：用户明确授权"你可以自己重启"时才可执行。只读检查（如连 WS 看下发消息）不算重启，可以做。
 - **每次代码改动必须附带性能影响分析**：在计划阶段或提交改动时，分析改动涉及的 DOM 操作量、事件监听器数量、布局/回流影响、内存开销、执行频率等关键指标。可忽略的影响也需明确说明理由。纯文档/注释/配置变更除外。
 
 ## 更新规则
