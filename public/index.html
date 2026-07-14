@@ -294,6 +294,42 @@
             document.body.appendChild(div.firstElementChild);
         }
 
+        function showBellToast(id) {
+            const s = sessions.get(id);
+            if (!s) return;  // 终端已不存在，不显示
+            const toast = document.createElement('div');
+            toast.className = 'toast toast-success';
+            toast.textContent = `终端通知: ${s.name}`;
+            document.body.appendChild(toast);
+            void toast.offsetHeight;
+            toast.classList.add('toast-show');
+            setTimeout(() => {
+                toast.classList.remove('toast-show');
+                setTimeout(() => toast.remove(), 300);
+            }, 1500);
+        }
+
+        let audioCtx = null;
+        function playBeep() {
+            try {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.frequency.value = 1000;
+                osc.type = 'sine';
+                gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.1);
+            } catch (e) {
+                // 浏览器自动播放策略拒绝时静默失败，不影响 Toast 显示
+            }
+        }
+
         function fbBtn(id, ok) {
             const btn = document.getElementById(id);
             if (!btn) return;
@@ -610,6 +646,9 @@
                         const s = sessions.get(msg.id);
                         if (!s || s.pendingBuffer) return;  // 等待 buffer 响应中，丢弃
                         s.write(msg.data);
+                    } else if (msg.type === 'bell') {
+                        showBellToast(msg.id);
+                        playBeep();
                     } else if (msg.type === 'size_slots') {
                         sizeSlots = msg.data;  // 全量覆盖
                         // 弹窗打开时同步：仅在 modal 已开时刷新输入框
