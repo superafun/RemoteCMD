@@ -22,7 +22,8 @@ function loadConfig() {
             showScrollButtons: true,
             bellDebounceMs: 1000,
             bellSoundEnabled: true,
-            bellToastEnabled: true
+            bellToastEnabled: true,
+            bellBeepDurationMs: 300
         };
         fs.writeFileSync(CONFIG_PATH, JSON.stringify(def, null, 2));
         return def;
@@ -58,6 +59,7 @@ function loadConfig() {
     if (typeof cfg.bellDebounceMs !== 'number' || cfg.bellDebounceMs < 100 || cfg.bellDebounceMs > 10000) cfg.bellDebounceMs = 1000;
     if (typeof cfg.bellSoundEnabled !== 'boolean') cfg.bellSoundEnabled = true;
     if (typeof cfg.bellToastEnabled !== 'boolean') cfg.bellToastEnabled = true;
+    if (typeof cfg.bellBeepDurationMs !== 'number' || cfg.bellBeepDurationMs < 50 || cfg.bellBeepDurationMs > 2000) cfg.bellBeepDurationMs = 300;
     return cfg;
 }
 function saveConfig(cfg) {
@@ -205,6 +207,7 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'bell_debounce_ms', data: config.bellDebounceMs }));
     ws.send(JSON.stringify({ type: 'bell_sound_enabled', data: config.bellSoundEnabled }));
     ws.send(JSON.stringify({ type: 'bell_toast_enabled', data: config.bellToastEnabled }));
+    ws.send(JSON.stringify({ type: 'bell_beep_duration_ms', data: config.bellBeepDurationMs }));
     ws.on('message', (msg) => {
         const p = JSON.parse(msg.toString());
         const { type, id, data } = p;
@@ -336,6 +339,13 @@ wss.on('connection', (ws) => {
             if (typeof data !== 'boolean') return;
             config.bellToastEnabled = data;
             broadcast({ type: 'bell_toast_enabled', data: config.bellToastEnabled });
+            saveConfig(config);
+        }
+        else if (type === 'bell_beep_duration_ms') {
+            const v = parseInt(data);
+            if (!Number.isInteger(v) || v < 50 || v > 2000) return;
+            config.bellBeepDurationMs = v;
+            broadcast({ type: 'bell_beep_duration_ms', data: config.bellBeepDurationMs });
             saveConfig(config);
         }
         else if (type === 'buffer_size' && sessions[id]) {
