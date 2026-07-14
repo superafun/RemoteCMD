@@ -993,8 +993,8 @@
             ta.style.height = 'auto';
             ta.style.height = ta.scrollHeight + 'px';
         }
-        // 逐字符发送时每个字符之间的延时（ms），模拟真人敲键节奏；如需更慢/更快改这里
-        const TYPING_DELAY = 15;
+        // 正文发完后、单独发回车前的停顿（ms），模拟手动按 Enter 前的手感
+        const ENTER_DELAY = 300;
 
         function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -1011,14 +1011,13 @@
             const t = inputBarText.value.replace(/\n+$/, '');   // 去末尾换行，避免多发空行
             if (!t) { return; }                                  // 空内容：不发送、不关闭（回车发送语义）
             const targetId = activeId;                            // 捕获目标会话，防止发送途中切换会话串台
-            const seq = t.replace(/\n/g, '\r') + '\r';           // \n→\r 并补末尾回车
+            const textSeq = t.replace(/\n/g, '\r');              // 正文内容，\n→\r，不含末尾回车
             clearInputBar();                                      // 清空内容但保持展开，焦点仍在输入框
             addFrontendLog('输入条发送: ' + t, 'out');
-            for (const ch of seq) {
-                if (!targetId) break;                             // 捕获时无活动会话（activeId 为 null）则不发送
-                wsSend({ type: 'input', id: targetId, data: ch });
-                await sleep(TYPING_DELAY);
-            }
+            if (!targetId) return;                               // 捕获时无活动会话则不发送
+            wsSend({ type: 'input', id: targetId, data: textSeq });  // 整段正文一次性发出
+            await sleep(ENTER_DELAY);                            // 停顿，模拟手动按 Enter 前的手感
+            wsSend({ type: 'input', id: targetId, data: '\r' });     // 单独发回车 = 确认/执行
         }
         inputBarText.addEventListener('input', () => autoGrow(inputBarText));
         inputBarText.addEventListener('keydown', (e) => {
