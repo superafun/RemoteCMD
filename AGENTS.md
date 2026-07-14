@@ -326,7 +326,14 @@ server.js
     - **不含写死高度**：保持 `autoGrow`（`height = scrollHeight`）+ `overflow: auto` + `max-height: 160px`，单行内容恰好塞进框、**无滚动条**；多行照常增长。此前"强行写死 height"导致滚动条的坑不复现。
     - **范围**：纯前端 `styles.css` 一处改动，刷新即生效，不动 `server.js`/协议；如需像素级锁死对齐，备选方案为运行时读取「换行」按钮 `clientHeight` 反推 textarea 高度（未采用，当前 padding 法已满足）。
 
-41. **BEL 终端响铃通知通道（2026-07-14 引入）**：后端检测 PTY 输出中的 ASCII BEL 字符 `\x07`，向前端广播 `bell` 消息，前端显示 `终端通知: <终端名>` Toast 并播放 Web Audio API 生成的 1kHz 100ms 蜂鸣。PowerShell 中可用 `Write-Host "`a"`、`[Console]::Write("`a")`、`` `a `` 字面量等触发。`[console]::Beep()` 直接调用 Windows 系统蜂鸣器，不走 PTY 输出，因此**不触发**该通道（设计约束）。**协议**：`{type:'bell', id}` 纯 S→C，单向、无 `data` 字段、每个 `\x07` 触发一次（同一 chunk 多 `\x07` 也只发一次）。**后端过滤**：检测到 `\x07` 后从发给 xterm 的 `data` 中过滤掉、但 `sessions[id].buffer` 保留原始字节（含 `\x07`），重连回放不丢；过滤后若 chunk 为空则不广播 `data`。**前端**：复用现有 `.toast-success` 样式（蓝底 1.5s 滑出），无点击行为（保持简洁），蜂鸣失败时（浏览器自动播放策略拒绝）静默吞错不影响 Toast。**音频**：AudioContext 懒初始化（首次响铃时 `new`），避免页面加载即触发自动播放警告。
+41. **BEL 终端响铃通知通道（2026-07-14 引入）**：后端检测 PTY 输出中的 ASCII BEL 字符 `\x07`，前端显示 `终端通知: <终端名>` Toast + 播放 1kHz 蜂鸣（默认 300ms，可配）。PowerShell 中可用 `Write-Host "`a"`、`[Console]::Write("`a")`、`` `a `` 字面量等触发。`[console]::Beep()` 直接调用 Windows 系统蜂鸣器，不走 PTY 输出，因此**不触发**该通道（设计约束）。
+    - **协议**：`{type:'bell', id}` 纯 S→C，单向、无 `data` 字段。后端检测到 `\x07` 时启动/重置去抖定时器，到点未取消则 broadcast；`{type:'bell_debounce_ms' / 'bell_sound_enabled' / 'bell_toast_enabled'}` 双向同步设置项。客户端不发送 `bell`（PowerShell 进程自己输出 `\x07` 触发）。
+    - **去抖逻辑**（per-session 状态 `bellTimer` + `bellArmed`）：**任何** onData(d) 到达都先 clearTimeout 当前 timer；若 d 含 `\x07` 则 `bellArmed=true`；仅 `bellArmed=true` 时才 schedule 新 timer，到点则广播 bell 并清 armed。TUI 持续输出 → 每次 onData 都重置 timer、永不到点 → 0 通知；输出静止 N ms → 通知 1 次。任意 chunk 含多 `\x07` 只发一次 bell。
+    - **后端过滤**：检测到 `\x07` 后从发给 xterm 的 `data` 中过滤掉、`buffer` 保留原始字节（含 `\x07`），重连回放不丢；过滤后若 chunk 为空则不广播 `data`。`onExit` 清理 `bellTimer`（防御性 guard 阻止双重 delete）。
+    - **配置字段**（`config.json`）：`bellDebounceMs`（默认 1000，范围 100-10000，去抖时长）/ `bellSoundEnabled`（默认 true）/ `bellToastEnabled`（默认 true）。多端同步，连接时下发、设置变更时广播。
+    - **纯前端参数**（不写 `config.json`、无 WS 同步）：`bellBeepDurationMs`（默认 300，范围 50-2000，蜂鸣单声时长）。仅当前浏览器音效偏好，不影响任何其他客户端、不参与后端逻辑，刷新重置默认值即可。
+    - **设置变更周期锁定语义**（与注意事项 24 一致）：`setTimeout(fn, config.bellDebounceMs)` 在创建时 capture 当时的值，已 schedule 的 timer 按旧值到期，下一次新 onData 才用新值；不需要重启 server。
+    - **前端**：复用通用 `showToast(text, 'success')`（带堆叠偏移，多终端同时 bell 不重叠），无点击行为。蜂鸣失败时（浏览器自动播放策略拒绝）静默吞错不影响 Toast。`AudioContext` 懒初始化（首次响铃时 `new`）+ 幂等 `resume()`，避免页面加载即触发自动播放警告。
 
 ## 开发工作流
 
