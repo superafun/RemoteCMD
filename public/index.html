@@ -96,6 +96,10 @@
         // === 前端日志 ===
         let maxFrontendLogs = 50;
         const frontendLogs = [];
+        // === BEL 通知设置 ===
+        let bellDebounceMs = 1000;   // 服务端去抖窗口（ms），与 config.json.bellDebounceMs 同步
+        let bellSoundEnabled = true; // 蜂鸣开关
+        let bellToastEnabled = true; // Toast 开关
         // 保留 hotkeyList 内固定尾部元素（编辑按钮 + 滚动按钮组）的引用
         // renderHotkeys() 中 bar.innerHTML = '' 会把它们从 DOM 树摘下,getElementById 失效
         // 必须用变量持有引用才能在 renderHotkeys 末尾 appendChild 回去
@@ -221,6 +225,25 @@
             html += '<button class="btn-primary" id="btn-apply-clientTailMax" onclick="applySettingsClientTailMax()">应用</button>';
             html += '</div>';
 
+            // === BEL 通知设置 ===
+            // 通知防抖时长 (ms)：终端输出停止 N 毫秒后才发铃铛通知，TUI 持续输出时不会被刷屏
+            html += '<div class="modal-row">';
+            html += '通知防抖时长 (ms) <input type="number" id="settingsBellDebounceMsInput" min="100" max="10000" step="100" style="width:80px;">';
+            html += '<button class="btn-primary" id="btn-apply-bellDebounceMs" onclick="applySettingsBellDebounceMs()">应用</button>';
+            html += '</div>';
+
+            // 通知声音开关
+            html += '<div class="modal-row">';
+            html += '<label><input type="checkbox" id="settingsBellSoundEnabledInput"> 通知声音</label>';
+            html += '<button class="btn-primary" id="btn-apply-bellSoundEnabled" onclick="applySettingsBellSoundEnabled()">应用</button>';
+            html += '</div>';
+
+            // 通知 Toast 开关
+            html += '<div class="modal-row">';
+            html += '<label><input type="checkbox" id="settingsBellToastEnabledInput"> 通知 Toast</label>';
+            html += '<button class="btn-primary" id="btn-apply-bellToastEnabled" onclick="applySettingsBellToastEnabled()">应用</button>';
+            html += '</div>';
+
             // 缓冲区占用（自动检测，弹窗打开即拉取）
             html += '<div class="modal-row" style="flex-direction:column;align-items:flex-start;gap:4px;">';
             html += '<div style="color:#a0a0a0;">缓冲区占用</div>';
@@ -253,6 +276,9 @@
             document.getElementById('settingsMaxBufferInput').value = maxBuffer;
             document.getElementById('settingsMaxFrontendLogsInput').value = maxFrontendLogs;
             document.getElementById('settingsClientTailMaxInput').value = clientTailMax;
+            document.getElementById('settingsBellDebounceMsInput').value = bellDebounceMs;
+            document.getElementById('settingsBellSoundEnabledInput').checked = bellSoundEnabled;
+            document.getElementById('settingsBellToastEnabledInput').checked = bellToastEnabled;
 
             // 打开即自动检测当前会话 buffer 占用
             queryBufferSize();
@@ -419,6 +445,28 @@
             } else {
                 fbBtn('btn-apply-clientTailMax', false);
             }
+        }
+
+        function applySettingsBellDebounceMs() {
+            const v = parseInt(document.getElementById('settingsBellDebounceMsInput').value);
+            if (Number.isInteger(v) && v >= 100 && v <= 10000) {
+                wsSend({ type: 'bell_debounce_ms', data: v });
+                fbBtn('btn-apply-bellDebounceMs', true);
+            } else {
+                fbBtn('btn-apply-bellDebounceMs', false);
+            }
+        }
+
+        function applySettingsBellSoundEnabled() {
+            const v = document.getElementById('settingsBellSoundEnabledInput').checked;
+            wsSend({ type: 'bell_sound_enabled', data: v });
+            fbBtn('btn-apply-bellSoundEnabled', true);
+        }
+
+        function applySettingsBellToastEnabled() {
+            const v = document.getElementById('settingsBellToastEnabledInput').checked;
+            wsSend({ type: 'bell_toast_enabled', data: v });
+            fbBtn('btn-apply-bellToastEnabled', true);
         }
 
         // === 大/小尺寸槽位应用（2026-07-01 引入） ===
@@ -655,8 +703,8 @@
                         if (!s || s.pendingBuffer) return;  // 等待 buffer 响应中，丢弃
                         s.write(msg.data);
                     } else if (msg.type === 'bell') {
-                        showBellToast(msg.id);
-                        playBeep();
+                        if (bellToastEnabled) showBellToast(msg.id);
+                        if (bellSoundEnabled) playBeep();
                     } else if (msg.type === 'size_slots') {
                         sizeSlots = msg.data;  // 全量覆盖
                         // 弹窗打开时同步：仅在 modal 已开时刷新输入框
@@ -698,6 +746,15 @@
                         clientTailMax2 = msg.data * 2;
                         sessions.forEach(s => s.trimClientTail(clientTailMax));
                         addFrontendLog('buffer 去重比对长度同步为 ' + clientTailMax + ' 字节', 'in');
+                    } else if (msg.type === 'bell_debounce_ms') {
+                        bellDebounceMs = msg.data;
+                        addFrontendLog('通知防抖时长同步为 ' + bellDebounceMs + ' ms', 'in');
+                    } else if (msg.type === 'bell_sound_enabled') {
+                        bellSoundEnabled = msg.data;
+                        addFrontendLog('通知声音已' + (bellSoundEnabled ? '开启' : '关闭'), 'in');
+                    } else if (msg.type === 'bell_toast_enabled') {
+                        bellToastEnabled = msg.data;
+                        addFrontendLog('通知 Toast 已' + (bellToastEnabled ? '开启' : '关闭'), 'in');
                     } else if (msg.type === 'swipe_threshold') {
                         swipeThreshold = msg.data;
                         addFrontendLog('滑动滚动阈值同步为 ' + swipeThreshold + ' px', 'in');
