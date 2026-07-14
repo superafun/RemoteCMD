@@ -158,13 +158,9 @@ function createSession() {
                 broadcast({ type: 'bell', id: newId });
             }, config.bellDebounceMs);
         }
-        // data 消息：去掉 \x07 后照常发
-        if (d.includes('\x07')) {
-            const cleaned = d.replace(/\x07/g, '');
-            if (cleaned) broadcast({ type: 'data', id: newId, data: cleaned });
-        } else {
-            broadcast({ type: 'data', id: newId, data: d });
-        }
+        // data 消息：原样透传（含 \x07）。
+        // xterm 收到 \x07 是不可见控制字符，不会破坏渲染；前端 buffer 始终与后端 buffer 一致，重连回放无差异。
+        broadcast({ type: 'data', id: newId, data: d });
     });
     ptyProcess.onExit(() => {
         if (sessions[newId] && sessions[newId].bellTimer) {
