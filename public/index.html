@@ -59,10 +59,8 @@
             <div id="hotkeysList" style="display:flex;gap:0;flex-wrap:nowrap;">
                 <button id="editBtn">编辑</button>
                 <div id="scrollGroup" style="display:flex;flex-shrink:0;margin-left:auto;">
-                    <button id="scrollUpBtn">▲上滑终端</button>
-                    <button id="scrollDownBtn">▼下滑终端</button>
-                    <button id="scrollXtermUpBtn">▲上滑页面</button>
-                    <button id="scrollXtermDownBtn">▼下滑页面</button>
+                    <button id="scrollUpBtn">▲上滑</button>
+                    <button id="scrollDownBtn">▼下滑</button>
                     <button id="scrollBottomBtn">▽到底页面</button>
                 </div>
             </div>
@@ -78,6 +76,9 @@
         let hotkeys = {};
         let scrollIntervalTerminal = 100;
         let scrollIntervalPage = 100;
+        let swipeThreshold = 24;   // 滑动滚动阈值(px)，设置可改、实时生效
+        let swipeClassify  = 10;   // 滑动判定阈值(px)，设置可改、实时生效
+        let showScrollButtons = true;
         let maxBuffer = 10;  // 默认值 MB，与服务端 loadConfig 默认一致（避免弹窗打开瞬间 input 被 clamp 到 90）
         // sizeSlots / currentSize 替代原 rows/cols（2026-07-01 改用 size_slots/current_size 协议）
         // 初始 null：服务端消息到达前不调用 term.resize，也不渲染弹窗默认值
@@ -184,6 +185,24 @@
             html += '<button class="btn-primary" id="btn-apply-scrollIntervalPage" onclick="applySettingsScrollIntervalPage()">应用</button>';
             html += '</div>';
 
+            // 滑动滚动阈值 (px)
+            html += '<div class="modal-row">';
+            html += '滑动滚动阈值 (px) <input type="number" id="settingsSwipeThresholdInput" min="1" max="200" step="1" style="width:80px;">';
+            html += '<button class="btn-primary" id="btn-apply-swipeThreshold" onclick="applySettingsSwipeThreshold()">应用</button>';
+            html += '</div>';
+
+            // 滑动判定阈值 (px)
+            html += '<div class="modal-row">';
+            html += '滑动判定阈值 (px) <input type="number" id="settingsSwipeClassifyInput" min="1" max="100" step="1" style="width:80px;">';
+            html += '<button class="btn-primary" id="btn-apply-swipeClassify" onclick="applySettingsSwipeClassify()">应用</button>';
+            html += '</div>';
+
+            // 显示滚动按钮
+            html += '<div class="modal-row">';
+            html += '<label><input type="checkbox" id="settingsShowScrollButtonsInput"> 显示滚动按钮</label>';
+            html += '<button class="btn-primary" id="btn-apply-showScrollButtons" onclick="applySettingsShowScrollButtons()">应用</button>';
+            html += '</div>';
+
             // 缓冲区上限 (MB)
             html += '<div class="modal-row">';
             html += '缓冲区上限 (MB) <input type="number" id="settingsMaxBufferInput" min="1" max="90" style="width:80px;">';
@@ -228,6 +247,9 @@
             document.getElementById('settingsSmallColsInput').value = sizeSlots.small?.cols ?? 80;
             document.getElementById('settingsScrollIntervalTerminalInput').value = scrollIntervalTerminal;
             document.getElementById('settingsScrollIntervalPageInput').value = scrollIntervalPage;
+            document.getElementById('settingsSwipeThresholdInput').value = swipeThreshold;
+            document.getElementById('settingsSwipeClassifyInput').value = swipeClassify;
+            document.getElementById('settingsShowScrollButtonsInput').checked = showScrollButtons;
             document.getElementById('settingsMaxBufferInput').value = maxBuffer;
             document.getElementById('settingsMaxFrontendLogsInput').value = maxFrontendLogs;
             document.getElementById('settingsClientTailMaxInput').value = clientTailMax;
@@ -299,6 +321,30 @@
             } else {
                 fbBtn('btn-apply-scrollIntervalPage', false);
             }
+        }
+
+        function applySettingsSwipeThreshold() {
+            const v = parseInt(document.getElementById('settingsSwipeThresholdInput').value);
+            if (Number.isInteger(v) && v >= 1 && v <= 200) {
+                wsSend({ type: 'swipe_threshold', data: v });
+                fbBtn('btn-apply-swipeThreshold', true);
+            } else {
+                fbBtn('btn-apply-swipeThreshold', false);
+            }
+        }
+        function applySettingsSwipeClassify() {
+            const v = parseInt(document.getElementById('settingsSwipeClassifyInput').value);
+            if (Number.isInteger(v) && v >= 1 && v <= 100) {
+                wsSend({ type: 'swipe_classify', data: v });
+                fbBtn('btn-apply-swipeClassify', true);
+            } else {
+                fbBtn('btn-apply-swipeClassify', false);
+            }
+        }
+        function applySettingsShowScrollButtons() {
+            const v = document.getElementById('settingsShowScrollButtonsInput').checked;
+            wsSend({ type: 'show_scroll_buttons', data: v });
+            fbBtn('btn-apply-showScrollButtons', true);
         }
 
         function applySettingsMaxBuffer() {
@@ -605,6 +651,16 @@
                         clientTailMax2 = msg.data * 2;
                         sessions.forEach(s => s.trimClientTail(clientTailMax));
                         addFrontendLog('buffer 去重比对长度同步为 ' + clientTailMax + ' 字节', 'in');
+                    } else if (msg.type === 'swipe_threshold') {
+                        swipeThreshold = msg.data;
+                        addFrontendLog('滑动滚动阈值同步为 ' + swipeThreshold + ' px', 'in');
+                    } else if (msg.type === 'swipe_classify') {
+                        swipeClassify = msg.data;
+                        addFrontendLog('滑动判定阈值同步为 ' + swipeClassify + ' px', 'in');
+                    } else if (msg.type === 'show_scroll_buttons') {
+                        showScrollButtons = msg.data;
+                        applyScrollButtonsVisibility();
+                        addFrontendLog('滚动按钮显示状态同步为 ' + (showScrollButtons ? '显示' : '隐藏'), 'in');
                     } else if (msg.type === 'restart_server') {
                         addFrontendLog('服务端确认重启', 'in');
                     } else if (msg.type === 'buffer_size') {
@@ -644,6 +700,12 @@
         }
         // 触摸滑动模拟鼠标滚轮（捕获阶段监听，全局只挂一次）
         setupTouchScroll();
+
+        // 滚动按钮显隐：根据服务端同步的 showScrollButtons 决定是否显示整个 #scrollGroup
+        function applyScrollButtonsVisibility() {
+            scrollGroupEl.classList.toggle('hidden', !showScrollButtons);
+        }
+        applyScrollButtonsVisibility();  // 初始化应用（连接建立后若服务端为 false 会被接收侧再次切换）
 
         // 初始渲染会话选择按钮文本
         renderSessionSelect();
@@ -698,10 +760,14 @@
             btn.addEventListener('pointerleave', stop);
             btn.addEventListener('pointercancel', stop);
         }
-        setupHoldScroll('scrollUpBtn', scrollUp, () => scrollIntervalTerminal);
-        setupHoldScroll('scrollDownBtn', scrollDown, () => scrollIntervalTerminal);
-        setupHoldScroll('scrollXtermUpBtn', scrollXtermUp, () => scrollIntervalPage);
-        setupHoldScroll('scrollXtermDownBtn', scrollXtermDown, () => scrollIntervalPage);
+        // 合并后的 2 个滚动按钮：按当前会话模式自适应选择按住间隔（TUI 用终端间隔，CLI 用页面间隔）
+        function getScrollInterval() {
+            const s = sessions.get(activeId);
+            if (s && s.term.modes.mouseTrackingMode !== 'none') return scrollIntervalTerminal;  // TUI：smartScroll 发 SGR
+            return scrollIntervalPage;  // 普通 CLI：smartScroll 滚视口
+        }
+        setupHoldScroll('scrollUpBtn',   () => smartScroll(-1), getScrollInterval);
+        setupHoldScroll('scrollDownBtn', () => smartScroll(1),  getScrollInterval);
 
         function renderSessionSelect() {
             const btn = document.getElementById('sessionSelectBtn');
@@ -864,11 +930,7 @@
             sendInput(data);
         }
 
-        function scrollUp() { sessions.get(activeId)?.sendSgrWheel(-1); }
-        function scrollDown() { sessions.get(activeId)?.sendSgrWheel(1); }
         function scrollBottom() { sessions.get(activeId)?.scrollToBottom(); }
-        function scrollXtermUp() { sessions.get(activeId)?.scrollLines(-1); }
-        function scrollXtermDown() { sessions.get(activeId)?.scrollLines(1); }
 
         // 统一滚动：与真实鼠标滚轮同逻辑（TUI 鼠标追踪开→发 SGR 给 PTY；否则→滚 xterm 视口）
         function smartScroll(dir) {            // dir: -1 上滑（看更早内容）, +1 下滑
@@ -881,8 +943,6 @@
         }
 
         // === 触摸滑动模拟鼠标滚轮（纯前端，详见设计文档）===
-        const SWIPE_THRESHOLD = 24;   // 每累计多少 px 触发一次滚动，真机调
-        const SWIPE_CLASSIFY  = 10;   // 超过此位移且纵向占优才判定为滚动
         let swipeTouchId = null;      // 当前处理的触点 identifier，null=无
         let swipeActive  = false;     // 本次手势是否已判定为滚动
         let swipeStartX = 0, swipeStartY = 0, swipeLastY = 0, swipeAccum = 0;
@@ -915,7 +975,7 @@
             if (!swipeActive) {
                 const dy = t.clientY - swipeStartY;
                 const dx = t.clientX - swipeStartX;
-                if (Math.abs(dy) > SWIPE_CLASSIFY && Math.abs(dy) > Math.abs(dx)) {
+                if (Math.abs(dy) > swipeClassify && Math.abs(dy) > Math.abs(dx)) {
                     swipeActive = true; swipeAccum = 0; swipeLastY = t.clientY;  // 竖向占优→判定为滚动
                 } else {
                     return;  // 未达阈值 / 横滑 / 轻点：放行给 xterm
@@ -927,8 +987,8 @@
             swipeAccum += dyStep;
             swipeLastY = t.clientY;
             // 移动端自然手感：手指上滑(accum 负)→内容向上→看更新/更下方；手指下滑(accum 正)→看更早
-            while (swipeAccum >= SWIPE_THRESHOLD)  { smartScroll(-1); swipeAccum -= SWIPE_THRESHOLD; }  // 手指下滑 → 看更早
-            while (swipeAccum <= -SWIPE_THRESHOLD) { smartScroll(1);  swipeAccum += SWIPE_THRESHOLD; }  // 手指上滑 → 看更新
+            while (swipeAccum >= swipeThreshold)  { smartScroll(-1); swipeAccum -= swipeThreshold; }  // 手指下滑 → 看更早
+            while (swipeAccum <= -swipeThreshold) { smartScroll(1);  swipeAccum += swipeThreshold; }  // 手指上滑 → 看更新
         }
 
         function onTouchScrollEnd() {

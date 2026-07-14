@@ -196,6 +196,7 @@
         .xterm {
             touch-action: pan-x pinch-zoom;  /* 同上，更具体保底（xterm 自身可能设过 touch-action） */
         }
+        .hidden { display: none !important; }  /* 滚动按钮显隐开关（服务端 showScrollButtons 控制） */
         .buffer-loading {
             position: absolute;
             top: 0; left: 0;
