@@ -131,9 +131,11 @@ function createSession() {
         rows: slot.rows,
         cwd: process.env.USERPROFILE
     });
-    // bellTimer: 去抖定时器；bell 检测到 \x07 时 schedule，到时未取消则广播 bell。
-    // 任何后续输出（含 \x07 本身和其他字符）都会 clearTimeout 重置，保证"输出静止 N ms 才通知"。
-    sessions[newId] = { pty: ptyProcess, buffer: '', name: computeSmartName(), bellTimer: null };
+    // bellTimer: 去抖定时器；bellArmed: 是否处于"待响铃"状态（仅当本次会话已出现过 \x07 时为 true）。
+    // 任何后续输出（含 \x07 本身和任何其他字节）都会 clearTimeout 重置 timer；只有"输出静止 N ms"且 bellArmed 才广播。
+    // TUI 持续输出 → timer 不断重置，bellArmed=true 但永远不会到点 → 0 次通知。
+    // TUI 停下 1 秒 → timer 到点 → 1 次通知。
+    sessions[newId] = { pty: ptyProcess, buffer: '', name: computeSmartName(), bellTimer: null, bellArmed: false };
     // buffer 保留原始字节（含可能的 \x07），便于前端重连时完整回放
     ptyProcess.onData((d) => {
         sessions[newId].buffer += d;
@@ -141,13 +143,21 @@ function createSession() {
         if (sessions[newId].buffer.length > maxBufferChars * 2) {
             sessions[newId].buffer = sessions[newId].buffer.slice(-maxBufferChars);
         }
-        // 检测 BEL 字符（\x07）：去抖，输出停止 bellDebounceMs 后才广播一次 bell
-        if (d.includes('\x07')) {
-            if (sessions[newId].bellTimer) clearTimeout(sessions[newId].bellTimer);
+        // === BEL 去抖：任何输出都重置 timer，含 \x07 时把 bellArmed 置 true ===
+        if (sessions[newId].bellTimer) {
+            clearTimeout(sessions[newId].bellTimer);
+            sessions[newId].bellTimer = null;
+        }
+        if (d.includes('\x07')) sessions[newId].bellArmed = true;
+        if (sessions[newId].bellArmed) {
             sessions[newId].bellTimer = setTimeout(() => {
                 sessions[newId].bellTimer = null;
+                sessions[newId].bellArmed = false;
                 broadcast({ type: 'bell', id: newId });
             }, config.bellDebounceMs);
+        }
+        // data 消息：去掉 \x07 后照常发
+        if (d.includes('\x07')) {
             const cleaned = d.replace(/\x07/g, '');
             if (cleaned) broadcast({ type: 'data', id: newId, data: cleaned });
         } else {

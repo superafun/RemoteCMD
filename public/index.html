@@ -341,24 +341,20 @@
                 if (!audioCtx) {
                     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 }
-                // 首次播放时 AudioContext 可能还在 suspended 状态，立即调度音频会卡掉首部。
-                // resume() 强制激活（idempotent，已 running 时无副作用），配合 50ms 延迟给 resume 完成的时间窗。
+                // 单声 300ms 蜂鸣：取消之前的两声设计，宁可首部被激活竞态截掉也不留白。
+                // 用户验证：保持简单，单声长一点更易感知。
                 if (audioCtx.state === 'suspended') audioCtx.resume();
-                const firstStart = 0.05;  // 50ms 延迟，等 AudioContext 完全 ready
-                const secondStart = firstStart + 0.18;
-                for (const start of [firstStart, secondStart]) {
-                    const osc = audioCtx.createOscillator();
-                    const gain = audioCtx.createGain();
-                    osc.connect(gain);
-                    gain.connect(audioCtx.destination);
-                    osc.frequency.value = 1000;
-                    osc.type = 'sine';
-                    const t0 = audioCtx.currentTime + start;
-                    gain.gain.setValueAtTime(0.2, t0);
-                    gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.1);
-                    osc.start(t0);
-                    osc.stop(t0 + 0.1);
-                }
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.frequency.value = 1000;
+                osc.type = 'sine';
+                const t0 = audioCtx.currentTime;
+                gain.gain.setValueAtTime(0.2, t0);
+                gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.3);
+                osc.start(t0);
+                osc.stop(t0 + 0.3);
             } catch (e) {
                 // 浏览器自动播放策略拒绝时静默失败，不影响 Toast 显示
             }
