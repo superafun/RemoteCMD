@@ -16,7 +16,13 @@ function loadConfig() {
             scrollIntervalPage: 100,
             maxBuffer: 10,
             maxFrontendLogs: 50,
-            clientTailMax: 4096
+            clientTailMax: 4096,
+            swipeThreshold: 24,
+            swipeClassify: 10,
+            showScrollButtons: true,
+            bellDebounceMs: 1000,
+            bellSoundEnabled: true,
+            bellToastEnabled: true
         };
         fs.writeFileSync(CONFIG_PATH, JSON.stringify(def, null, 2));
         return def;
@@ -49,6 +55,9 @@ function loadConfig() {
     if (typeof cfg.swipeThreshold !== 'number' || cfg.swipeThreshold < 1 || cfg.swipeThreshold > 200) cfg.swipeThreshold = 24;
     if (typeof cfg.swipeClassify !== 'number' || cfg.swipeClassify < 1 || cfg.swipeClassify > 100) cfg.swipeClassify = 10;
     if (typeof cfg.showScrollButtons !== 'boolean') cfg.showScrollButtons = true;
+    if (typeof cfg.bellDebounceMs !== 'number' || cfg.bellDebounceMs < 100 || cfg.bellDebounceMs > 10000) cfg.bellDebounceMs = 1000;
+    if (typeof cfg.bellSoundEnabled !== 'boolean') cfg.bellSoundEnabled = true;
+    if (typeof cfg.bellToastEnabled !== 'boolean') cfg.bellToastEnabled = true;
     return cfg;
 }
 function saveConfig(cfg) {
@@ -122,7 +131,9 @@ function createSession() {
         rows: slot.rows,
         cwd: process.env.USERPROFILE
     });
-    sessions[newId] = { pty: ptyProcess, buffer: '', name: computeSmartName() };
+    // bellTimer: 去抖定时器；bell 检测到 \x07 时 schedule，到时未取消则广播 bell。
+    // 任何后续输出（含 \x07 本身和其他字符）都会 clearTimeout 重置，保证"输出静止 N ms 才通知"。
+    sessions[newId] = { pty: ptyProcess, buffer: '', name: computeSmartName(), bellTimer: null };
     // buffer 保留原始字节（含可能的 \x07），便于前端重连时完整回放
     ptyProcess.onData((d) => {
         sessions[newId].buffer += d;
@@ -130,9 +141,13 @@ function createSession() {
         if (sessions[newId].buffer.length > maxBufferChars * 2) {
             sessions[newId].buffer = sessions[newId].buffer.slice(-maxBufferChars);
         }
-        // 检测 BEL 字符（\x07）：终端标准响铃信号，触发前端 Toast + 蜂鸣
+        // 检测 BEL 字符（\x07）：去抖，输出停止 bellDebounceMs 后才广播一次 bell
         if (d.includes('\x07')) {
-            broadcast({ type: 'bell', id: newId });
+            if (sessions[newId].bellTimer) clearTimeout(sessions[newId].bellTimer);
+            sessions[newId].bellTimer = setTimeout(() => {
+                sessions[newId].bellTimer = null;
+                broadcast({ type: 'bell', id: newId });
+            }, config.bellDebounceMs);
             const cleaned = d.replace(/\x07/g, '');
             if (cleaned) broadcast({ type: 'data', id: newId, data: cleaned });
         } else {
@@ -140,7 +155,10 @@ function createSession() {
         }
     });
     ptyProcess.onExit(() => {
-        delete sessions[newId];        
+        if (sessions[newId] && sessions[newId].bellTimer) {
+            clearTimeout(sessions[newId].bellTimer);
+        }
+        delete sessions[newId];
         broadcast(buildListMsg());
     });
     broadcast(buildListMsg());
@@ -174,6 +192,9 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'show_scroll_buttons', data: config.showScrollButtons }));
     ws.send(JSON.stringify({ type: 'max_buffer', data: config.maxBuffer }));
     ws.send(JSON.stringify({ type: 'max_frontend_logs', data: config.maxFrontendLogs }));
+    ws.send(JSON.stringify({ type: 'bell_debounce_ms', data: config.bellDebounceMs }));
+    ws.send(JSON.stringify({ type: 'bell_sound_enabled', data: config.bellSoundEnabled }));
+    ws.send(JSON.stringify({ type: 'bell_toast_enabled', data: config.bellToastEnabled }));
     ws.on('message', (msg) => {
         const p = JSON.parse(msg.toString());
         const { type, id, data } = p;
@@ -286,6 +307,25 @@ wss.on('connection', (ws) => {
         else if (type === 'client_tail_max') {
             config.clientTailMax = data;
             broadcast({ type: 'client_tail_max', data: config.clientTailMax });
+            saveConfig(config);
+        }
+        else if (type === 'bell_debounce_ms') {
+            const v = parseInt(data);
+            if (!Number.isInteger(v) || v < 100 || v > 10000) return;
+            config.bellDebounceMs = v;
+            broadcast({ type: 'bell_debounce_ms', data: config.bellDebounceMs });
+            saveConfig(config);
+        }
+        else if (type === 'bell_sound_enabled') {
+            if (typeof data !== 'boolean') return;
+            config.bellSoundEnabled = data;
+            broadcast({ type: 'bell_sound_enabled', data: config.bellSoundEnabled });
+            saveConfig(config);
+        }
+        else if (type === 'bell_toast_enabled') {
+            if (typeof data !== 'boolean') return;
+            config.bellToastEnabled = data;
+            broadcast({ type: 'bell_toast_enabled', data: config.bellToastEnabled });
             saveConfig(config);
         }
         else if (type === 'buffer_size' && sessions[id]) {
