@@ -467,7 +467,8 @@
         function applySettingsBellBeepDuration() {
             const v = parseInt(document.getElementById('settingsBellBeepDurationInput').value);
             if (Number.isInteger(v) && v >= 50 && v <= 2000) {
-                bellBeepDurationMs = v;  // 纯前端参数，立即生效，无须服务端
+                // 服务端权威：只发不发本地状态，收到 broadcast 后再更新
+                wsSend({ type: 'bell_beep_duration_ms', data: v });
                 fbBtn('btn-apply-bellBeepDuration', true);
             } else {
                 fbBtn('btn-apply-bellBeepDuration', false);
@@ -760,6 +761,9 @@
                     } else if (msg.type === 'bell_toast_enabled') {
                         bellToastEnabled = msg.data;
                         addFrontendLog('通知 Toast 已' + (bellToastEnabled ? '开启' : '关闭'), 'in');
+                    } else if (msg.type === 'bell_beep_duration_ms') {
+                        bellBeepDurationMs = msg.data;
+                        addFrontendLog('蜂鸣声音长度同步为 ' + bellBeepDurationMs + ' ms', 'in');
                     } else if (msg.type === 'swipe_threshold') {
                         swipeThreshold = msg.data;
                         addFrontendLog('滑动滚动阈值同步为 ' + swipeThreshold + ' px', 'in');

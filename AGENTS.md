@@ -330,8 +330,7 @@ server.js
     - **协议**：`{type:'bell', id}` 纯 S→C，单向、无 `data` 字段。后端检测到 `\x07` 时启动/重置去抖定时器，到点未取消则 broadcast；`{type:'bell_debounce_ms' / 'bell_sound_enabled' / 'bell_toast_enabled'}` 双向同步设置项。客户端不发送 `bell`（PowerShell 进程自己输出 `\x07` 触发）。
     - **去抖逻辑**（per-session 状态 `bellTimer` + `bellArmed`）：**任何** onData(d) 到达都先 clearTimeout 当前 timer；若 d 含 `\x07` 则 `bellArmed=true`；仅 `bellArmed=true` 时才 schedule 新 timer，到点则广播 bell 并清 armed。TUI 持续输出 → 每次 onData 都重置 timer、永不到点 → 0 通知；输出静止 N ms → 通知 1 次。任意 chunk 含多 `\x07` 只发一次 bell。
     - **后端过滤**：检测到 `\x07` 后从发给 xterm 的 `data` 中过滤掉、`buffer` 保留原始字节（含 `\x07`），重连回放不丢；过滤后若 chunk 为空则不广播 `data`。`onExit` 清理 `bellTimer`（防御性 guard 阻止双重 delete）。
-    - **配置字段**（`config.json`）：`bellDebounceMs`（默认 1000，范围 100-10000，去抖时长）/ `bellSoundEnabled`（默认 true）/ `bellToastEnabled`（默认 true）。多端同步，连接时下发、设置变更时广播。
-    - **纯前端参数**（不写 `config.json`、无 WS 同步）：`bellBeepDurationMs`（默认 300，范围 50-2000，蜂鸣单声时长）。仅当前浏览器音效偏好，不影响任何其他客户端、不参与后端逻辑，刷新重置默认值即可。
+    - **配置字段**（`config.json`）：`bellDebounceMs`（默认 1000，范围 100-10000，去抖时长）/ `bellSoundEnabled`（默认 true）/ `bellToastEnabled`（默认 true）/ `bellBeepDurationMs`（默认 300，范围 50-2000，蜂鸣单声时长）。多端同步，连接时下发、设置变更时广播。
     - **设置变更周期锁定语义**（与注意事项 24 一致）：`setTimeout(fn, config.bellDebounceMs)` 在创建时 capture 当时的值，已 schedule 的 timer 按旧值到期，下一次新 onData 才用新值；不需要重启 server。
     - **前端**：复用通用 `showToast(text, 'success')`（带堆叠偏移，多终端同时 bell 不重叠），无点击行为。蜂鸣失败时（浏览器自动播放策略拒绝）静默吞错不影响 Toast。`AudioContext` 懒初始化（首次响铃时 `new`）+ 幂等 `resume()`，避免页面加载即触发自动播放警告。
 
