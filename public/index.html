@@ -315,8 +315,12 @@
                 if (!audioCtx) {
                     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 }
-                // 响两声：第一声 t=0~0.1s，第二声 t=0.18~0.28s，间隔 80ms
-                for (const start of [0, 0.18]) {
+                // 首次播放时 AudioContext 可能还在 suspended 状态，立即调度音频会卡掉首部。
+                // resume() 强制激活（idempotent，已 running 时无副作用），配合 50ms 延迟给 resume 完成的时间窗。
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                const firstStart = 0.05;  // 50ms 延迟，等 AudioContext 完全 ready
+                const secondStart = firstStart + 0.18;
+                for (const start of [firstStart, secondStart]) {
                     const osc = audioCtx.createOscillator();
                     const gain = audioCtx.createGain();
                     osc.connect(gain);
