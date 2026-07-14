@@ -46,6 +46,9 @@ function loadConfig() {
     if (cfg.clientTailMax == null) cfg.clientTailMax = 4096;
     if (typeof cfg.scrollIntervalTerminal !== 'number' || cfg.scrollIntervalTerminal < 1 || cfg.scrollIntervalTerminal > 1000) cfg.scrollIntervalTerminal = 100;
     if (typeof cfg.scrollIntervalPage !== 'number' || cfg.scrollIntervalPage < 1 || cfg.scrollIntervalPage > 1000) cfg.scrollIntervalPage = 100;
+    if (typeof cfg.swipeThreshold !== 'number' || cfg.swipeThreshold < 1 || cfg.swipeThreshold > 200) cfg.swipeThreshold = 24;
+    if (typeof cfg.swipeClassify !== 'number' || cfg.swipeClassify < 1 || cfg.swipeClassify > 100) cfg.swipeClassify = 10;
+    if (typeof cfg.showScrollButtons !== 'boolean') cfg.showScrollButtons = true;
     return cfg;
 }
 function saveConfig(cfg) {
@@ -158,6 +161,9 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'hotkeys', data: config.hotkeys }));
     ws.send(JSON.stringify({ type: 'scroll_interval_terminal', data: config.scrollIntervalTerminal }));
     ws.send(JSON.stringify({ type: 'scroll_interval_page', data: config.scrollIntervalPage }));
+    ws.send(JSON.stringify({ type: 'swipe_threshold', data: config.swipeThreshold }));
+    ws.send(JSON.stringify({ type: 'swipe_classify', data: config.swipeClassify }));
+    ws.send(JSON.stringify({ type: 'show_scroll_buttons', data: config.showScrollButtons }));
     ws.send(JSON.stringify({ type: 'max_buffer', data: config.maxBuffer }));
     ws.send(JSON.stringify({ type: 'max_frontend_logs', data: config.maxFrontendLogs }));
     ws.on('message', (msg) => {
@@ -236,6 +242,26 @@ wss.on('connection', (ws) => {
             if (!Number.isInteger(v) || v < 1 || v > 1000) return;
             config.scrollIntervalPage = v;
             broadcast({ type: 'scroll_interval_page', data: config.scrollIntervalPage });
+            saveConfig(config);
+        }
+        else if (type === 'swipe_threshold') {
+            const v = parseInt(data);
+            if (!Number.isInteger(v) || v < 1 || v > 200) return;
+            config.swipeThreshold = v;
+            broadcast({ type: 'swipe_threshold', data: config.swipeThreshold });
+            saveConfig(config);
+        }
+        else if (type === 'swipe_classify') {
+            const v = parseInt(data);
+            if (!Number.isInteger(v) || v < 1 || v > 100) return;
+            config.swipeClassify = v;
+            broadcast({ type: 'swipe_classify', data: config.swipeClassify });
+            saveConfig(config);
+        }
+        else if (type === 'show_scroll_buttons') {
+            if (typeof data !== 'boolean') return;
+            config.showScrollButtons = data;
+            broadcast({ type: 'show_scroll_buttons', data: config.showScrollButtons });
             saveConfig(config);
         }
 	else if (type === 'max_buffer') {
