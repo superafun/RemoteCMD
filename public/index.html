@@ -100,6 +100,7 @@
         let bellDebounceMs = 1000;   // 服务端去抖窗口（ms），与 config.json.bellDebounceMs 同步
         let bellSoundEnabled = true; // 蜂鸣开关
         let bellToastEnabled = true; // Toast 开关
+        let bellBeepDurationMs = 300; // 蜂鸣单声时长（ms）
         // 保留 hotkeyList 内固定尾部元素（编辑按钮 + 滚动按钮组）的引用
         // renderHotkeys() 中 bar.innerHTML = '' 会把它们从 DOM 树摘下,getElementById 失效
         // 必须用变量持有引用才能在 renderHotkeys 末尾 appendChild 回去
@@ -244,6 +245,12 @@
             html += '<button class="btn-primary" id="btn-apply-bellToastEnabled" onclick="applySettingsBellToastEnabled()">应用</button>';
             html += '</div>';
 
+            // 蜂鸣声音长度 (ms)
+            html += '<div class="modal-row">';
+            html += '蜂鸣声音长度 (ms) <input type="number" id="settingsBellBeepDurationInput" min="50" max="2000" step="50" style="width:80px;">';
+            html += '<button class="btn-primary" id="btn-apply-bellBeepDuration" onclick="applySettingsBellBeepDuration()">应用</button>';
+            html += '</div>';
+
             // 缓冲区占用（自动检测，弹窗打开即拉取）
             html += '<div class="modal-row" style="flex-direction:column;align-items:flex-start;gap:4px;">';
             html += '<div style="color:#a0a0a0;">缓冲区占用</div>';
@@ -279,6 +286,7 @@
             document.getElementById('settingsBellDebounceMsInput').value = bellDebounceMs;
             document.getElementById('settingsBellSoundEnabledInput').checked = bellSoundEnabled;
             document.getElementById('settingsBellToastEnabledInput').checked = bellToastEnabled;
+            document.getElementById('settingsBellBeepDurationInput').value = bellBeepDurationMs;
 
             // 打开即自动检测当前会话 buffer 占用
             queryBufferSize();
@@ -341,9 +349,9 @@
                 if (!audioCtx) {
                     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 }
-                // 单声 300ms 蜂鸣：取消之前的两声设计，宁可首部被激活竞态截掉也不留白。
-                // 用户验证：保持简单，单声长一点更易感知。
+                // 单声蜂鸣，时长由 bellBeepDurationMs 控制（默认 300ms）：取消之前的两声设计，宁可首部被激活竞态截掉也不留白。
                 if (audioCtx.state === 'suspended') audioCtx.resume();
+                const dur = bellBeepDurationMs / 1000;
                 const osc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
                 osc.connect(gain);
@@ -352,9 +360,9 @@
                 osc.type = 'sine';
                 const t0 = audioCtx.currentTime;
                 gain.gain.setValueAtTime(0.2, t0);
-                gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.3);
+                gain.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
                 osc.start(t0);
-                osc.stop(t0 + 0.3);
+                osc.stop(t0 + dur);
             } catch (e) {
                 // 浏览器自动播放策略拒绝时静默失败，不影响 Toast 显示
             }
@@ -463,6 +471,16 @@
             const v = document.getElementById('settingsBellToastEnabledInput').checked;
             wsSend({ type: 'bell_toast_enabled', data: v });
             fbBtn('btn-apply-bellToastEnabled', true);
+        }
+
+        function applySettingsBellBeepDuration() {
+            const v = parseInt(document.getElementById('settingsBellBeepDurationInput').value);
+            if (Number.isInteger(v) && v >= 50 && v <= 2000) {
+                bellBeepDurationMs = v;  // 纯前端参数，立即生效，无须服务端
+                fbBtn('btn-apply-bellBeepDuration', true);
+            } else {
+                fbBtn('btn-apply-bellBeepDuration', false);
+            }
         }
 
         // === 大/小尺寸槽位应用（2026-07-01 引入） ===
