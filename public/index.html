@@ -315,16 +315,20 @@
                 if (!audioCtx) {
                     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 }
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                osc.frequency.value = 1000;
-                osc.type = 'sine';
-                gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
-                osc.start();
-                osc.stop(audioCtx.currentTime + 0.1);
+                // 响两声：第一声 t=0~0.1s，第二声 t=0.18~0.28s，间隔 80ms
+                for (const start of [0, 0.18]) {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.frequency.value = 1000;
+                    osc.type = 'sine';
+                    const t0 = audioCtx.currentTime + start;
+                    gain.gain.setValueAtTime(0.2, t0);
+                    gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.1);
+                    osc.start(t0);
+                    osc.stop(t0 + 0.1);
+                }
             } catch (e) {
                 // 浏览器自动播放策略拒绝时静默失败，不影响 Toast 显示
             }
