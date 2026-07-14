@@ -123,13 +123,21 @@ function createSession() {
         cwd: process.env.USERPROFILE
     });
     sessions[newId] = { pty: ptyProcess, buffer: '', name: computeSmartName() };
+    // buffer 保留原始字节（含可能的 \x07），便于前端重连时完整回放
     ptyProcess.onData((d) => {
         sessions[newId].buffer += d;
         // 滞回式：超 2x 才截断，截到 1x（避免每帧 O(N) slice）
         if (sessions[newId].buffer.length > maxBufferChars * 2) {
             sessions[newId].buffer = sessions[newId].buffer.slice(-maxBufferChars);
         }
-        broadcast({ type: 'data', id: newId, data: d });
+        // 检测 BEL 字符（\x07）：终端标准响铃信号，触发前端 Toast + 蜂鸣
+        if (d.includes('\x07')) {
+            broadcast({ type: 'bell', id: newId });
+            const cleaned = d.replace(/\x07/g, '');
+            if (cleaned) broadcast({ type: 'data', id: newId, data: cleaned });
+        } else {
+            broadcast({ type: 'data', id: newId, data: d });
+        }
     });
     ptyProcess.onExit(() => {
         delete sessions[newId];        
