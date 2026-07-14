@@ -926,8 +926,9 @@
             const dyStep = t.clientY - swipeLastY;
             swipeAccum += dyStep;
             swipeLastY = t.clientY;
-            while (swipeAccum >= SWIPE_THRESHOLD)  { smartScroll(1);  swipeAccum -= SWIPE_THRESHOLD; }  // 下滑
-            while (swipeAccum <= -SWIPE_THRESHOLD) { smartScroll(-1); swipeAccum += SWIPE_THRESHOLD; }  // 上滑
+            // 移动端自然手感：手指上滑(accum 负)→内容向上→看更新/更下方；手指下滑(accum 正)→看更早
+            while (swipeAccum >= SWIPE_THRESHOLD)  { smartScroll(-1); swipeAccum -= SWIPE_THRESHOLD; }  // 手指下滑 → 看更早
+            while (swipeAccum <= -SWIPE_THRESHOLD) { smartScroll(1);  swipeAccum += SWIPE_THRESHOLD; }  // 手指上滑 → 看更新
         }
 
         function onTouchScrollEnd() {
