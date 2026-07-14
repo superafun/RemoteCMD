@@ -326,6 +326,8 @@ server.js
     - **不含写死高度**：保持 `autoGrow`（`height = scrollHeight`）+ `overflow: auto` + `max-height: 160px`，单行内容恰好塞进框、**无滚动条**；多行照常增长。此前"强行写死 height"导致滚动条的坑不复现。
     - **范围**：纯前端 `styles.css` 一处改动，刷新即生效，不动 `server.js`/协议；如需像素级锁死对齐，备选方案为运行时读取「换行」按钮 `clientHeight` 反推 textarea 高度（未采用，当前 padding 法已满足）。
 
+41. **BEL 终端响铃通知通道（2026-07-14 引入）**：后端检测 PTY 输出中的 ASCII BEL 字符 `\x07`，向前端广播 `bell` 消息，前端显示 `终端通知: <终端名>` Toast 并播放 Web Audio API 生成的 1kHz 100ms 蜂鸣。PowerShell 中可用 `Write-Host "`a"`、`[Console]::Write("`a")`、`` `a `` 字面量等触发。`[console]::Beep()` 直接调用 Windows 系统蜂鸣器，不走 PTY 输出，因此**不触发**该通道（设计约束）。**协议**：`{type:'bell', id}` 纯 S→C，单向、无 `data` 字段、每个 `\x07` 触发一次（同一 chunk 多 `\x07` 也只发一次）。**后端过滤**：检测到 `\x07` 后从发给 xterm 的 `data` 中过滤掉、但 `sessions[id].buffer` 保留原始字节（含 `\x07`），重连回放不丢；过滤后若 chunk 为空则不广播 `data`。**前端**：复用现有 `.toast-success` 样式（蓝底 1.5s 滑出），无点击行为（保持简洁），蜂鸣失败时（浏览器自动播放策略拒绝）静默吞错不影响 Toast。**音频**：AudioContext 懒初始化（首次响铃时 `new`），避免页面加载即触发自动播放警告。
+
 ## 开发工作流
 
 - **只改前端时不要重启服务器**：测试前先用 `Get-NetTCPConnection -LocalPort 65433` 检查后端服务器是否在跑。如果在跑就直接连现成的服务器测网页（静态文件刷新即可加载新前端）。只有改了 `server.js` 时才需要重启服务。
