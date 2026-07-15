@@ -234,6 +234,13 @@
             html += '<span id="hint-inputBarCloseAfterSend" class="apply-hint"></span>';
             html += '</div>';
 
+            // 回车停顿 (ms)
+            html += '<div class="modal-row">';
+            html += '<span class="modal-label">回车停顿 (ms)</span>';
+            html += '<input type="number" id="settingsEnterDelayInput" min="50" max="3000" step="50" style="width:80px;">';
+            html += '<button class="btn-primary" id="btn-apply-enterDelay" onclick="applySettingsEnterDelay()">应用</button>';
+            html += '</div>';
+
             // 右侧按钮动作
             html += '<div class="modal-row">';
             html += '<span class="modal-label">右侧按钮动作</span>';
@@ -340,6 +347,7 @@
             document.getElementById('settingsInputBarButtonActionInput').value = inputBarButtonAction;
             document.getElementById('settingsInputBarEnterActionInput').value = inputBarEnterAction;
             document.getElementById('settingsInputBarCloseAfterSendInput').checked = inputBarCloseAfterSend;
+            document.getElementById('settingsEnterDelayInput').value = enterDelayMs;
             document.getElementById('settingsMaxBufferInput').value = maxBuffer;
             document.getElementById('settingsMaxFrontendLogsInput').value = maxFrontendLogs;
             document.getElementById('settingsClientTailMaxInput').value = clientTailMax;
@@ -501,6 +509,15 @@
             const v = document.getElementById('settingsInputBarCloseAfterSendInput').checked;
             wsSend({ type: 'input_bar_close_after_send', data: v });
             flashHint('hint-inputBarCloseAfterSend');
+        }
+        function applySettingsEnterDelay() {
+            const v = parseInt(document.getElementById('settingsEnterDelayInput').value);
+            if (Number.isInteger(v) && v >= 50 && v <= 3000) {
+                wsSend({ type: 'enter_delay_ms', data: v });
+                fbBtn('btn-apply-enterDelay', true);
+            } else {
+                fbBtn('btn-apply-enterDelay', false);
+            }
         }
 
         function applySettingsMaxBuffer() {
