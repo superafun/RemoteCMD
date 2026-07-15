@@ -443,6 +443,30 @@
             flashHint('hint-showScrollButtons');
         }
 
+        function applySettingsInputBarButtonAction() {
+            const v = document.getElementById('settingsInputBarButtonActionInput').value;
+            if (v === 'newline' || v === 'send') {
+                wsSend({ type: 'input_bar_button_action', data: v });
+                fbBtn('btn-apply-inputBarButtonAction', true);
+            } else {
+                fbBtn('btn-apply-inputBarButtonAction', false);
+            }
+        }
+        function applySettingsInputBarEnterAction() {
+            const v = document.getElementById('settingsInputBarEnterActionInput').value;
+            if (v === 'newline' || v === 'send') {
+                wsSend({ type: 'input_bar_enter_action', data: v });
+                fbBtn('btn-apply-inputBarEnterAction', true);
+            } else {
+                fbBtn('btn-apply-inputBarEnterAction', false);
+            }
+        }
+        function applySettingsInputBarCloseAfterSend() {
+            const v = document.getElementById('settingsInputBarCloseAfterSendInput').checked;
+            wsSend({ type: 'input_bar_close_after_send', data: v });
+            flashHint('hint-inputBarCloseAfterSend');
+        }
+
         function applySettingsMaxBuffer() {
             const v = parseInt(document.getElementById('settingsMaxBufferInput').value);
             if (Number.isInteger(v) && v >= 1 && v <= 90) {
