@@ -948,6 +948,9 @@
                         if (resultEl) {
                             resultEl.textContent = `当前会话占用: ${usedMB} MB / ${maxMB} MB (${pct}%)`;
                         }
+                    } else if (msg.type === 'recent_paths') {
+                        recentPaths = msg.data || [];
+                        renderRecentPathsDropdown();
                     }
                 };
             }
