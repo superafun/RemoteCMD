@@ -156,7 +156,7 @@
         // === 设置弹窗 ===
         function openSettingsModal() {
             if (settingsDiv) { settingsDiv.remove(); settingsDiv = null; }
-            let html = '<div class="modal-overlay">';
+            let html = '<div class="modal-overlay" onclick="if(event.target===this)closeSettingsModal()">';
             html += '<div class="modal-box" style="min-width:420px;">';
             html += '<h3>设置</h3>';
 
@@ -299,7 +299,7 @@
         // === 日志弹窗 ===
         function openLogModal() {
             closeSettingsModal();
-            let html = '<div class="modal-overlay">';
+            let html = '<div class="modal-overlay" onclick="if(event.target===this)this.remove()">';
             html += '<div class="modal-box" style="min-width:520px;max-width:680px;">';
             html += '<h3>后台日志 <span style="font-size:11px;color:#888;font-weight:400;margin-left:8px;">';
             html += '<span style="color:#4a9eff">→</span> 客户端→服务端 &nbsp; ';
@@ -1138,7 +1138,7 @@
         function openSendKeysPanel() {
             if (sendKeysPanel) { sendKeysPanel.remove(); sendKeysPanel = null; }
             activeMods.clear();  // 每次打开重置勾选
-            let html = '<div class="modal-overlay" style="z-index:1000;">';
+            let html = '<div class="modal-overlay" style="z-index:1000;" onclick="if(event.target===this)closeSendKeysPanel()">';
             html += '<div class="modal-box" style="min-width:360px;">';
             html += '<h3>发送按键</h3>';
             // 修饰键勾选区
@@ -1281,7 +1281,7 @@
         function openHotkeyEditor() {
             if (editorDiv) { editorDiv.remove(); editorDiv = null; }
             const names = Object.keys(hotkeys);
-            let html = '<div class="modal-overlay">';
+            let html = '<div class="modal-overlay" onclick="if(event.target===this)closeEditor()">';
             html += '<div class="modal-box">';
             html += '<h3>编辑快捷键</h3>';
             html += '<div class="modal-row">';
@@ -1396,7 +1396,7 @@
         }
 
         function showAvailableKeys() {
-            let html = '<div class="modal-overlay" style="z-index:1000;">';
+            let html = '<div class="modal-overlay" style="z-index:1000;" onclick="if(event.target===this)this.remove()">';
             html += '<div class="modal-box" style="min-width:300px;">';
             html += '<h3>可用按键</h3>';
             html += '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
