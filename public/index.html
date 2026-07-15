@@ -41,6 +41,20 @@
             max-width: 360px;
         }
         .recent-path-item:hover { background: rgba(255, 255, 255, 0.08); }
+        .dropdown-menu {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            background: #1e1e1e;
+            border: 1px solid #3a3a3a;
+            border-radius: 6px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+            min-width: 160px;
+            padding: 4px 0;
+            font-size: 13px;
+            color: #e0e0e0;
+        }
+        .dropdown-menu.open { display: block; }
         .dropdown-empty { padding: 6px 10px; color: #888; white-space: nowrap; }
     </style>
 </head>
