@@ -227,6 +227,14 @@ wss.on('connection', (ws) => {
         if (type === 'create') createSession();
         else if (type === 'input' && sessions[id]) sessions[id].pty.write(data);
         else if (type === 'kill' && sessions[id]) sessions[id].pty.kill();
+        else if (type === 'recent_paths_add' && typeof data === 'string') {
+            const p = data.trim();
+            if (p) {
+                config.recentPaths = [p, ...config.recentPaths.filter(x => x !== p)].slice(0, 10);
+                saveConfig(config);
+                broadcast({ type: 'recent_paths', data: config.recentPaths });
+            }
+        }
         else if (type === 'buffer' && sessions[id]) {
             const buf = sessions[id].buffer;
             const tail = p.tail;
