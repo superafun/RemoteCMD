@@ -23,7 +23,10 @@ function loadConfig() {
             bellDebounceMs: 1000,
             bellSoundEnabled: true,
             bellToastEnabled: true,
-            bellBeepDurationMs: 300
+            bellBeepDurationMs: 300,
+            inputBarButtonAction: 'newline',
+            inputBarEnterAction: 'send',
+            inputBarCloseAfterSend: false
         };
         fs.writeFileSync(CONFIG_PATH, JSON.stringify(def, null, 2));
         return def;
@@ -60,6 +63,9 @@ function loadConfig() {
     if (typeof cfg.bellSoundEnabled !== 'boolean') cfg.bellSoundEnabled = true;
     if (typeof cfg.bellToastEnabled !== 'boolean') cfg.bellToastEnabled = true;
     if (typeof cfg.bellBeepDurationMs !== 'number' || cfg.bellBeepDurationMs < 50 || cfg.bellBeepDurationMs > 2000) cfg.bellBeepDurationMs = 300;
+    if (cfg.inputBarButtonAction !== 'newline' && cfg.inputBarButtonAction !== 'send') cfg.inputBarButtonAction = 'newline';
+    if (cfg.inputBarEnterAction !== 'newline' && cfg.inputBarEnterAction !== 'send') cfg.inputBarEnterAction = 'send';
+    if (typeof cfg.inputBarCloseAfterSend !== 'boolean') cfg.inputBarCloseAfterSend = false;
     return cfg;
 }
 function saveConfig(cfg) {
