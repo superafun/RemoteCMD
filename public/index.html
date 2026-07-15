@@ -1217,14 +1217,14 @@
             inputBarBtn.style.display = '';          // 恢复输入条按钮
             hotkeysListEl.style.display = 'flex';    // 恢复快捷键栏
             if (clear) { inputBarText.value = ''; }
-            inputBarText.style.height = 'auto';
+            // 不显式设 height='auto':下次 openInputBar → autoGrow() 会自己重置
         }
         // 保留草稿地关闭（焦点移出用）：不清空内容，下次点开仍可见
         function closeInputBarPreserve() { closeInputBar(false); }
         // 清空内容但保持展开、焦点留在输入框（Esc / 发送后用）
         function clearInputBar() {
             inputBarText.value = '';
-            inputBarText.style.height = 'auto';
+            // 不显式设 height='auto':下面 autoGrow() 第一行会自己重置
             autoGrow(inputBarText);
             // 不移动焦点：桌面端光标留在输入框；移动端软键盘不收回，可连续输入
         }

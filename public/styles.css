@@ -236,10 +236,9 @@
             touch-action: pan-x;     /* 移动端授权横向 pan，禁掉竖向误滚 */
         }
         /* 发按键：独立组合器入口，与预设快捷键语义不同，保持为 #hotkeys-bar 直接子项
-           flex-shrink:0 保证永不被压缩、始终独占最左；align-self 让输入条模式 textarea 更高时按钮顶端对齐 */
+           flex-shrink:0 保证永不被压缩、始终独占最左 */
         #sendKeysBtn {
             flex-shrink: 0;
-            align-self: flex-start;
         }
         /* 预设快捷键列表：按内容真实宽度排列，不撑满/不挤压/不换行，超宽随父容器 #hotkeys-bar 横向溢出滚动 */
         #hotkeysList {
@@ -248,7 +247,6 @@
         /* 输入条：发按键右侧的内联多行输入框；展开时隐藏快捷键栏、独占整行 */
         #inputBarBtn {
             flex-shrink: 0;
-            align-self: flex-start;
         }
         #inputBarWrap {
             display: flex;
@@ -266,9 +264,14 @@
             background: #1e1e1e;
             color: #eee;
             border: 1px solid #555;
+            box-sizing: border-box;  /* 与 .modal-box input 统一标准,避免不同浏览器高度计算漂移 */
+            outline: none;            /* 去掉 Chrome focus 默认白色焦点环,避免与相邻"发按键"按钮的 #555 右边框视觉冲突（焦点视觉改由 :focus 改 border-color 体现） */
             font: inherit;
             line-height: 1.4;
             padding: 4px 6px 0;   /* 底部 0：文字贴框底，整体高度进一步贴近侧边按键 */
+        }
+        #inputBarText:focus {
+            border-color: #0078d4;  /* 与 .modal-box input:focus 一致的 focus 视觉反馈 */
         }
         #inputBarSend {
             flex-shrink: 0;
@@ -306,8 +309,7 @@
         }
         /* 5 个滚动按钮的文字已经有 4 字 + 1 符号,不需要默认 14px 横向 padding */
         #scrollGroup button {
-            padding-left: 6px;
-            padding-right: 6px;
+            padding: 6px;            /* 上下 6 与 button 默认一致,左右 6 覆盖默认 14 */
             min-width: 0;  /* 取消通用 min-width: 60px,允许按内容收缩 */
         }
         /* 「编辑」按钮职责是打开快捷键编辑器(管理),跟发送指令的快捷键按钮不同
