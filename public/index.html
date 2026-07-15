@@ -83,6 +83,7 @@
         let inputBarEnterAction = 'send';
         let inputBarCloseAfterSend = false;
         let enterDelayMs = 300;   // 输入条回车停顿(ms)，设置可改、多端同步
+        let inputBarHideOnBlur = true;
         let maxBuffer = 10;  // 默认值 MB，与服务端 loadConfig 默认一致（避免弹窗打开瞬间 input 被 clamp 到 90）
         // sizeSlots / currentSize 替代原 rows/cols（2026-07-01 改用 size_slots/current_size 协议）
         // 初始 null：服务端消息到达前不调用 term.resize，也不渲染弹窗默认值
@@ -228,6 +229,12 @@
             html += '<div class="modal-group">';
             html += '<div class="modal-group-title">输入条动作</div>';
 
+            // 焦点丢失时隐藏输入条
+            html += '<div class="modal-row">';
+            html += '<label class="modal-label"><input type="checkbox" id="settingsInputBarHideOnBlurInput" onchange="applySettingsInputBarHideOnBlur()"> 焦点丢失时隐藏输入条</label>';
+            html += '<span id="hint-inputBarHideOnBlur" class="apply-hint"></span>';
+            html += '</div>';
+
             // 发送后关闭输入条
             html += '<div class="modal-row">';
             html += '<label class="modal-label"><input type="checkbox" id="settingsInputBarCloseAfterSendInput" onchange="applySettingsInputBarCloseAfterSend()"> 发送后关闭输入条</label>';
@@ -347,6 +354,7 @@
             document.getElementById('settingsInputBarButtonActionInput').value = inputBarButtonAction;
             document.getElementById('settingsInputBarEnterActionInput').value = inputBarEnterAction;
             document.getElementById('settingsInputBarCloseAfterSendInput').checked = inputBarCloseAfterSend;
+            document.getElementById('settingsInputBarHideOnBlurInput').checked = inputBarHideOnBlur;
             document.getElementById('settingsEnterDelayInput').value = enterDelayMs;
             document.getElementById('settingsMaxBufferInput').value = maxBuffer;
             document.getElementById('settingsMaxFrontendLogsInput').value = maxFrontendLogs;
@@ -509,6 +517,11 @@
             const v = document.getElementById('settingsInputBarCloseAfterSendInput').checked;
             wsSend({ type: 'input_bar_close_after_send', data: v });
             flashHint('hint-inputBarCloseAfterSend');
+        }
+        function applySettingsInputBarHideOnBlur() {
+            const v = document.getElementById('settingsInputBarHideOnBlurInput').checked;
+            wsSend({ type: 'input_bar_hide_on_blur', data: v });
+            flashHint('hint-inputBarHideOnBlur');
         }
         function applySettingsEnterDelay() {
             const v = parseInt(document.getElementById('settingsEnterDelayInput').value);
@@ -892,6 +905,9 @@
                     } else if (msg.type === 'input_bar_close_after_send') {
                         inputBarCloseAfterSend = msg.data;
                         addFrontendLog('发送后关闭输入条同步为 ' + (inputBarCloseAfterSend ? '关闭' : '保持展开'), 'in');
+                    } else if (msg.type === 'input_bar_hide_on_blur') {
+                        inputBarHideOnBlur = msg.data;
+                        addFrontendLog('焦点丢失隐藏输入条同步为 ' + (inputBarHideOnBlur ? '隐藏' : '保持展开'), 'in');
                     } else if (msg.type === 'enter_delay_ms') {
                         enterDelayMs = msg.data;
                         addFrontendLog('回车停顿同步为 ' + enterDelayMs + ' ms', 'in');
