@@ -54,7 +54,7 @@
             <button id="inputBarBtn" onclick="toggleInputBar()">输入条</button>
             <div id="inputBarWrap" style="display:none;">
                 <textarea id="inputBarText" placeholder="输入内容，回车发送，点换行键换一行" rows="1"></textarea>
-                <button id="inputBarSend" onclick="insertNewline()">换行</button>
+                <button id="inputBarSend" onclick="inputBarRightButton()">换行</button>
             </div>
             <div id="hotkeysList" style="display:flex;gap:0;flex-wrap:nowrap;">
                 <button id="editBtn">编辑</button>
@@ -1270,6 +1270,7 @@
             inputBarBtn.style.display = 'none';      // 展开时连同输入条按钮一起隐藏
             hotkeysListEl.style.display = 'none';    // 展开时隐藏快捷键栏
             inputBarWrap.style.display = 'flex';     // 输入条独占整行
+            applyInputBarButtonLabel();              // 按当前设置刷新右侧按钮文字
             // 不再清空 value：保留上次未发送草稿，autoGrow 按现有内容重算高度
             autoGrow(inputBarText);
             inputBarText.focus();
@@ -1312,12 +1313,25 @@
             autoGrow(inputBarText);
             inputBarText.focus();
         }
+        // 右侧按钮：按当前设置决定是换行还是发送
+        function inputBarRightButton() {
+            if (inputBarButtonAction === 'send') sendInputBar();
+            else insertNewline();
+        }
+        // 按钮文字随设置切「换行」/「发送」
+        function applyInputBarButtonLabel() {
+            const btn = document.getElementById('inputBarSend');
+            if (btn) btn.textContent = (inputBarButtonAction === 'send') ? '发送' : '换行';
+        }
         async function sendInputBar() {
             const t = inputBarText.value.replace(/\n+$/, '');   // 去末尾换行，避免多发空行
             if (!t) { return; }                                  // 空内容：不发送、不关闭（回车发送语义）
             const targetId = activeId;                            // 捕获目标会话，防止发送途中切换会话串台
             const textSeq = t.replace(/\n/g, '\r');              // 正文内容，\n→\r，不含末尾回车
-            clearInputBar();                                      // 清空内容但保持展开，焦点仍在输入框
+            // 原：clearInputBar();  // 清空内容但保持展开
+            // 改：按设置决定收起还是保持展开
+            if (inputBarCloseAfterSend) closeInputBar();   // 清空并收起（closeInputBar 默认 clear=true）
+            else clearInputBar();                          // 清空保持展开
             addFrontendLog('输入条发送: ' + t, 'out');
             if (!targetId) return;                               // 捕获时无活动会话则不发送
             wsSend({ type: 'input', id: targetId, data: textSeq });  // 整段正文一次性发出
@@ -1327,7 +1341,11 @@
         inputBarText.addEventListener('input', () => autoGrow(inputBarText));
         inputBarText.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') { e.preventDefault(); clearInputBar(); }
-            else if (e.key === 'Enter') { e.preventDefault(); sendInputBar(); }  // 回车=发送（与换行按钮对调）
+            else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (inputBarEnterAction === 'send') sendInputBar();
+                else insertNewline();
+            }
         });
         inputBarText.addEventListener('blur', (e) => {
             if (inputBarWrap.style.display !== 'flex') return;   // 已关闭则忽略，防止程序化 close 后的二次触发
