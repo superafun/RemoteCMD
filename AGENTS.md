@@ -315,7 +315,7 @@ server.js
     - **WebSocket 消息**：`swipe_threshold` / `swipe_classify` / `show_scroll_buttons`（C→S 设置 + S→C 广播），字符串与前端 `apply`/`接收` 完全一致。服务端 handler 校验范围后落盘 `saveConfig` + 广播所有客户端；连接建立时下发（在 `scroll_interval_page` 之后）。
     - **按钮合并 4→2**：`#scrollGroup` 内 `▲上滑`/`▼下滑`/`▽到底页面` 三个按钮（原 4 个含"上滑/下滑页面"已删）。`setupHoldScroll` 绑定改为 `scrollUpBtn`→`smartScroll(-1)`、`scrollDownBtn`→`smartScroll(1)`，按住间隔由新 `getScrollInterval()` 按当前会话模式自适应（TUI 鼠标追踪开→`scrollIntervalTerminal`，否则→`scrollIntervalPage`）。原 `scrollUp`/`scrollDown`/`scrollXtermUp`/`scrollXtermDown` 四个函数因被 `smartScroll` 完全取代已删除。`scrollBottomBtn` 仍绑 `scrollBottom`。
     - **滑动手感参数可变**：原触摸块内 `const SWIPE_THRESHOLD/SWIPE_CLASSIFY` 改为顶部全局 `let swipeThreshold/swipeClassify`，`onTouchScrollMove` 引用随之替换，连接建立后由 `swipe_threshold`/`swipe_classify` 广播更新、实时生效无需刷新。
-    - **显隐**：`styles.css` 新增 `.hidden { display:none !important }`；`applyScrollButtonsVisibility()` 按 `showScrollButtons` 给 `#scrollGroup` 切 `.hidden`（含"到底页面"一起隐藏），初始化调用一次，接收侧 `show_scroll_buttons` 时调用。设置弹窗"显示滚动按钮"勾选框 + 应用按钮。
+    - **显隐**：`styles.css` 新增 `.hidden { display:none !important }`；`applyScrollButtonsVisibility()` 按 `showScrollButtons` 给 `#scrollGroup` 切 `.hidden`（含"到底页面"一起隐藏），初始化调用一次，接收侧 `show_scroll_buttons` 时调用。设置弹窗"显示滚动按钮"勾选框（即时应用：勾选/取消即 `wsSend`，无"应用"按钮，旁侧 `flashHint` 闪现"✓已应用"）。`通知声音`/`通知 Toast` 两个勾选框同理（2026-07-15 起 3 个勾选框均改为即时应用）。
     - **设置弹窗**：`buildSettingsModal` 在"按住页面滚动间隔"行后加 3 行（滑动滚动阈值/滑动判定阈值/显示滚动按钮），`openSettingsModal` 同步当前值，`applySettingsSwipeThreshold/Classify/ShowScrollButtons` 三个 apply 函数只 `wsSend`（服务端权威，不本地改状态），接收侧 3 分支更新全局变量 + `applyScrollButtonsVisibility` + 前端日志。
     - **性能**：仅变量/class/按钮合并，无额外 DOM 节点或监听器开销；纯设置类改动。
     - **范围**：改了 `server.js`（Task 1 后端配置链路）→ 需 PM2 重启后端才生效；前端刷新即加载新静态文件。
