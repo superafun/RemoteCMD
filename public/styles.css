@@ -266,6 +266,7 @@
             background: #1e1e1e;
             color: #eee;
             border: 1px solid #555;
+            box-sizing: border-box;  /* 与两侧 button 一致,border 进 outer 内侧,sub-pixel 渲染稳定,左边与发按键按钮的 1px border 自动对齐重合 */
             font: inherit;
             line-height: 1.4;
             padding: 4px 6px 0;   /* 底部 0：文字贴框底，整体高度进一步贴近侧边按键 */
