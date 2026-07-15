@@ -204,6 +204,9 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'swipe_threshold', data: config.swipeThreshold }));
     ws.send(JSON.stringify({ type: 'swipe_classify', data: config.swipeClassify }));
     ws.send(JSON.stringify({ type: 'show_scroll_buttons', data: config.showScrollButtons }));
+    ws.send(JSON.stringify({ type: 'input_bar_button_action', data: config.inputBarButtonAction }));
+    ws.send(JSON.stringify({ type: 'input_bar_enter_action', data: config.inputBarEnterAction }));
+    ws.send(JSON.stringify({ type: 'input_bar_close_after_send', data: config.inputBarCloseAfterSend }));
     ws.send(JSON.stringify({ type: 'max_buffer', data: config.maxBuffer }));
     ws.send(JSON.stringify({ type: 'max_frontend_logs', data: config.maxFrontendLogs }));
     ws.send(JSON.stringify({ type: 'bell_debounce_ms', data: config.bellDebounceMs }));
