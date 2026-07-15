@@ -160,123 +160,158 @@
         function openSettingsModal() {
             if (settingsDiv) { settingsDiv.remove(); settingsDiv = null; }
             let html = '<div class="modal-overlay" onclick="if(event.target===this)closeSettingsModal()">';
-            html += '<div class="modal-box" style="min-width:420px;">';
+            html += '<div class="modal-box" style="min-width:0;max-width:520px;width:min(520px,calc(100vw - 24px));">';
             html += '<h3>设置</h3>';
 
-            // === 终端大小（大尺寸） ===
-            html += '<div class="modal-row" style="flex-direction:column;align-items:flex-start;gap:4px;">';
-            html += '<div style="color:#a0a0a0;">大尺寸</div>';
-            html += '<div style="display:flex;gap:6px;align-items:center;">';
+            // === 终端尺寸 ===
+            html += '<div class="modal-group">';
+            html += '<div class="modal-group-title">终端尺寸</div>';
+
+            // 大尺寸
+            html += '<div class="modal-row">';
+            html += '<span class="modal-label">大尺寸</span>';
             html += '行 <input type="number" id="settingsLargeRowsInput" min="20" max="200" style="width:80px;">';
             html += '列 <input type="number" id="settingsLargeColsInput" min="20" max="200" style="width:80px;">';
             html += '<button class="btn-primary" id="btn-apply-largeSize" onclick="applySettingsLargeSize()">应用</button>';
-            html += '</div></div>';
+            html += '</div>';
 
-            // === 终端大小（小尺寸） ===
-            html += '<div class="modal-row" style="flex-direction:column;align-items:flex-start;gap:4px;">';
-            html += '<div style="color:#a0a0a0;">小尺寸</div>';
-            html += '<div style="display:flex;gap:6px;align-items:center;">';
+            // 小尺寸
+            html += '<div class="modal-row">';
+            html += '<span class="modal-label">小尺寸</span>';
             html += '行 <input type="number" id="settingsSmallRowsInput" min="20" max="200" style="width:80px;">';
             html += '列 <input type="number" id="settingsSmallColsInput" min="20" max="200" style="width:80px;">';
             html += '<button class="btn-primary" id="btn-apply-smallSize" onclick="applySettingsSmallSize()">应用</button>';
-            html += '</div></div>';
+            html += '</div>';
+            html += '</div>'; // end 终端尺寸
+
+            // === 滚动与滑动 ===
+            html += '<div class="modal-group">';
+            html += '<div class="modal-group-title">滚动与滑动</div>';
 
             // 按住终端滚动间隔 (ms)
             html += '<div class="modal-row">';
-            html += '按住终端滚动间隔 (ms) <input type="number" id="settingsScrollIntervalTerminalInput" min="1" max="1000" step="10" style="width:80px;">';
+            html += '<span class="modal-label">按住终端滚动间隔 (ms)</span>';
+            html += '<input type="number" id="settingsScrollIntervalTerminalInput" min="1" max="1000" step="10" style="width:80px;">';
             html += '<button class="btn-primary" id="btn-apply-scrollIntervalTerminal" onclick="applySettingsScrollIntervalTerminal()">应用</button>';
             html += '</div>';
 
             // 按住页面滚动间隔 (ms)
             html += '<div class="modal-row">';
-            html += '按住页面滚动间隔 (ms) <input type="number" id="settingsScrollIntervalPageInput" min="1" max="1000" step="10" style="width:80px;">';
+            html += '<span class="modal-label">按住页面滚动间隔 (ms)</span>';
+            html += '<input type="number" id="settingsScrollIntervalPageInput" min="1" max="1000" step="10" style="width:80px;">';
             html += '<button class="btn-primary" id="btn-apply-scrollIntervalPage" onclick="applySettingsScrollIntervalPage()">应用</button>';
             html += '</div>';
 
             // 滑动滚动阈值 (px)
             html += '<div class="modal-row">';
-            html += '滑动滚动阈值 (px) <input type="number" id="settingsSwipeThresholdInput" min="1" max="200" step="1" style="width:80px;">';
+            html += '<span class="modal-label">滑动滚动阈值 (px)</span>';
+            html += '<input type="number" id="settingsSwipeThresholdInput" min="1" max="200" step="1" style="width:80px;">';
             html += '<button class="btn-primary" id="btn-apply-swipeThreshold" onclick="applySettingsSwipeThreshold()">应用</button>';
             html += '</div>';
 
             // 滑动判定阈值 (px)
             html += '<div class="modal-row">';
-            html += '滑动判定阈值 (px) <input type="number" id="settingsSwipeClassifyInput" min="1" max="100" step="1" style="width:80px;">';
+            html += '<span class="modal-label">滑动判定阈值 (px)</span>';
+            html += '<input type="number" id="settingsSwipeClassifyInput" min="1" max="100" step="1" style="width:80px;">';
             html += '<button class="btn-primary" id="btn-apply-swipeClassify" onclick="applySettingsSwipeClassify()">应用</button>';
             html += '</div>';
 
             // 显示滚动按钮
             html += '<div class="modal-row">';
-            html += '<label><input type="checkbox" id="settingsShowScrollButtonsInput" onchange="applySettingsShowScrollButtons()"> 显示滚动按钮</label>';
+            html += '<label class="modal-label"><input type="checkbox" id="settingsShowScrollButtonsInput" onchange="applySettingsShowScrollButtons()"> 显示滚动按钮</label>';
             html += '<span id="hint-showScrollButtons" class="apply-hint"></span>';
             html += '</div>';
+            html += '</div>'; // end 滚动与滑动
 
-            // 输入条动作
+            // === 输入条动作 ===
+            html += '<div class="modal-group">';
+            html += '<div class="modal-group-title">输入条动作</div>';
+
+            // 右侧按钮动作
             html += '<div class="modal-row">';
-            html += '右侧按钮动作 <select id="settingsInputBarButtonActionInput">'
+            html += '<span class="modal-label">右侧按钮动作</span>';
+            html += '<select id="settingsInputBarButtonActionInput">'
                   + '<option value="newline">换行</option><option value="send">发送</option></select>';
             html += '<button class="btn-primary" id="btn-apply-inputBarButtonAction" onclick="applySettingsInputBarButtonAction()">应用</button>';
             html += '</div>';
 
+            // Enter 键动作
             html += '<div class="modal-row">';
-            html += 'Enter 键动作 <select id="settingsInputBarEnterActionInput">'
+            html += '<span class="modal-label">Enter 键动作</span>';
+            html += '<select id="settingsInputBarEnterActionInput">'
                   + '<option value="newline">换行</option><option value="send">发送</option></select>';
             html += '<button class="btn-primary" id="btn-apply-inputBarEnterAction" onclick="applySettingsInputBarEnterAction()">应用</button>';
             html += '</div>';
 
+            // 发送后关闭输入条
             html += '<div class="modal-row">';
-            html += '<label><input type="checkbox" id="settingsInputBarCloseAfterSendInput" onchange="applySettingsInputBarCloseAfterSend()"> 发送后关闭输入条</label>';
+            html += '<label class="modal-label"><input type="checkbox" id="settingsInputBarCloseAfterSendInput" onchange="applySettingsInputBarCloseAfterSend()"> 发送后关闭输入条</label>';
             html += '<span id="hint-inputBarCloseAfterSend" class="apply-hint"></span>';
             html += '</div>';
+            html += '</div>'; // end 输入条动作
+
+            // === 缓冲区 ===
+            html += '<div class="modal-group">';
+            html += '<div class="modal-group-title">缓冲区</div>';
 
             // 缓冲区上限 (MB)
             html += '<div class="modal-row">';
-            html += '缓冲区上限 (MB) <input type="number" id="settingsMaxBufferInput" min="1" max="90" style="width:80px;">';
+            html += '<span class="modal-label">缓冲区上限 (MB)</span>';
+            html += '<input type="number" id="settingsMaxBufferInput" min="1" max="90" style="width:80px;">';
             html += '<button class="btn-primary" id="btn-apply-maxBuffer" onclick="applySettingsMaxBuffer()">应用</button>';
             html += '</div>';
 
             // 日志上限 (条)
             html += '<div class="modal-row">';
-            html += '日志上限 (条) <input type="number" id="settingsMaxFrontendLogsInput" min="10" max="10000" step="10" style="width:80px;">';
+            html += '<span class="modal-label">日志上限 (条)</span>';
+            html += '<input type="number" id="settingsMaxFrontendLogsInput" min="10" max="10000" step="10" style="width:80px;">';
             html += '<button class="btn-primary" id="btn-apply-maxFrontendLogs" onclick="applySettingsMaxFrontendLogs()">应用</button>';
             html += '</div>';
 
             // buffer 去重比对长度 (bytes)
             html += '<div class="modal-row">';
-            html += 'buffer 去重比对长度 (bytes) <input type="number" id="settingsClientTailMaxInput" min="64" max="65536" step="64" style="width:80px;">';
+            html += '<span class="modal-label">去重比对长度 (bytes)</span>';
+            html += '<input type="number" id="settingsClientTailMaxInput" min="64" max="65536" step="64" style="width:80px;">';
             html += '<button class="btn-primary" id="btn-apply-clientTailMax" onclick="applySettingsClientTailMax()">应用</button>';
             html += '</div>';
 
-            // === BEL 通知设置 ===
-            // 通知防抖时长 (ms)：终端输出停止 N 毫秒后才发铃铛通知，TUI 持续输出时不会被刷屏
+            // 缓冲区占用（自动检测，弹窗打开即拉取）
+            html += '<div class="modal-row" style="flex-direction:column;align-items:flex-start;gap:4px;">';
+            html += '<span class="modal-label" style="min-width:0;">缓冲区占用</span>';
+            html += '<div id="bufferSizeResult" style="color:#c0c0c0;">检测中...</div>';
+            html += '</div>';
+            html += '</div>'; // end 缓冲区
+
+            // === 通知 ===
+            html += '<div class="modal-group">';
+            html += '<div class="modal-group-title">通知</div>';
+
+            // 通知防抖时长 (ms)
             html += '<div class="modal-row">';
-            html += '通知防抖时长 (ms) <input type="number" id="settingsBellDebounceMsInput" min="100" max="10000" step="100" style="width:80px;">';
+            html += '<span class="modal-label">通知防抖时长 (ms)</span>';
+            html += '<input type="number" id="settingsBellDebounceMsInput" min="100" max="10000" step="100" style="width:80px;">';
             html += '<button class="btn-primary" id="btn-apply-bellDebounceMs" onclick="applySettingsBellDebounceMs()">应用</button>';
             html += '</div>';
 
             // 通知声音开关
             html += '<div class="modal-row">';
-            html += '<label><input type="checkbox" id="settingsBellSoundEnabledInput" onchange="applySettingsBellSoundEnabled()"> 通知声音</label>';
+            html += '<label class="modal-label"><input type="checkbox" id="settingsBellSoundEnabledInput" onchange="applySettingsBellSoundEnabled()"> 通知声音</label>';
             html += '<span id="hint-bellSoundEnabled" class="apply-hint"></span>';
             html += '</div>';
 
             // 通知 Toast 开关
             html += '<div class="modal-row">';
-            html += '<label><input type="checkbox" id="settingsBellToastEnabledInput" onchange="applySettingsBellToastEnabled()"> 通知 Toast</label>';
+            html += '<label class="modal-label"><input type="checkbox" id="settingsBellToastEnabledInput" onchange="applySettingsBellToastEnabled()"> 通知 Toast</label>';
             html += '<span id="hint-bellToastEnabled" class="apply-hint"></span>';
             html += '</div>';
 
             // 蜂鸣声音长度 (ms)
             html += '<div class="modal-row">';
-            html += '蜂鸣声音长度 (ms) <input type="number" id="settingsBellBeepDurationInput" min="50" max="2000" step="50" style="width:80px;">';
+            html += '<span class="modal-label">蜂鸣声音长度 (ms)</span>';
+            html += '<input type="number" id="settingsBellBeepDurationInput" min="50" max="2000" step="50" style="width:80px;">';
             html += '<button class="btn-primary" id="btn-apply-bellBeepDuration" onclick="applySettingsBellBeepDuration()">应用</button>';
             html += '</div>';
-
-            // 缓冲区占用（自动检测，弹窗打开即拉取）
-            html += '<div class="modal-row" style="flex-direction:column;align-items:flex-start;gap:4px;">';
-            html += '<div style="color:#a0a0a0;">缓冲区占用</div>';
-            html += '<div id="bufferSizeResult" style="color:#c0c0c0;">检测中...</div>';
-            html += '</div>';
+            html += '</div>'; // end 通知
 
             html += '<div class="modal-actions">';
             html += '<button class="btn-danger" onclick="restartServer()">重启服务器</button>';

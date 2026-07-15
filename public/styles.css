@@ -117,6 +117,24 @@
             font-size: 12px;
             margin-left: 8px;
         }
+        /* 设置弹窗分组 + 行内定宽标签对齐（2026-07-15 排版优化） */
+        .modal-group { margin-top: 16px; }
+        .modal-group-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #6fb3e0;
+            letter-spacing: 1px;
+            margin: 0 0 8px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid #333;
+        }
+        .modal-label {
+            display: inline-block;
+            min-width: 140px;
+            flex-shrink: 0;
+            color: #c0c0c0;
+            text-align: left;
+        }
 
         /* 修饰键勾选高亮（发按键面板，方案A） */
         .mod-active,
