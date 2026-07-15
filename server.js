@@ -116,6 +116,17 @@ function addRecentPath(raw) {
     broadcast({ type: 'recent_paths', data: config.recentPaths, added: p });
 }
 
+// 删除一条最近路径：从列表过滤移除 + 落盘 + 广播（与 addRecentPath 同款结构）
+function removeRecentPath(raw) {
+    const p = (raw || '').trim();
+    if (!p) return;
+    const before = config.recentPaths.length;
+    config.recentPaths = config.recentPaths.filter(x => x !== p);
+    if (config.recentPaths.length === before) return; // 本就不在列表，无变化不广播
+    saveConfig(config);
+    broadcast({ type: 'recent_paths', data: config.recentPaths, deleted: p });
+}
+
 // 把输入字节流累积成"当前输入行"；遇到回车/换行返回完成行并清空，否则返回 null。
 // 跳过 ANSI 转义序列（方向键等），处理退格。用于从任意入口（输入条/终端直敲）检测路径。
 function feedInputLine(session, data) {
@@ -272,6 +283,7 @@ wss.on('connection', (ws) => {
                 if (m) addRecentPath(m[0]);
             }
         }
+        else if (type === 'recent_paths_delete') removeRecentPath(data);
         else if (type === 'kill' && sessions[id]) sessions[id].pty.kill();
         else if (type === 'buffer' && sessions[id]) {
             const buf = sessions[id].buffer;
