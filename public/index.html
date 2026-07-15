@@ -1469,8 +1469,6 @@
         }
         async function sendInputBar() {
             const t = inputBarText.value.replace(/\n+$/, '');   // 去末尾换行，避免多发空行
-            const pathMatch = t.match(/\b[A-Za-z]:\\[^\s"'`]+/); // 仅取第一条盘符绝对路径
-            if (pathMatch) wsSend({ type: 'recent_paths_add', data: pathMatch[0] });
             if (!t) { return; }                                  // 空内容：不发送、不关闭（回车发送语义）
             const targetId = activeId;                            // 捕获目标会话，防止发送途中切换会话串台
             const textSeq = t.replace(/\n/g, '\r');              // 正文内容，\n→\r，不含末尾回车

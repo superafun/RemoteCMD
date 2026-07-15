@@ -107,6 +107,38 @@ function broadcast(msg) {
     wss.clients.forEach(c => c.readyState === 1 && c.send(JSON.stringify(msg)));
 }
 
+// 记录一条最近路径：去重 + 置顶 + 截断到 10 + 写盘 + 广播
+function addRecentPath(raw) {
+    const p = (raw || '').trim();
+    if (!p) return;
+    config.recentPaths = [p, ...config.recentPaths.filter(x => x !== p)].slice(0, 10);
+    saveConfig(config);
+    broadcast({ type: 'recent_paths', data: config.recentPaths });
+}
+
+// 把输入字节流累积成"当前输入行"；遇到回车/换行返回完成行并清空，否则返回 null。
+// 跳过 ANSI 转义序列（方向键等），处理退格。用于从任意入口（输入条/终端直敲）检测路径。
+function feedInputLine(session, data) {
+    let s = session.inputLine || '';
+    for (let i = 0; i < data.length; i++) {
+        const c = data[i];
+        if (c === '\r' || c === '\n') {
+            session.inputLine = '';
+            return s;
+        } else if (c === '\b' || c === '\x7f') {
+            s = s.slice(0, -1);
+        } else if (c === '\x1b') {
+            // 跳过转义序列（ESC 后直到一个字母结束）
+            i++;
+            while (i < data.length && !/[a-zA-Z]/.test(data[i])) i++;
+        } else {
+            s += c;
+        }
+    }
+    session.inputLine = s;
+    return null;
+}
+
 function buildListMsg() {
     const names = {};
     for (const id of Object.keys(sessions)) {
@@ -149,7 +181,7 @@ function createSession() {
     // 任何后续输出（含 \x07 本身和任何其他字节）都会 clearTimeout 重置 timer；只有"输出静止 N ms"且 bellArmed 才广播。
     // TUI 持续输出 → timer 不断重置，bellArmed=true 但永远不会到点 → 0 次通知。
     // TUI 停下 1 秒 → timer 到点 → 1 次通知。
-    sessions[newId] = { pty: ptyProcess, buffer: '', name: computeSmartName(), bellTimer: null, bellArmed: false };
+    sessions[newId] = { pty: ptyProcess, buffer: '', inputLine: '', name: computeSmartName(), bellTimer: null, bellArmed: false };
     // buffer 保留原始字节（含可能的 \x07），便于前端重连时完整回放
     ptyProcess.onData((d) => {
         sessions[newId].buffer += d;
@@ -226,16 +258,15 @@ wss.on('connection', (ws) => {
         const p = JSON.parse(msg.toString());
         const { type, id, data } = p;
         if (type === 'create') createSession();
-        else if (type === 'input' && sessions[id]) sessions[id].pty.write(data);
-        else if (type === 'kill' && sessions[id]) sessions[id].pty.kill();
-        else if (type === 'recent_paths_add' && typeof data === 'string') {
-            const p = data.trim();
-            if (p) {
-                config.recentPaths = [p, ...config.recentPaths.filter(x => x !== p)].slice(0, 10);
-                saveConfig(config);
-                broadcast({ type: 'recent_paths', data: config.recentPaths });
+        else if (type === 'input' && sessions[id]) {
+            sessions[id].pty.write(data);
+            const line = feedInputLine(sessions[id], data);
+            if (line) {
+                const m = line.match(/\b[A-Za-z]:\\[^\s"'`]+/);
+                if (m) addRecentPath(m[0]);
             }
         }
+        else if (type === 'kill' && sessions[id]) sessions[id].pty.kill();
         else if (type === 'buffer' && sessions[id]) {
             const buf = sessions[id].buffer;
             const tail = p.tail;
