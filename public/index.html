@@ -204,8 +204,8 @@
 
             // 显示滚动按钮
             html += '<div class="modal-row">';
-            html += '<label><input type="checkbox" id="settingsShowScrollButtonsInput"> 显示滚动按钮</label>';
-            html += '<button class="btn-primary" id="btn-apply-showScrollButtons" onclick="applySettingsShowScrollButtons()">应用</button>';
+            html += '<label><input type="checkbox" id="settingsShowScrollButtonsInput" onchange="applySettingsShowScrollButtons()"> 显示滚动按钮</label>';
+            html += '<span id="hint-showScrollButtons" class="apply-hint"></span>';
             html += '</div>';
 
             // 缓冲区上限 (MB)
@@ -235,14 +235,14 @@
 
             // 通知声音开关
             html += '<div class="modal-row">';
-            html += '<label><input type="checkbox" id="settingsBellSoundEnabledInput"> 通知声音</label>';
-            html += '<button class="btn-primary" id="btn-apply-bellSoundEnabled" onclick="applySettingsBellSoundEnabled()">应用</button>';
+            html += '<label><input type="checkbox" id="settingsBellSoundEnabledInput" onchange="applySettingsBellSoundEnabled()"> 通知声音</label>';
+            html += '<span id="hint-bellSoundEnabled" class="apply-hint"></span>';
             html += '</div>';
 
             // 通知 Toast 开关
             html += '<div class="modal-row">';
-            html += '<label><input type="checkbox" id="settingsBellToastEnabledInput"> 通知 Toast</label>';
-            html += '<button class="btn-primary" id="btn-apply-bellToastEnabled" onclick="applySettingsBellToastEnabled()">应用</button>';
+            html += '<label><input type="checkbox" id="settingsBellToastEnabledInput" onchange="applySettingsBellToastEnabled()"> 通知 Toast</label>';
+            html += '<span id="hint-bellToastEnabled" class="apply-hint"></span>';
             html += '</div>';
 
             // 蜂鸣声音长度 (ms)
@@ -367,6 +367,13 @@
             setTimeout(() => { btn.textContent = '应用'; btn.style.color = ''; }, 1500);
         }
 
+        function flashHint(spanId) {
+            const el = document.getElementById(spanId);
+            if (!el) return;
+            el.textContent = '✓已应用';
+            setTimeout(() => { if (el) el.textContent = ''; }, 1500);
+        }
+
         function applySettingsScrollIntervalTerminal() {
             const v = parseInt(document.getElementById('settingsScrollIntervalTerminalInput').value);
             if (Number.isInteger(v) && v >= 1 && v <= 1000) {
@@ -409,7 +416,7 @@
         function applySettingsShowScrollButtons() {
             const v = document.getElementById('settingsShowScrollButtonsInput').checked;
             wsSend({ type: 'show_scroll_buttons', data: v });
-            fbBtn('btn-apply-showScrollButtons', true);
+            flashHint('hint-showScrollButtons');
         }
 
         function applySettingsMaxBuffer() {
@@ -455,13 +462,13 @@
         function applySettingsBellSoundEnabled() {
             const v = document.getElementById('settingsBellSoundEnabledInput').checked;
             wsSend({ type: 'bell_sound_enabled', data: v });
-            fbBtn('btn-apply-bellSoundEnabled', true);
+            flashHint('hint-bellSoundEnabled');
         }
 
         function applySettingsBellToastEnabled() {
             const v = document.getElementById('settingsBellToastEnabledInput').checked;
             wsSend({ type: 'bell_toast_enabled', data: v });
-            fbBtn('btn-apply-bellToastEnabled', true);
+            flashHint('hint-bellToastEnabled');
         }
 
         function applySettingsBellBeepDuration() {

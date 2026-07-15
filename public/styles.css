@@ -112,6 +112,12 @@
             margin-top: 8px;
         }
 
+        .apply-hint {
+            color: #4caf50;
+            font-size: 12px;
+            margin-left: 8px;
+        }
+
         /* 修饰键勾选高亮（发按键面板，方案A） */
         .mod-active,
         .mod-active:hover {
