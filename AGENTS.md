@@ -62,6 +62,9 @@ server.js
 | `max_buffer` | 缓冲区上限值（单位：MB） |
 | `max_frontend_logs` | 前端日志上限值（单位：条） |
 | `client_tail_max` | 客户端 buffer 尾部比对最大长度（单位：bytes），连接建立时下发 + 设置变更时广播 |
+| `input_bar_button_action` | 输入条右侧按钮动作（data: 'newline' \| 'send'），连接建立时下发 + 设置变更时广播 |
+| `input_bar_enter_action` | 输入条 Enter 键动作（data: 'newline' \| 'send'），连接建立时下发 + 设置变更时广播 |
+| `input_bar_close_after_send` | 发送后关闭输入条（data: boolean），连接建立时下发 + 设置变更时广播 |
 | `restart_server` | 服务端重启确认（data: 'ok'） |
 | `buffer_size` | 当前会话 buffer 占用查询响应（id + used + max，单位：字符数） |
 
@@ -81,6 +84,9 @@ server.js
 | `max_buffer` | 更新缓冲区上限（单位：MB） |
 | `max_frontend_logs` | 更新前端日志上限（单位：条） |
 | `client_tail_max` | 更新客户端 buffer 尾部比对最大长度（data，64 ≤ data ≤ 65536） |
+| `input_bar_button_action` | 更新输入条右侧按钮动作（data: 'newline' \| 'send'） |
+| `input_bar_enter_action` | 更新输入条 Enter 键动作（data: 'newline' \| 'send'） |
+| `input_bar_close_after_send` | 更新发送后关闭输入条（data: boolean） |
 | `restart_server` | 触发服务端重启（PM2 自动重启） |
 | `buffer_size` | 查询当前会话 buffer 占用（id） |
 
