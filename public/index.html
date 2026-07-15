@@ -79,6 +79,9 @@
         let swipeThreshold = 24;   // 滑动滚动阈值(px)，设置可改、实时生效
         let swipeClassify  = 10;   // 滑动判定阈值(px)，设置可改、实时生效
         let showScrollButtons = true;
+        let inputBarButtonAction = 'newline';
+        let inputBarEnterAction = 'send';
+        let inputBarCloseAfterSend = false;
         let maxBuffer = 10;  // 默认值 MB，与服务端 loadConfig 默认一致（避免弹窗打开瞬间 input 被 clamp 到 90）
         // sizeSlots / currentSize 替代原 rows/cols（2026-07-01 改用 size_slots/current_size 协议）
         // 初始 null：服务端消息到达前不调用 term.resize，也不渲染弹窗默认值
@@ -208,6 +211,24 @@
             html += '<span id="hint-showScrollButtons" class="apply-hint"></span>';
             html += '</div>';
 
+            // 输入条动作
+            html += '<div class="modal-row">';
+            html += '右侧按钮动作 <select id="settingsInputBarButtonActionInput">'
+                  + '<option value="newline">换行</option><option value="send">发送</option></select>';
+            html += '<button class="btn-primary" id="btn-apply-inputBarButtonAction" onclick="applySettingsInputBarButtonAction()">应用</button>';
+            html += '</div>';
+
+            html += '<div class="modal-row">';
+            html += 'Enter 键动作 <select id="settingsInputBarEnterActionInput">'
+                  + '<option value="newline">换行</option><option value="send">发送</option></select>';
+            html += '<button class="btn-primary" id="btn-apply-inputBarEnterAction" onclick="applySettingsInputBarEnterAction()">应用</button>';
+            html += '</div>';
+
+            html += '<div class="modal-row">';
+            html += '<label><input type="checkbox" id="settingsInputBarCloseAfterSendInput" onchange="applySettingsInputBarCloseAfterSend()"> 发送后关闭输入条</label>';
+            html += '<span id="hint-inputBarCloseAfterSend" class="apply-hint"></span>';
+            html += '</div>';
+
             // 缓冲区上限 (MB)
             html += '<div class="modal-row">';
             html += '缓冲区上限 (MB) <input type="number" id="settingsMaxBufferInput" min="1" max="90" style="width:80px;">';
@@ -280,6 +301,9 @@
             document.getElementById('settingsSwipeThresholdInput').value = swipeThreshold;
             document.getElementById('settingsSwipeClassifyInput').value = swipeClassify;
             document.getElementById('settingsShowScrollButtonsInput').checked = showScrollButtons;
+            document.getElementById('settingsInputBarButtonActionInput').value = inputBarButtonAction;
+            document.getElementById('settingsInputBarEnterActionInput').value = inputBarEnterAction;
+            document.getElementById('settingsInputBarCloseAfterSendInput').checked = inputBarCloseAfterSend;
             document.getElementById('settingsMaxBufferInput').value = maxBuffer;
             document.getElementById('settingsMaxFrontendLogsInput').value = maxFrontendLogs;
             document.getElementById('settingsClientTailMaxInput').value = clientTailMax;
