@@ -27,7 +27,8 @@ function loadConfig() {
             inputBarButtonAction: 'newline',
             inputBarEnterAction: 'send',
             inputBarCloseAfterSend: false,
-            enterDelayMs: 300
+            enterDelayMs: 300,
+            inputBarHideOnBlur: true
         };
         fs.writeFileSync(CONFIG_PATH, JSON.stringify(def, null, 2));
         return def;
@@ -67,6 +68,7 @@ function loadConfig() {
     if (cfg.inputBarButtonAction !== 'newline' && cfg.inputBarButtonAction !== 'send') cfg.inputBarButtonAction = 'newline';
     if (cfg.inputBarEnterAction !== 'newline' && cfg.inputBarEnterAction !== 'send') cfg.inputBarEnterAction = 'send';
     if (typeof cfg.inputBarCloseAfterSend !== 'boolean') cfg.inputBarCloseAfterSend = false;
+    if (typeof cfg.inputBarHideOnBlur !== 'boolean') cfg.inputBarHideOnBlur = true;
     if (typeof cfg.enterDelayMs !== 'number' || cfg.enterDelayMs < 50 || cfg.enterDelayMs > 3000) cfg.enterDelayMs = 300;
     return cfg;
 }
@@ -209,6 +211,7 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'input_bar_button_action', data: config.inputBarButtonAction }));
     ws.send(JSON.stringify({ type: 'input_bar_enter_action', data: config.inputBarEnterAction }));
     ws.send(JSON.stringify({ type: 'input_bar_close_after_send', data: config.inputBarCloseAfterSend }));
+    ws.send(JSON.stringify({ type: 'input_bar_hide_on_blur', data: config.inputBarHideOnBlur }));
     ws.send(JSON.stringify({ type: 'enter_delay_ms', data: config.enterDelayMs }));
     ws.send(JSON.stringify({ type: 'max_buffer', data: config.maxBuffer }));
     ws.send(JSON.stringify({ type: 'max_frontend_logs', data: config.maxFrontendLogs }));
@@ -330,6 +333,12 @@ wss.on('connection', (ws) => {
             if (typeof data !== 'boolean') return;
             config.inputBarCloseAfterSend = data;
             broadcast({ type: 'input_bar_close_after_send', data: config.inputBarCloseAfterSend });
+            saveConfig(config);
+        }
+        else if (type === 'input_bar_hide_on_blur') {
+            if (typeof data !== 'boolean') return;
+            config.inputBarHideOnBlur = data;
+            broadcast({ type: 'input_bar_hide_on_blur', data: config.inputBarHideOnBlur });
             saveConfig(config);
         }
         else if (type === 'enter_delay_ms') {
