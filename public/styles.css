@@ -264,11 +264,10 @@
             background: #1e1e1e;
             color: #eee;
             border: 1px solid #555;
-            box-sizing: border-box;  /* 与 .modal-box input 统一标准,避免不同浏览器高度计算漂移 */
             outline: none;            /* 去掉 Chrome focus 默认白色焦点环,避免与相邻"发按键"按钮的 #555 右边框视觉冲突（焦点视觉改由 :focus 改 border-color 体现） */
             font: inherit;
             line-height: 1.4;
-            padding: 4px 6px 0;   /* 底部 0：文字贴框底，整体高度进一步贴近侧边按键 */
+            padding: 4px 6px;   /* 底部 0：文字贴框底，整体高度进一步贴近侧边按键 */
         }
         #inputBarText:focus {
             border-color: #0078d4;  /* 与 .modal-box input:focus 一致的 focus 视觉反馈 */
