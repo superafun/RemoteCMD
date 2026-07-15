@@ -188,6 +188,12 @@
             html += '<div class="modal-group">';
             html += '<div class="modal-group-title">滚动与滑动</div>';
 
+            // 显示滚动按钮
+            html += '<div class="modal-row">';
+            html += '<label class="modal-label"><input type="checkbox" id="settingsShowScrollButtonsInput" onchange="applySettingsShowScrollButtons()"> 显示滚动按钮</label>';
+            html += '<span id="hint-showScrollButtons" class="apply-hint"></span>';
+            html += '</div>';
+
             // 按住终端滚动间隔 (ms)
             html += '<div class="modal-row">';
             html += '<span class="modal-label">按住终端滚动间隔 (ms)</span>';
@@ -215,17 +221,17 @@
             html += '<input type="number" id="settingsSwipeClassifyInput" min="1" max="100" step="1" style="width:80px;">';
             html += '<button class="btn-primary" id="btn-apply-swipeClassify" onclick="applySettingsSwipeClassify()">应用</button>';
             html += '</div>';
-
-            // 显示滚动按钮
-            html += '<div class="modal-row">';
-            html += '<label class="modal-label"><input type="checkbox" id="settingsShowScrollButtonsInput" onchange="applySettingsShowScrollButtons()"> 显示滚动按钮</label>';
-            html += '<span id="hint-showScrollButtons" class="apply-hint"></span>';
-            html += '</div>';
             html += '</div>'; // end 滚动与滑动
 
             // === 输入条动作 ===
             html += '<div class="modal-group">';
             html += '<div class="modal-group-title">输入条动作</div>';
+
+            // 发送后关闭输入条
+            html += '<div class="modal-row">';
+            html += '<label class="modal-label"><input type="checkbox" id="settingsInputBarCloseAfterSendInput" onchange="applySettingsInputBarCloseAfterSend()"> 发送后关闭输入条</label>';
+            html += '<span id="hint-inputBarCloseAfterSend" class="apply-hint"></span>';
+            html += '</div>';
 
             // 右侧按钮动作
             html += '<div class="modal-row">';
@@ -241,12 +247,6 @@
             html += '<select id="settingsInputBarEnterActionInput">'
                   + '<option value="newline">换行</option><option value="send">发送</option></select>';
             html += '<button class="btn-primary" id="btn-apply-inputBarEnterAction" onclick="applySettingsInputBarEnterAction()">应用</button>';
-            html += '</div>';
-
-            // 发送后关闭输入条
-            html += '<div class="modal-row">';
-            html += '<label class="modal-label"><input type="checkbox" id="settingsInputBarCloseAfterSendInput" onchange="applySettingsInputBarCloseAfterSend()"> 发送后关闭输入条</label>';
-            html += '<span id="hint-inputBarCloseAfterSend" class="apply-hint"></span>';
             html += '</div>';
             html += '</div>'; // end 输入条动作
 
@@ -286,13 +286,6 @@
             html += '<div class="modal-group">';
             html += '<div class="modal-group-title">通知</div>';
 
-            // 通知防抖时长 (ms)
-            html += '<div class="modal-row">';
-            html += '<span class="modal-label">通知防抖时长 (ms)</span>';
-            html += '<input type="number" id="settingsBellDebounceMsInput" min="100" max="10000" step="100" style="width:80px;">';
-            html += '<button class="btn-primary" id="btn-apply-bellDebounceMs" onclick="applySettingsBellDebounceMs()">应用</button>';
-            html += '</div>';
-
             // 通知声音开关
             html += '<div class="modal-row">';
             html += '<label class="modal-label"><input type="checkbox" id="settingsBellSoundEnabledInput" onchange="applySettingsBellSoundEnabled()"> 通知声音</label>';
@@ -303,6 +296,13 @@
             html += '<div class="modal-row">';
             html += '<label class="modal-label"><input type="checkbox" id="settingsBellToastEnabledInput" onchange="applySettingsBellToastEnabled()"> 通知 Toast</label>';
             html += '<span id="hint-bellToastEnabled" class="apply-hint"></span>';
+            html += '</div>';
+
+            // 通知防抖时长 (ms)
+            html += '<div class="modal-row">';
+            html += '<span class="modal-label">通知防抖时长 (ms)</span>';
+            html += '<input type="number" id="settingsBellDebounceMsInput" min="100" max="10000" step="100" style="width:80px;">';
+            html += '<button class="btn-primary" id="btn-apply-bellDebounceMs" onclick="applySettingsBellDebounceMs()">应用</button>';
             html += '</div>';
 
             // 蜂鸣声音长度 (ms)
