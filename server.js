@@ -128,9 +128,15 @@ function feedInputLine(session, data) {
         } else if (c === '\b' || c === '\x7f') {
             s = s.slice(0, -1);
         } else if (c === '\x1b') {
-            // 跳过转义序列（ESC 后直到一个字母结束）
+            // 跳过转义序列：CSI(ESC[) 跳过参数直到最终字节 0x40–0x7E 并吞掉（如 ~ 结尾的 Home/End/PageUp）；
+            // 其它 ESC 序列（如 ESC O P 功能键）保持原逻辑，遇到字母结束
             i++;
-            while (i < data.length && !/[a-zA-Z]/.test(data[i])) i++;
+            if (i < data.length && data[i] === '[') {
+                i++;
+                while (i < data.length && !/[\x40-\x7e]/.test(data[i])) i++;
+            } else {
+                while (i < data.length && !/[a-zA-Z]/.test(data[i])) i++;
+            }
         } else {
             s += c;
         }
