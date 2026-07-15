@@ -113,7 +113,7 @@ function addRecentPath(raw) {
     if (!p) return;
     config.recentPaths = [p, ...config.recentPaths.filter(x => x !== p)].slice(0, 10);
     saveConfig(config);
-    broadcast({ type: 'recent_paths', data: config.recentPaths });
+    broadcast({ type: 'recent_paths', data: config.recentPaths, added: p });
 }
 
 // 把输入字节流累积成"当前输入行"；遇到回车/换行返回完成行并清空，否则返回 null。
