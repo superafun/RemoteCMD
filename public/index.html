@@ -1332,7 +1332,6 @@
             // 改：按设置决定收起还是保持展开
             if (inputBarCloseAfterSend) closeInputBar();   // 清空并收起（closeInputBar 默认 clear=true）
             else clearInputBar();                          // 清空保持展开
-            addFrontendLog('输入条发送: ' + t, 'out');
             if (!targetId) return;                               // 捕获时无活动会话则不发送
             wsSend({ type: 'input', id: targetId, data: textSeq });  // 整段正文一次性发出
             await sleep(ENTER_DELAY);                            // 停顿，模拟手动按 Enter 前的手感
