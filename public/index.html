@@ -33,13 +33,32 @@
         .toast-error   { background: #d9534f; }
         /* 右上角：top/right 16px，transform: translateX(120%) 初始在屏幕右侧外，加 .toast-show 滑入；停留 1.5s 后滑出，允许堆叠（每个偏移 40px） */
         .recent-path-item {
-            padding: 6px 10px;
+            padding: 6px 8px;
             cursor: pointer;
             white-space: nowrap;
             overflow: hidden;
-            text-overflow: ellipsis;
             max-width: 360px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
+        .recent-path-label {
+            flex: 1 1 auto;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .recent-path-del {
+            flex: 0 0 auto;
+            border: none;
+            background: transparent;
+            color: #999;
+            cursor: pointer;
+            font-size: 13px;
+            line-height: 1;
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+        .recent-path-del:hover { background: rgba(255, 80, 80, 0.18); color: #ff6b6b; }
         .recent-path-item:hover { background: rgba(255, 255, 255, 0.08); }
         .dropdown-menu {
             display: none;
@@ -1116,7 +1135,24 @@
             recentPaths.forEach(p => {
                 const item = document.createElement('div');
                 item.className = 'recent-path-item';
-                item.textContent = p;   // 用 textContent，避免路径特殊字符破坏 DOM
+
+                const label = document.createElement('span');
+                label.className = 'recent-path-label';
+                label.textContent = p;   // 用 textContent，避免路径特殊字符破坏 DOM
+                item.appendChild(label);
+
+                const del = document.createElement('button');
+                del.className = 'recent-path-del';
+                del.type = 'button';
+                del.textContent = '✕';   // ✕ (U+2715)
+                del.title = '删除该路径';
+                del.addEventListener('click', (e) => {
+                    e.stopPropagation();  // 避免触发整行复制
+                    wsSend({ type: 'recent_paths_delete', data: p });
+                    showToast('已删除', 'success');
+                });
+                item.appendChild(del);
+
                 item.addEventListener('click', () => {
                     copyToClipboard(p);
                     showToast('已复制', 'success');
