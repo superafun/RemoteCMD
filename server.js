@@ -221,6 +221,7 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'bell_sound_enabled', data: config.bellSoundEnabled }));
     ws.send(JSON.stringify({ type: 'bell_toast_enabled', data: config.bellToastEnabled }));
     ws.send(JSON.stringify({ type: 'bell_beep_duration_ms', data: config.bellBeepDurationMs }));
+    ws.send(JSON.stringify({ type: 'recent_paths', data: config.recentPaths }));
     ws.on('message', (msg) => {
         const p = JSON.parse(msg.toString());
         const { type, id, data } = p;
