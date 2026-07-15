@@ -160,7 +160,7 @@
         function openSettingsModal() {
             if (settingsDiv) { settingsDiv.remove(); settingsDiv = null; }
             let html = '<div class="modal-overlay" onclick="if(event.target===this)closeSettingsModal()">';
-            html += '<div class="modal-box" style="min-width:0;max-width:520px;width:min(520px,calc(100vw - 24px));">';
+            html += '<div class="modal-box" style="min-width:0;max-width:380px;width:min(380px,calc(100vw - 24px));">';
             html += '<h3>设置</h3>';
 
             // === 终端尺寸 ===
