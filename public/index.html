@@ -82,6 +82,7 @@
         let inputBarButtonAction = 'newline';
         let inputBarEnterAction = 'send';
         let inputBarCloseAfterSend = false;
+        let enterDelayMs = 300;   // 输入条回车停顿(ms)，设置可改、多端同步
         let maxBuffer = 10;  // 默认值 MB，与服务端 loadConfig 默认一致（避免弹窗打开瞬间 input 被 clamp 到 90）
         // sizeSlots / currentSize 替代原 rows/cols（2026-07-01 改用 size_slots/current_size 协议）
         // 初始 null：服务端消息到达前不调用 term.resize，也不渲染弹窗默认值
@@ -1334,9 +1335,7 @@
             ta.style.height = 'auto';
             ta.style.height = ta.scrollHeight + 'px';
         }
-        // 正文发完后、单独发回车前的停顿（ms），模拟手动按 Enter 前的手感
-        const ENTER_DELAY = 300;
-
+        // 输入条回车停顿（ms），模拟手动按 Enter 前的手感；值来自设置项 enterDelayMs（多端同步），非硬编码
         function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
         // 换行按钮：在光标处插入一个换行；空内容时不做事并退出输入条
@@ -1369,7 +1368,7 @@
             else clearInputBar();                          // 清空保持展开
             if (!targetId) return;                               // 捕获时无活动会话则不发送
             wsSend({ type: 'input', id: targetId, data: textSeq });  // 整段正文一次性发出
-            await sleep(ENTER_DELAY);                            // 停顿，模拟手动按 Enter 前的手感
+            await sleep(enterDelayMs);                          // 停顿，模拟手动按 Enter 前的手感（取自设置项）
             wsSend({ type: 'input', id: targetId, data: '\r' });     // 单独发回车 = 确认/执行
         }
         inputBarText.addEventListener('input', () => autoGrow(inputBarText));
