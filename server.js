@@ -26,7 +26,8 @@ function loadConfig() {
             bellBeepDurationMs: 300,
             inputBarButtonAction: 'newline',
             inputBarEnterAction: 'send',
-            inputBarCloseAfterSend: false
+            inputBarCloseAfterSend: false,
+            enterDelayMs: 300
         };
         fs.writeFileSync(CONFIG_PATH, JSON.stringify(def, null, 2));
         return def;
@@ -66,6 +67,7 @@ function loadConfig() {
     if (cfg.inputBarButtonAction !== 'newline' && cfg.inputBarButtonAction !== 'send') cfg.inputBarButtonAction = 'newline';
     if (cfg.inputBarEnterAction !== 'newline' && cfg.inputBarEnterAction !== 'send') cfg.inputBarEnterAction = 'send';
     if (typeof cfg.inputBarCloseAfterSend !== 'boolean') cfg.inputBarCloseAfterSend = false;
+    if (typeof cfg.enterDelayMs !== 'number' || cfg.enterDelayMs < 50 || cfg.enterDelayMs > 3000) cfg.enterDelayMs = 300;
     return cfg;
 }
 function saveConfig(cfg) {
