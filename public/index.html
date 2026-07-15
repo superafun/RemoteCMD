@@ -1409,7 +1409,11 @@
         }
         inputBarText.addEventListener('input', () => autoGrow(inputBarText));
         inputBarText.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') { e.preventDefault(); clearInputBar(); }
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                if (inputBarText.value) clearInputBar();   // 有内容：清空、保持展开、焦点留输入框
+                else closeInputBar();                       // 无内容：隐藏输入条
+            }
             else if (e.key === 'Enter') {
                 e.preventDefault();
                 if (inputBarEnterAction === 'send') sendInputBar();
@@ -1418,6 +1422,7 @@
         });
         inputBarText.addEventListener('blur', (e) => {
             if (inputBarWrap.style.display !== 'flex') return;   // 已关闭则忽略，防止程序化 close 后的二次触发
+            if (!inputBarHideOnBlur) return;                     // 设置关闭：失焦不隐藏
             const r = e.relatedTarget;
             if (r && inputBarWrap.contains(r)) return;            // 焦点仍在输入条内（如换行按钮），不关闭
             closeInputBarPreserve();                             // 点外部/终端：关闭但保留草稿
