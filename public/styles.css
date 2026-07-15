@@ -266,7 +266,6 @@
             background: #1e1e1e;
             color: #eee;
             border: 1px solid #555;
-            margin-left: -1px;       /* 左移 1px，让 textarea 左 border 与“发按键”右 border 视觉重合，消除 1px 透明缝 */
             font: inherit;
             line-height: 1.4;
             padding: 4px 6px 0;   /* 底部 0：文字贴框底，整体高度进一步贴近侧边按键 */
