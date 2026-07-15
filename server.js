@@ -28,12 +28,14 @@ function loadConfig() {
             inputBarEnterAction: 'send',
             inputBarCloseAfterSend: false,
             enterDelayMs: 300,
-            inputBarHideOnBlur: true
+            inputBarHideOnBlur: true,
+            recentPaths: []
         };
         fs.writeFileSync(CONFIG_PATH, JSON.stringify(def, null, 2));
         return def;
     }
     const cfg = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+    if (!Array.isArray(cfg.recentPaths)) cfg.recentPaths = [];
 
     // === sizeSlots 兜底：缺失/非法时填默认值 ===
     if (!cfg.sizeSlots || typeof cfg.sizeSlots !== 'object') cfg.sizeSlots = {};
