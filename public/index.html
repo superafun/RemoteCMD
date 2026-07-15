@@ -829,6 +829,16 @@
                         showScrollButtons = msg.data;
                         applyScrollButtonsVisibility();
                         addFrontendLog('滚动按钮显示状态同步为 ' + (showScrollButtons ? '显示' : '隐藏'), 'in');
+                    } else if (msg.type === 'input_bar_button_action') {
+                        inputBarButtonAction = msg.data;
+                        applyInputBarButtonLabel();
+                        addFrontendLog('右侧按钮动作同步为 ' + (inputBarButtonAction === 'send' ? '发送' : '换行'), 'in');
+                    } else if (msg.type === 'input_bar_enter_action') {
+                        inputBarEnterAction = msg.data;
+                        addFrontendLog('Enter 键动作同步为 ' + (inputBarEnterAction === 'send' ? '发送' : '换行'), 'in');
+                    } else if (msg.type === 'input_bar_close_after_send') {
+                        inputBarCloseAfterSend = msg.data;
+                        addFrontendLog('发送后关闭输入条同步为 ' + (inputBarCloseAfterSend ? '关闭' : '保持展开'), 'in');
                     } else if (msg.type === 'restart_server') {
                         addFrontendLog('服务端确认重启', 'in');
                     } else if (msg.type === 'buffer_size') {
