@@ -892,6 +892,9 @@
                     } else if (msg.type === 'input_bar_close_after_send') {
                         inputBarCloseAfterSend = msg.data;
                         addFrontendLog('发送后关闭输入条同步为 ' + (inputBarCloseAfterSend ? '关闭' : '保持展开'), 'in');
+                    } else if (msg.type === 'enter_delay_ms') {
+                        enterDelayMs = msg.data;
+                        addFrontendLog('回车停顿同步为 ' + enterDelayMs + ' ms', 'in');
                     } else if (msg.type === 'restart_server') {
                         addFrontendLog('服务端确认重启', 'in');
                     } else if (msg.type === 'buffer_size') {
