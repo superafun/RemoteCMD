@@ -970,9 +970,13 @@
                     } else if (msg.type === 'recent_paths') {
                         recentPaths = msg.data || [];
                         renderRecentPathsDropdown();
-                        addFrontendLog(msg.added
-                            ? ('最近路径已添加: ' + msg.added + ' (共 ' + recentPaths.length + ' 条)')
-                            : ('最近路径已同步: ' + recentPaths.length + ' 条'), 'in');
+                        if (msg.added) {
+                            addFrontendLog('最近路径已添加: ' + msg.added + ' (共 ' + recentPaths.length + ' 条)', 'in');
+                        } else if (msg.deleted) {
+                            addFrontendLog('最近路径已删除: ' + msg.deleted + ' (共 ' + recentPaths.length + ' 条)', 'in');
+                        } else {
+                            addFrontendLog('最近路径已同步: ' + recentPaths.length + ' 条', 'in');
+                        }
                     }
                 };
             }
