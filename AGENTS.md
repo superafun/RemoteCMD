@@ -65,6 +65,7 @@ server.js
 | `input_bar_button_action` | 输入条右侧按钮动作（data: 'newline' \| 'send'），连接建立时下发 + 设置变更时广播 |
 | `input_bar_enter_action` | 输入条 Enter 键动作（data: 'newline' \| 'send'），连接建立时下发 + 设置变更时广播 |
 | `input_bar_close_after_send` | 发送后关闭输入条（data: boolean），连接建立时下发 + 设置变更时广播 |
+| `enter_delay_ms` | 回车停顿时长（单位：ms），连接建立时下发 + 设置变更时广播 |
 | `restart_server` | 服务端重启确认（data: 'ok'） |
 | `buffer_size` | 当前会话 buffer 占用查询响应（id + used + max，单位：字符数） |
 
@@ -87,6 +88,7 @@ server.js
 | `input_bar_button_action` | 更新输入条右侧按钮动作（data: 'newline' \| 'send'） |
 | `input_bar_enter_action` | 更新输入条 Enter 键动作（data: 'newline' \| 'send'） |
 | `input_bar_close_after_send` | 更新发送后关闭输入条（data: boolean） |
+| `enter_delay_ms` | 更新回车停顿时长（data，单位：ms，50–3000） |
 | `restart_server` | 触发服务端重启（PM2 自动重启） |
 | `buffer_size` | 查询当前会话 buffer 占用（id） |
 
@@ -341,6 +343,8 @@ server.js
     - **配置字段**（`config.json`）：`bellDebounceMs`（默认 1000，范围 100-10000，去抖时长）/ `bellSoundEnabled`（默认 true）/ `bellToastEnabled`（默认 true）/ `bellBeepDurationMs`（默认 300，范围 50-2000，蜂鸣单声时长）。多端同步，连接时下发、设置变更时广播。
     - **设置变更周期锁定语义**（与注意事项 24 一致）：`setTimeout(fn, config.bellDebounceMs)` 在创建时 capture 当时的值，已 schedule 的 timer 按旧值到期，下一次新 onData 才用新值；不需要重启 server。
     - **前端**：复用通用 `showToast(text, 'success')`（带堆叠偏移，多终端同时 bell 不重叠），无点击行为。蜂鸣失败时（浏览器自动播放策略拒绝）静默吞错不影响 Toast。`AudioContext` 懒初始化（首次响铃时 `new`）+ 幂等 `resume()`，避免页面加载即触发自动播放警告。
+
+42. **回车停顿设置项 enterDelayMs（2026-07-15 引入）**：输入条发送文本时「整段正文发出」与「单独发 `\r` 回车」之间的停顿，原为硬编码 `ENTER_DELAY=300ms`，现改为可配置、多端同步的设置项 `enterDelayMs`（默认 300，范围 50–3000，step 50）。完整链路：`config.json` 字段 → `loadConfig` 默认(300)+兜底(越界回退 300) → 连接时 `ws.send({type:'enter_delay_ms'})` 下发 → ws handler 校验(非整数/越界拒收)+`saveConfig`+`broadcast` → 前端 `applySettingsEnterDelay()`（只 `wsSend`，服务端权威）→ 接收侧 `enterDelayMs = msg.data` + 前端日志。`sendInputBar()` 内 `await sleep(enterDelayMs)` 取代 `await sleep(ENTER_DELAY)`；`ENTER_DELAY` 常量已删除。Enter 键发送（`inputBarEnterAction==='send'`）与右侧「发送」按钮（`inputBarButtonAction==='send'`）共用 `sendInputBar()`，停顿两者同步受控。设置弹窗「输入条动作」组新增「回车停顿 (ms)」行（number input + 应用按钮，沿用 `swipe_threshold` 模式，非即时应用）。**改了 `server.js` 需 `npm run restart`**（由用户执行，AI 不擅自重启）。
 
 ## 开发工作流
 
