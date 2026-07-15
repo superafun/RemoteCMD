@@ -160,7 +160,7 @@
         function openSettingsModal() {
             if (settingsDiv) { settingsDiv.remove(); settingsDiv = null; }
             let html = '<div class="modal-overlay" onclick="if(event.target===this)closeSettingsModal()">';
-            html += '<div class="modal-box" style="min-width:0;max-width:380px;width:min(380px,calc(100vw - 24px));">';
+            html += '<div class="modal-box" style="min-width:0;max-width:360px;width:min(360px,calc(100vw - 24px));">';
             html += '<h3>设置</h3>';
 
             // === 终端尺寸 ===
@@ -169,7 +169,7 @@
 
             // 大尺寸
             html += '<div class="modal-row">';
-            html += '<span class="modal-label">大尺寸</span>';
+            html += '<span class="modal-label" style="min-width:0;">大尺寸</span>';
             html += '行 <input type="number" id="settingsLargeRowsInput" min="20" max="200" style="width:80px;">';
             html += '列 <input type="number" id="settingsLargeColsInput" min="20" max="200" style="width:80px;">';
             html += '<button class="btn-primary" id="btn-apply-largeSize" onclick="applySettingsLargeSize()">应用</button>';
@@ -177,7 +177,7 @@
 
             // 小尺寸
             html += '<div class="modal-row">';
-            html += '<span class="modal-label">小尺寸</span>';
+            html += '<span class="modal-label" style="min-width:0;">小尺寸</span>';
             html += '行 <input type="number" id="settingsSmallRowsInput" min="20" max="200" style="width:80px;">';
             html += '列 <input type="number" id="settingsSmallColsInput" min="20" max="200" style="width:80px;">';
             html += '<button class="btn-primary" id="btn-apply-smallSize" onclick="applySettingsSmallSize()">应用</button>';
