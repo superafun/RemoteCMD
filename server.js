@@ -209,6 +209,7 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'input_bar_button_action', data: config.inputBarButtonAction }));
     ws.send(JSON.stringify({ type: 'input_bar_enter_action', data: config.inputBarEnterAction }));
     ws.send(JSON.stringify({ type: 'input_bar_close_after_send', data: config.inputBarCloseAfterSend }));
+    ws.send(JSON.stringify({ type: 'enter_delay_ms', data: config.enterDelayMs }));
     ws.send(JSON.stringify({ type: 'max_buffer', data: config.maxBuffer }));
     ws.send(JSON.stringify({ type: 'max_frontend_logs', data: config.maxFrontendLogs }));
     ws.send(JSON.stringify({ type: 'bell_debounce_ms', data: config.bellDebounceMs }));
@@ -329,6 +330,12 @@ wss.on('connection', (ws) => {
             if (typeof data !== 'boolean') return;
             config.inputBarCloseAfterSend = data;
             broadcast({ type: 'input_bar_close_after_send', data: config.inputBarCloseAfterSend });
+            saveConfig(config);
+        }
+        else if (type === 'enter_delay_ms') {
+            if (typeof data !== 'number' || data < 50 || data > 3000) return;
+            config.enterDelayMs = data;
+            broadcast({ type: 'enter_delay_ms', data: config.enterDelayMs });
             saveConfig(config);
         }
 	else if (type === 'max_buffer') {
