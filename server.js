@@ -311,6 +311,24 @@ wss.on('connection', (ws) => {
             broadcast({ type: 'show_scroll_buttons', data: config.showScrollButtons });
             saveConfig(config);
         }
+        else if (type === 'input_bar_button_action') {
+            if (data !== 'newline' && data !== 'send') return;
+            config.inputBarButtonAction = data;
+            broadcast({ type: 'input_bar_button_action', data: config.inputBarButtonAction });
+            saveConfig(config);
+        }
+        else if (type === 'input_bar_enter_action') {
+            if (data !== 'newline' && data !== 'send') return;
+            config.inputBarEnterAction = data;
+            broadcast({ type: 'input_bar_enter_action', data: config.inputBarEnterAction });
+            saveConfig(config);
+        }
+        else if (type === 'input_bar_close_after_send') {
+            if (typeof data !== 'boolean') return;
+            config.inputBarCloseAfterSend = data;
+            broadcast({ type: 'input_bar_close_after_send', data: config.inputBarCloseAfterSend });
+            saveConfig(config);
+        }
 	else if (type === 'max_buffer') {
             config.maxBuffer = data;
             maxBufferChars = data * 1000000;  // 关键：更新缓存
