@@ -32,6 +32,16 @@
         .toast-success { background: #2d6cdf; }
         .toast-error   { background: #d9534f; }
         /* 右上角：top/right 16px，transform: translateX(120%) 初始在屏幕右侧外，加 .toast-show 滑入；停留 1.5s 后滑出，允许堆叠（每个偏移 40px） */
+        .recent-path-item {
+            padding: 6px 10px;
+            cursor: pointer;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 360px;
+        }
+        .recent-path-item:hover { background: rgba(255, 255, 255, 0.08); }
+        .dropdown-empty { padding: 6px 10px; color: #888; white-space: nowrap; }
     </style>
 </head>
 
@@ -73,6 +83,7 @@
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
+        let recentPaths = [];
         const wsProtocol = location.protocol === 'https:' ? 'wss' : 'ws';
         let hotkeys = {};
         let scrollIntervalTerminal = 100;
@@ -1071,6 +1082,50 @@
             pendingCreate = true;
             wsSend({ type: 'create' });
         }
+        // 渲染「最近路径」下拉内容
+        function renderRecentPathsDropdown() {
+            const dd = document.getElementById('recentPathsDropdown');
+            dd.innerHTML = '';
+            if (!recentPaths.length) {
+                const empty = document.createElement('div');
+                empty.className = 'dropdown-empty';
+                empty.textContent = '暂无记录';
+                dd.appendChild(empty);
+                return;
+            }
+            recentPaths.forEach(p => {
+                const item = document.createElement('div');
+                item.className = 'recent-path-item';
+                item.textContent = p;   // 用 textContent，避免路径特殊字符破坏 DOM
+                item.addEventListener('click', () => {
+                    copyToClipboard(p);
+                    showToast('已复制', 'success');
+                    dd.classList.remove('open');
+                });
+                dd.appendChild(item);
+            });
+        }
+
+        // 「最近路径」按钮：定位 + 展开/收起
+        document.getElementById('recentPathsBtn').addEventListener('click', (e) => {
+            const btn = e.currentTarget;
+            const dd = document.getElementById('recentPathsDropdown');
+            const rect = btn.getBoundingClientRect();
+            dd.style.top = rect.bottom + 'px';
+            dd.style.left = rect.left + 'px';
+            dd.style.minWidth = Math.max(rect.width, 200) + 'px';
+            renderRecentPathsDropdown();
+            dd.classList.toggle('open');
+        });
+        // 点击下拉外部关闭（复用 sessionDropdown 同款 document 监听模式）
+        document.addEventListener('click', (e) => {
+            const btn = document.getElementById('recentPathsBtn');
+            const dd = document.getElementById('recentPathsDropdown');
+            if (!btn.contains(e.target) && !dd.contains(e.target)) {
+                dd.classList.remove('open');
+            }
+        });
+
         function killCurrent() {
             if (activeId == null) return;
             addFrontendLog('关闭终端 (' + (sessions.get(activeId)?.name || 'Shell #' + activeId) + ')', 'out');
