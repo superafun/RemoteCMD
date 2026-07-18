@@ -20,6 +20,19 @@
 
 ---
 
+## 实现注意（策划阶段已用冒烟测试验证）
+
+**xterm `write()` 是异步的，序列化必须等写回调之后。** 这是本计划最容易踩的坑：
+
+- `headlessTerminal.write(d)` 把数据入队，解析发生在后续 tick（写回调 / `onWriteParsed` 触发后），**不是** `write()` 返回时立即解析。
+- 若在 `onData` 里 `write(d)` 之后**同步**调用 `serializeAddon.serialize()`，会拍到**半更新的屏幕**（残缺/旧帧）。
+- 正确做法：用一条"写回调串行 promise 链"`sess._writeSeq` 串起每次 `write(d, res)`，序列化前 `await sess._writeSeq` 排空当前已排队的所有 write，再 `serialize()`。
+- `buffer` 消息处理（重连快照）因此必须是**异步**的：`await` 排空后再算 `serverViewportHash` 比对、`serialize` 整屏，最后 `ws.send`。
+
+冒烟验证结论：`serialize()` 在异步解析完成后稳定产出整屏 ANSI（空屏返回 `''`，非空屏返回内容，roundtrip 一致）；同步调用则偶发返回 `''`/残缺。客户端 `computeViewportHash` 与服务端 `serverViewportHash` 同为 `translateToString` + FNV-1a，口径一致。
+
+---
+
 ## 文件结构
 
 - `server.js`（修改）：新增 headless 终端创建/喂流/resize；改 `buffer` 消息处理为指纹比对 + 序列化全量；新增 `syncMode` 配置与 legacy 兜底分支；清理 `client_tail_max` 广播（Phase 1 保留开关，Phase 2 删除）。

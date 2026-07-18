@@ -176,6 +176,8 @@
         let bufferQueue = [];  // 等待加载缓存的后台终端 ID 队列
         let clientTailMax = 4096;  // 默认值，config.json 加载后会覆盖
         let clientTailMax2 = clientTailMax * 2;
+        let syncMode = 'screen';  // 'screen' = headless 整屏同步；'legacy' = 旧字节流兜底
+        let screenHistoryLines = 1000;  // headless 终端保留的真实滚屏历史行数（重连可上滚查看）
         let settingsDiv = null;  // 设置弹窗 DOM 句柄
         // === 前端日志 ===
         let maxFrontendLogs = 50;
@@ -355,6 +357,13 @@
             html += '<button class="btn-primary" id="btn-apply-maxBuffer" onclick="applySettingsMaxBuffer()">应用</button>';
             html += '</div>';
 
+            // 重连滚屏历史行数（headless scrollback）
+            html += '<div class="modal-row">';
+            html += '<span class="modal-label">重连滚屏历史 (行)</span>';
+            html += '<input type="number" id="settingsScreenHistoryLinesInput" min="0" max="20000" step="100" style="width:80px;">';
+            html += '<button class="btn-primary" id="btn-apply-screenHistoryLines" onclick="applySettingsScreenHistoryLines()">应用</button>';
+            html += '</div>';
+
             // 日志上限 (条)
             html += '<div class="modal-row">';
             html += '<span class="modal-label">日志上限 (条)</span>';
@@ -437,6 +446,7 @@
             document.getElementById('settingsInputBarHideOnBlurInput').checked = inputBarHideOnBlur;
             document.getElementById('settingsEnterDelayInput').value = enterDelayMs;
             document.getElementById('settingsMaxBufferInput').value = maxBuffer;
+            document.getElementById('settingsScreenHistoryLinesInput').value = screenHistoryLines;
             document.getElementById('settingsMaxFrontendLogsInput').value = maxFrontendLogs;
             document.getElementById('settingsClientTailMaxInput').value = clientTailMax;
             document.getElementById('settingsBellDebounceMsInput').value = bellDebounceMs;
@@ -620,6 +630,16 @@
                 fbBtn('btn-apply-maxBuffer', true);
             } else {
                 fbBtn('btn-apply-maxBuffer', false);
+            }
+        }
+
+        function applySettingsScreenHistoryLines() {
+            const v = parseInt(document.getElementById('settingsScreenHistoryLinesInput').value);
+            if (Number.isInteger(v) && v >= 0 && v <= 20000) {
+                wsSend({ type: 'screen_history_lines', data: v });
+                fbBtn('btn-apply-screenHistoryLines', true);
+            } else {
+                fbBtn('btn-apply-screenHistoryLines', false);
             }
         }
 
@@ -953,6 +973,14 @@
                         clientTailMax2 = msg.data * 2;
                         sessions.forEach(s => s.trimClientTail(clientTailMax));
                         addFrontendLog('buffer 去重比对长度同步为 ' + clientTailMax + ' 字节', 'in');
+                    } else if (msg.type === 'sync_mode') {
+                        syncMode = msg.data; // 'screen' | 'legacy'
+                        addFrontendLog('同步模式切换为 ' + syncMode, 'in');
+                    } else if (msg.type === 'screen_history_lines') {
+                        screenHistoryLines = msg.data;
+                        const inp = document.getElementById('settingsScreenHistoryLinesInput');
+                        if (inp) inp.value = screenHistoryLines;
+                        addFrontendLog('重连滚屏历史行数同步为 ' + screenHistoryLines, 'in');
                     } else if (msg.type === 'bell_debounce_ms') {
                         bellDebounceMs = msg.data;
                         addFrontendLog('通知防抖时长同步为 ' + bellDebounceMs + ' ms', 'in');

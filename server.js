@@ -4,6 +4,9 @@ const http = require('http');
 const fs = require('fs');
 const { WebSocketServer } = require('ws');
 const pty = require('node-pty');
+const { Terminal: HeadlessTerminal } = require('@xterm/headless');
+const { SerializeAddon } = require('@xterm/addon-serialize');
+const { Unicode11Addon: HeadlessUnicode11Addon } = require('@xterm/addon-unicode11');
 
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 function loadConfig() {
@@ -17,6 +20,8 @@ function loadConfig() {
             maxBuffer: 10,
             maxFrontendLogs: 50,
             clientTailMax: 4096,
+            syncMode: 'screen', // 'screen' = headless 整屏同步；'legacy' = 旧字节流兜底
+            screenHistoryLines: 1000, // headless 终端保留的真实滚屏历史行数（重连可上滚查看）
             swipeThreshold: 24,
             swipeClassify: 10,
             showScrollButtons: true,
@@ -58,6 +63,8 @@ function loadConfig() {
     }
     if (typeof cfg.maxBuffer !== 'number' || cfg.maxBuffer < 1 || cfg.maxBuffer > 90) cfg.maxBuffer = 10;
     if (cfg.clientTailMax == null) cfg.clientTailMax = 4096;
+    if (cfg.syncMode !== 'legacy' && cfg.syncMode !== 'screen') cfg.syncMode = 'screen';
+    if (!Number.isInteger(cfg.screenHistoryLines) || cfg.screenHistoryLines < 0 || cfg.screenHistoryLines > 20000) cfg.screenHistoryLines = 1000;
     if (typeof cfg.scrollIntervalTerminal !== 'number' || cfg.scrollIntervalTerminal < 1 || cfg.scrollIntervalTerminal > 1000) cfg.scrollIntervalTerminal = 100;
     if (typeof cfg.scrollIntervalPage !== 'number' || cfg.scrollIntervalPage < 1 || cfg.scrollIntervalPage > 1000) cfg.scrollIntervalPage = 100;
     if (typeof cfg.swipeThreshold !== 'number' || cfg.swipeThreshold < 1 || cfg.swipeThreshold > 200) cfg.swipeThreshold = 24;
@@ -81,6 +88,9 @@ let config = loadConfig();
 // 缓存 maxBuffer 对应的字符数（1 MB = 1,000,000 字符），仅在配置变更时重算
 let maxBufferChars = (config.maxBuffer || 10) * 1000000;
 
+// 重连同步序列化产物硬上限（约 4MB），超限降级 legacy 全量字节流兜底
+const maxSyncBytes = 4 * 1000 * 1000;
+
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
@@ -100,9 +110,46 @@ function buildSizeSlotsMsg() {
     return { type: 'size_slots', data: config.sizeSlots };
 }
 
-// 调整所有 PTY 尺寸
+// 调整所有 PTY 尺寸（含 headless 屏幕，保证与所有客户端同尺寸对齐）
 function resizeAllPtys(rows, cols) {
-    Object.values(sessions).forEach(s => s.pty.resize(cols, rows));
+    Object.values(sessions).forEach(s => {
+        s.pty.resize(cols, rows);
+        if (s.screen) { try { s.screen.resize(cols, rows); } catch (e) {} }
+    });
+}
+
+// 计算 headless 终端可见视口的指纹（FNV-1a），口径与前端 computeViewportHash 一致。
+// 仅用于重连"未变更则跳过发 0 字节"的优化；碰撞仅多一次全量，可接受。
+function serverViewportHash(screen) {
+    const buf = screen.buffer.active;
+    const rowCount = screen.rows;
+    let s = '';
+    for (let i = 0; i < rowCount; i++) {
+        const line = buf.getLine(i);
+        s += line ? line.translateToString() : '';
+        s += '\n';
+    }
+    let h = 0x811c9dc5;
+    for (let i = 0; i < s.length; i++) {
+        h ^= s.charCodeAt(i);
+        h = Math.imul(h, 0x01000193);
+    }
+    return (h >>> 0).toString(16);
+}
+
+// 等 headless 终端把"当前已排队的全部 write"解析完后，序列化整屏（可见视口 + 有界真实滚屏历史）。
+// 关键点：xterm 的 write() 是异步的，必须在最后一个 write 的回调之后才能 serialize，
+// 否则会拍到半更新的屏幕（策划阶段已用冒烟测试验证：同步 serialize 会得到残缺屏）。
+// sess._writeSeq 是一条"已发出 write 的串行 promise 链"，这里快照当前链尾再序列化。
+function serializeScreen(sess) {
+    const seq = sess._writeSeq || Promise.resolve();
+    return seq.then(() => {
+        try {
+            return sess.serializeAddon.serialize();
+        } catch (e) {
+            throw e;
+        }
+    });
 }
 
 function broadcast(msg) {
@@ -201,9 +248,33 @@ function createSession() {
     // TUI 持续输出 → timer 不断重置，bellArmed=true 但永远不会到点 → 0 次通知。
     // TUI 停下 1 秒 → timer 到点 → 1 次通知。
     sessions[newId] = { pty: ptyProcess, buffer: '', inputLine: '', name: computeSmartName(), bellTimer: null, bellArmed: false };
-    // buffer 保留原始字节（含可能的 \x07），便于前端重连时完整回放
+    // === 重连同步：headless 终端维护"当前可见屏幕 + 有界真实滚屏历史" ===
+    // scrollback 用有界行数（config.screenHistoryLines，绝不为 0，否则重连无法上滚看历史）。
+    // 加载 Unicode11Addon 与客户端一致，保证字符宽度/换行对齐；SerializeAddon 用于重连时序列化整屏。
+    // _writeSeq：一条写回调串行链，保证 serialize 前所有 write 都已解析（见 serializeScreen）。
+    {
+        const screen = new HeadlessTerminal({ scrollback: config.screenHistoryLines || 1000, allowProposedApi: true });
+        screen.loadAddon(new HeadlessUnicode11Addon());
+        screen.unicode.activeVersion = '11';
+        const serializeAddon = new SerializeAddon();
+        screen.loadAddon(serializeAddon);
+        const slot = config.sizeSlots[config.currentSize];
+        try { screen.resize(slot.cols, slot.rows); } catch (e) {}
+        sessions[newId].screen = screen;
+        sessions[newId].serializeAddon = serializeAddon;
+        sessions[newId]._writeSeq = Promise.resolve();
+    }
+    // buffer 保留原始字节（含可能的 \x07），便于前端重连时完整回放（legacy 兜底 + 超上限降级用）
     ptyProcess.onData((d) => {
         sessions[newId].buffer += d;
+        // 同步喂给 headless 终端，折叠成当前屏幕状态（重连同步用）。
+        // 用写回调串行链 _writeSeq 保证 serialize 前所有 write 已解析（异步时序，不可同步 serialize）。
+        const scr = sessions[newId].screen;
+        if (scr) {
+            sessions[newId]._writeSeq = sessions[newId]._writeSeq.then(() => new Promise(res => {
+                try { scr.write(d, res); } catch (e) { res(); }
+            })).catch(() => {});
+        }
         // 滞回式：超 2x 才截断，截到 1x（避免每帧 O(N) slice）
         if (sessions[newId].buffer.length > maxBufferChars * 2) {
             sessions[newId].buffer = sessions[newId].buffer.slice(-maxBufferChars);
@@ -229,6 +300,9 @@ function createSession() {
         if (sessions[newId] && sessions[newId].bellTimer) {
             clearTimeout(sessions[newId].bellTimer);
         }
+        if (sessions[newId] && sessions[newId].screen) {
+            try { sessions[newId].screen.dispose(); } catch (e) {}
+        }
         delete sessions[newId];
         broadcast(buildListMsg());
     });
@@ -247,6 +321,8 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify(buildSizeSlotsMsg()));
     ws.send(JSON.stringify({ type: 'current_size', data: config.currentSize }));
     ws.send(JSON.stringify({ type: 'client_tail_max', data: config.clientTailMax }));
+    ws.send(JSON.stringify({ type: 'sync_mode', data: config.syncMode }));
+    ws.send(JSON.stringify({ type: 'screen_history_lines', data: config.screenHistoryLines }));
     if (Object.keys(sessions).length === 0) {
         // 首次连接：createSession() 内部 broadcast(list) 给所有 ws（含新 ws）
         // 新 ws 接收顺序：size_slots → current_size → client_tail_max → list
@@ -288,32 +364,65 @@ wss.on('connection', (ws) => {
         else if (type === 'recent_paths_delete') removeRecentPath(data);
         else if (type === 'kill' && sessions[id]) sessions[id].pty.kill();
         else if (type === 'buffer' && sessions[id]) {
-            const buf = sessions[id].buffer;
-            const tail = p.tail;
-            let data;
-            let reset = true;  // 默认全量模式（档 3），需要清空 xterm 重写
+            const sess = sessions[id];
+            // legacy 模式：旧字节流 tail 匹配（兜底用，Phase 1 保留，待 Task 9 删除）
+            if (config.syncMode === 'legacy') {
+                const buf = sess.buffer;
+                const tail = p.tail;
+                let data;
+                let reset = true;  // 默认全量模式（档 3），需要清空 xterm 重写
 
-            if (tail !== '') {
-                if (buf.endsWith(tail)) {
-                    // 档 1：未变更
-                    data = '';
-                    reset = false;
-                } else {
-                    const i = buf.lastIndexOf(tail);
-                    if (i !== -1) {
-                        // 档 2：增量推送
-                        data = buf.slice(i + tail.length);
+                if (tail !== '') {
+                    if (buf.endsWith(tail)) {
+                        // 档 1：未变更
+                        data = '';
                         reset = false;
+                    } else {
+                        const i = buf.lastIndexOf(tail);
+                        if (i !== -1) {
+                            // 档 2：增量推送
+                            data = buf.slice(i + tail.length);
+                            reset = false;
+                        }
                     }
                 }
-            }
-            if (data === undefined) {
-                // 档 3：全量（空串或 lastIndexOf 没找到）
-                data = buf.length > maxBufferChars ? buf.slice(-maxBufferChars) : buf;
-                // reset 保持 true
-            }
+                if (data === undefined) {
+                    // 档 3：全量（空串或 lastIndexOf 没找到）
+                    data = buf.length > maxBufferChars ? buf.slice(-maxBufferChars) : buf;
+                    // reset 保持 true
+                }
 
-            ws.send(JSON.stringify({ type: 'buffer', id, data, ...(reset ? { reset: true } : {}) }));
+                ws.send(JSON.stringify({ type: 'buffer', id, data, ...(reset ? { reset: true } : {}) }));
+                return;
+            }
+            // screen 模式（默认）：排空 write → 指纹比对 → 未变更发 0 字节，否则整屏序列化
+            const screen = sess.screen;
+            if (!screen) { return; } // 无 headless 终端则不发屏（靠实时流恢复）
+            // 先等所有已排队 write 解析完，再读屏幕/比对/序列化，避免拍到半更新屏
+            const seq = sess._writeSeq || Promise.resolve();
+            seq.then(() => {
+                try {
+                    const serverHash = serverViewportHash(screen);
+                    if (p.screenHash && p.screenHash === serverHash) {
+                        // 未变更：发 0 字节，客户端保持原样
+                        ws.send(JSON.stringify({ type: 'buffer', id, data: '' }));
+                        return;
+                    }
+                    // 变更：序列化整个 buffer（可见视口 + 有界真实滚屏历史）发回
+                    const ansi = sess.serializeAddon.serialize();
+                    if (ansi.length > maxSyncBytes) {
+                        // 超上限降级：legacy 全量字节流兜底
+                        const buf = sess.buffer;
+                        const fallback = buf.length > maxBufferChars ? buf.slice(-maxBufferChars) : buf;
+                        ws.send(JSON.stringify({ type: 'buffer', id, data: fallback, reset: true }));
+                        return;
+                    }
+                    ws.send(JSON.stringify({ type: 'buffer', id, data: ansi, reset: true }));
+                } catch (e) {
+                    // 序列化失败：不发屏，靠实时流恢复，绝不崩
+                    console.error('[buffer] serialize failed, skip:', e && e.message);
+                }
+            }).catch(e => console.error('[buffer] drain failed, skip:', e && e.message));
         }
         else if (type === 'size_slots') {
             // C → S: 写 sizeSlots[sizeMode] + 落盘 + 全量广播
@@ -413,6 +522,15 @@ wss.on('connection', (ws) => {
             config.maxBuffer = data;
             maxBufferChars = data * 1000000;  // 关键：更新缓存
             broadcast({ type: 'max_buffer', data: config.maxBuffer });
+            saveConfig(config);
+        }
+        else if (type === 'screen_history_lines') {
+            // headless 终端 scrollback 在构造时确定，不在运行时热改（避免内部 API 脆弱性）。
+            // 新值应用到之后新建的会话；已在运行的会话在下次重连/重建时按新值创建 headless 终端。
+            const v = parseInt(data);
+            if (!Number.isInteger(v) || v < 0 || v > 20000) return;
+            config.screenHistoryLines = v;
+            broadcast({ type: 'screen_history_lines', data: config.screenHistoryLines });
             saveConfig(config);
         }
         else if (type === 'max_frontend_logs') {

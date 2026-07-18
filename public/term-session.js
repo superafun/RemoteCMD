@@ -1,9 +1,30 @@
 // public/term-session.js
 // 封装单个终端会话的所有状态与行为。
 // 依赖全局：Terminal, WebLinksAddon, Unicode11Addon,
-//          wsSend, clientTailMax
+//          wsSend, clientTailMax, syncMode
 // （rows/cols 已在 2026-07-01 改用 size_slots/current_size 协议，
 //  TermSession 构造时不立即 resize，等 current_size 消息到达后由外部循环调用 resize）
+
+// 计算 xterm 可见视口的指纹：拼接 0..rows-1 行文本后做轻量 FNV-1a 哈希。
+// 仅用于重连"未变更则跳过"的优化；不相等时服务端会整屏重发，故哈希碰撞可接受（碰撞仅多一次全量）。
+// 口径与服务端 serverViewportHash 一致（同用 translateToString + FNV-1a）。
+function computeViewportHash(term) {
+    const buf = term.buffer.active;
+    const rowCount = term.rows;
+    let s = '';
+    for (let i = 0; i < rowCount; i++) {
+        const line = buf.getLine(i);
+        s += line ? line.translateToString() : '';
+        s += '\n';
+    }
+    let h = 0x811c9dc5;
+    for (let i = 0; i < s.length; i++) {
+        h ^= s.charCodeAt(i);
+        h = Math.imul(h, 0x01000193);
+    }
+    return (h >>> 0).toString(16);
+}
+
 class TermSession {
     constructor(id, container) {
         this.id = id;
@@ -60,21 +81,32 @@ class TermSession {
     }
 
     // === 写入 ===
-    // mode 缺省 'append'，'reset' 时先 reset 再 write
+    // mode 缺省 'append'，'reset' 时先 reset 再 write。
+    // screen 模式（默认）：不维护 clientTail（由服务端 headless 屏幕负责同步）。
+    // legacy 模式：仍追加 clientTail，供断连时发 tail 匹配。
     write(data, mode = 'append') {
         if (mode === 'reset') this.term.reset();
         this.term.write(data);
-        this.appendClientTail(data);
+        if (syncMode === 'legacy') this.appendClientTail(data);
     }
 
     // === Buffer 协议 ===
+    // screen 模式（默认）：发可见视口指纹 screenHash，服务端比对后决定发 0 字节或整屏。
+    // legacy 模式：发尾部字节 tail（旧字节流机制，仅作兜底）。
     requestBuffer() {
-        // 发送前确保 tail 不超过阈值（appendClientTail 是滞回式，可能还没裁）
-        if (this.clientTail.length > clientTailMax) {
-            this.clientTail = this.clientTail.slice(-clientTailMax);
+        if (syncMode === 'legacy') {
+            // 发送前确保 tail 不超过阈值（appendClientTail 是滞回式，可能还没裁）
+            if (this.clientTail.length > clientTailMax) {
+                this.clientTail = this.clientTail.slice(-clientTailMax);
+            }
+            this.pendingBuffer = true;
+            wsSend({ type: 'buffer', id: this.id, tail: this.clientTail });
+            this.showBufferLoading();
+            return;
         }
+        const hash = computeViewportHash(this.term);
         this.pendingBuffer = true;
-        wsSend({ type: 'buffer', id: this.id, tail: this.clientTail });
+        wsSend({ type: 'buffer', id: this.id, screenHash: hash });
         this.showBufferLoading();
     }
 
