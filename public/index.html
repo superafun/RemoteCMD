@@ -1146,6 +1146,7 @@
             recentPaths.forEach(p => {
                 const item = document.createElement('div');
                 item.className = 'recent-path-item';
+                item.title = p;   // 悬停整行显示完整路径（原生 tooltip）；✕ 的 title 取更内层，不冲突
 
                 const label = document.createElement('span');
                 label.className = 'recent-path-label';
