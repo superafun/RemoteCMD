@@ -47,6 +47,34 @@
             overflow: hidden;
             text-overflow: ellipsis;
         }
+        #recentPathsDropdown .recent-path-expand {
+            flex: 0 0 auto;
+            width: 22px;
+            height: 22px;
+            min-width: 0;
+            padding: 0;
+            margin: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            background: transparent;
+            color: #999;
+            cursor: pointer;
+            font-size: 13px;
+            line-height: 1;
+            border-radius: 4px;
+        }
+        #recentPathsDropdown .recent-path-expand:hover { background: rgba(255, 255, 255, 0.12); color: #e0e0e0; }
+        #recentPathsDropdown .recent-path-item.expanded .recent-path-label {
+            white-space: normal;
+            word-break: break-all;
+            overflow: visible;
+            text-overflow: clip;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            #recentPathsDropdown .recent-path-expand { display: none; }
+        }
         #recentPathsDropdown .recent-path-del {
             flex: 0 0 auto;
             width: 22px;
@@ -79,6 +107,8 @@
             padding: 4px 0;
             font-size: 13px;
             color: #e0e0e0;
+            max-height: 60vh;          /* 新增：手机端展开多行后不溢出视口 */
+            overflow-y: auto;          /* 新增：超出则滚动 */
         }
         .dropdown-menu.open { display: block; }
         .dropdown-empty { padding: 6px 10px; color: #888; white-space: nowrap; }
@@ -1147,6 +1177,18 @@
                 const item = document.createElement('div');
                 item.className = 'recent-path-item';
                 item.title = p;   // 悬停整行显示完整路径（原生 tooltip）；✕ 的 title 取更内层，不冲突
+
+                const expandBtn = document.createElement('button');
+                expandBtn.className = 'recent-path-expand';
+                expandBtn.type = 'button';
+                expandBtn.textContent = '▸';   // ▸ (U+25B8)
+                expandBtn.title = '展开/收起完整路径';
+                expandBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();                       // 避免触发整行复制
+                    const on = item.classList.toggle('expanded');
+                    expandBtn.textContent = on ? '▾' : '▸';    // ▾ (U+25BE)
+                });
+                item.appendChild(expandBtn);
 
                 const label = document.createElement('span');
                 label.className = 'recent-path-label';
