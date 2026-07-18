@@ -909,12 +909,16 @@
                         const s = sessions.get(msg.id);
                         if (!s) return;
                         const result = s.handleBufferResponse(msg);
+                        const mode = syncMode === 'screen' ? 'screen' : 'legacy';
                         if (result === 'skip') {
-                            addFrontendLog('缓冲区无变化，跳过回放 (' + s.name + ')', 'in');
+                            // screen 模式指纹命中：服务端发 0 字节，客户端保持原样（验证"未变更则不发"优化）
+                            addFrontendLog(`重连[${mode}] 指纹命中，发 0 字节，跳过回放 (${s.name})`, 'in');
                         } else if (result === 'incremental') {
-                            addFrontendLog(`缓冲区增量 ${msg.data.length} 字节 (${s.name})`, 'in');
+                            addFrontendLog(`重连[${mode}] 增量回放 ${msg.data.length} 字节 (${s.name})`, 'in');
                         } else if (result === 'full') {
-                            addFrontendLog(`缓冲区全量回放 ${msg.data.length} 字节 (${s.name})`, 'in');
+                            // screen 模式整屏重建：data 为 headless 序列化的整屏 ANSI（含可见视口+真实滚屏历史）
+                            const tag = mode === 'screen' ? '整屏重建(含历史)' : '全量回放';
+                            addFrontendLog(`重连[${mode}] ${tag} ${msg.data.length} 字节 (${s.name})`, 'in');
                         }
                         // 当前终端缓存加载完毕，触发队列中的下一个
                         if (bufferQueue.length > 0) {

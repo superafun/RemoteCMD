@@ -101,12 +101,14 @@ class TermSession {
             }
             this.pendingBuffer = true;
             wsSend({ type: 'buffer', id: this.id, tail: this.clientTail });
+            if (typeof addFrontendLog === 'function') addFrontendLog(`重连请求[legacy] 发 tail ${this.clientTail.length} 字节 (${this.name})`, 'out');
             this.showBufferLoading();
             return;
         }
         const hash = computeViewportHash(this.term);
         this.pendingBuffer = true;
         wsSend({ type: 'buffer', id: this.id, screenHash: hash });
+        if (typeof addFrontendLog === 'function') addFrontendLog(`重连请求[screen] 发指纹 ${hash} (${this.name})`, 'out');
         this.showBufferLoading();
     }
 
