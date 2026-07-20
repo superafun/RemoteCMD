@@ -379,7 +379,11 @@ wss.on('connection', (ws) => {
             const line = feedInputLine(sessions[id], data);
             if (line) {
                 const m = line.match(/\b[A-Za-z]:\\[^\s"'`]+/);
-                if (m) addRecentPath(m[0]);
+                if (m) {
+                    resolveFolderToRecord(m[0]).then(folder => {
+                        if (folder) addRecentPath(folder);
+                    });
+                }
             }
         }
         else if (type === 'recent_paths_delete') removeRecentPath(data);
