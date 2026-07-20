@@ -176,6 +176,27 @@ function removeRecentPath(raw) {
     broadcast({ type: 'recent_paths', data: config.recentPaths, deleted: p });
 }
 
+// 判定一个盘符路径应记入的"文件夹路径"：
+// 是目录 → 本身；是文件 → 其父文件夹；不存在/出错 → null（跳过，不记录）
+// 返回 Promise<string|null>
+function resolveFolderToRecord(raw) {
+    const p = (raw || '').trim();
+    if (!p) return Promise.resolve(null);
+    return fs.promises.stat(p)
+        .then(stats => {
+            if (stats.isDirectory()) return normalizePath(p);
+            if (stats.isFile()) return normalizePath(path.dirname(p));
+            return null;
+        })
+        .catch(() => null);
+}
+
+// 剥掉末尾反斜杠（C:\ 根保留，避免把 C:\ 记成 C:）
+function normalizePath(s) {
+    if (s.length > 3 && s.endsWith('\\')) return s.slice(0, -1);
+    return s;
+}
+
 // 把输入字节流累积成"当前输入行"；遇到回车/换行返回完成行并清空，否则返回 null。
 // 跳过 ANSI 转义序列（方向键等），处理退格。用于从任意入口（输入条/终端直敲）检测路径。
 function feedInputLine(session, data) {
