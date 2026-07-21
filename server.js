@@ -27,6 +27,8 @@ function loadConfig() {
             bellToastEnabled: true,
             bellOsEnabled: true, // 系统通知（OS 弹窗）开关
             bellBeepDurationMs: 300,
+            ntfyEnabled: false, // 推送通知到手机 (ntfy) 开关
+            ntfyTopic: '', // ntfy 话题名（即密码，需随机不可猜）
             inputBarButtonAction: 'newline',
             inputBarEnterAction: 'send',
             inputBarCloseAfterSend: false,
@@ -68,6 +70,8 @@ function loadConfig() {
     if (typeof cfg.bellToastEnabled !== 'boolean') cfg.bellToastEnabled = true;
     if (typeof cfg.bellOsEnabled !== 'boolean') cfg.bellOsEnabled = true;
     if (typeof cfg.bellBeepDurationMs !== 'number' || cfg.bellBeepDurationMs < 50 || cfg.bellBeepDurationMs > 2000) cfg.bellBeepDurationMs = 300;
+    if (typeof cfg.ntfyEnabled !== 'boolean') cfg.ntfyEnabled = false;
+    if (typeof cfg.ntfyTopic !== 'string') cfg.ntfyTopic = '';
     if (cfg.inputBarButtonAction !== 'newline' && cfg.inputBarButtonAction !== 'send') cfg.inputBarButtonAction = 'newline';
     if (cfg.inputBarEnterAction !== 'newline' && cfg.inputBarEnterAction !== 'send') cfg.inputBarEnterAction = 'send';
     if (typeof cfg.inputBarCloseAfterSend !== 'boolean') cfg.inputBarCloseAfterSend = false;
@@ -295,6 +299,15 @@ function createSession() {
                 sessions[newId].bellTimer = null;
                 sessions[newId].bellArmed = false;
                 broadcast({ type: 'bell', id: newId });
+                // ntfy 安卓推送出口：BEL 去抖触发后，向话题 POST 一行消息（fire-and-forget）
+                if (config.ntfyEnabled && config.ntfyTopic) {
+                    const name = sessions[newId] ? sessions[newId].name : '终端';
+                    fetch('https://ntfy.sh/' + encodeURIComponent(config.ntfyTopic), {
+                        method: 'POST',
+                        headers: { 'Title': 'RemoteCMD 通知', 'Tag': 'bell' },
+                        body: `终端「${name}」任务完成`
+                    }).catch(() => {});
+                }
             }, config.bellDebounceMs);
         }
         // data 消息：原样透传（含 \x07）。
@@ -349,6 +362,8 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'bell_sound_enabled', data: config.bellSoundEnabled }));
     ws.send(JSON.stringify({ type: 'bell_toast_enabled', data: config.bellToastEnabled }));
     ws.send(JSON.stringify({ type: 'bell_os_enabled', data: config.bellOsEnabled }));
+    ws.send(JSON.stringify({ type: 'ntfy_enabled', data: config.ntfyEnabled }));
+    ws.send(JSON.stringify({ type: 'ntfy_topic', data: config.ntfyTopic }));
     ws.send(JSON.stringify({ type: 'bell_beep_duration_ms', data: config.bellBeepDurationMs }));
     ws.send(JSON.stringify({ type: 'recent_paths', data: config.recentPaths }));
     ws.on('message', (msg) => {
@@ -524,6 +539,18 @@ wss.on('connection', (ws) => {
             if (typeof data !== 'boolean') return;
             config.bellOsEnabled = data;
             broadcast({ type: 'bell_os_enabled', data: config.bellOsEnabled });
+            saveConfig(config);
+        }
+        else if (type === 'ntfy_enabled') {
+            if (typeof data !== 'boolean') return;
+            config.ntfyEnabled = data;
+            broadcast({ type: 'ntfy_enabled', data: config.ntfyEnabled });
+            saveConfig(config);
+        }
+        else if (type === 'ntfy_topic') {
+            if (typeof data !== 'string') return;
+            config.ntfyTopic = data;
+            broadcast({ type: 'ntfy_topic', data: config.ntfyTopic });
             saveConfig(config);
         }
         else if (type === 'bell_beep_duration_ms') {
