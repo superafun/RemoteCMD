@@ -43,7 +43,7 @@ server.js
 |--------|------|-------|---------------|
 | 后端 | `server.js` | 100 | Express 静态服务器 + WebSocket 处理器 + node-pty 会话生命周期 + PM2 重启 |
 | 前端 | `public/index.html` | 320 | 单页应用：xterm.js v6 终端、会话切换器、快捷键编辑器、滚动控制、自动重连、重启服务器 |
-| 配置 | `config.json` | ~21 | 持久化配置：`rows`、`cols`、`hotkeys`（名称→转义序列）、`scrollIntervalTerminal`、`scrollIntervalPage`、`maxBuffer`、`maxFrontendLogs`、`clientTailMax`（buffer 尾部比对长度，单位：bytes，默认 4096） |
+| 配置 | `config.json` | ~21 | 持久化配置：`rows`、`cols`、`hotkeys`（名称→转义序列）、`scrollIntervalTerminal`、`scrollIntervalPage`、`screenHistoryLines`（重连滚屏历史行数，默认 1000）、`maxFrontendLogs` |
 
 ### WebSocket 协议（JSON，type 字段）
 
@@ -53,21 +53,18 @@ server.js
 |------|-------------|
 | `list` | 当前会话 ID 列表（连接时及会话变更后发送） |
 | `data` | 指定会话的终端输出（id + data） |
-| `buffer` | 历史缓冲区响应（id + data + 可选 pos）。`pos` 存在 = 档 2 增量推送（客户端只 write 追加）；`pos` 缺席 + `data === ''` = 档 1 未变更（客户端跳过）；`pos` 缺席 + `data !== ''` = 档 3 全量回放（客户端 reset + write） |
+| `buffer` | 重连/切会话屏幕同步响应（id + data + reset）。`data === ''` = 指纹命中未变更（客户端跳过）；`data` 为 ANSI 且 `reset: true` = 整屏序列化重建（客户端 `term.reset() + term.write(data)`，含可见视口 + 有界真实滚屏历史） |
 | `size_slots` | 大/小尺寸槽位全量广播（data: {large: {rows, cols}, small: {rows, cols}}），连接建立时下发 + 客户端写槽后广播 |
 | `current_size` | 当前尺寸广播（data: 'large' \| 'small'），连接建立时下发 + 客户端切换后广播 |
 | `hotkeys` | 快捷键配置同步 |
 | `scroll_interval_terminal` | 终端按住滚动间隔（单位：ms） |
 | `scroll_interval_page` | 页面按住滚动间隔（单位：ms） |
-| `max_buffer` | 缓冲区上限值（单位：MB） |
 | `max_frontend_logs` | 前端日志上限值（单位：条） |
-| `client_tail_max` | 客户端 buffer 尾部比对最大长度（单位：bytes），连接建立时下发 + 设置变更时广播 |
 | `input_bar_button_action` | 输入条右侧按钮动作（data: 'newline' \| 'send'），连接建立时下发 + 设置变更时广播 |
 | `input_bar_enter_action` | 输入条 Enter 键动作（data: 'newline' \| 'send'），连接建立时下发 + 设置变更时广播 |
 | `input_bar_close_after_send` | 发送后关闭输入条（data: boolean），连接建立时下发 + 设置变更时广播 |
 | `enter_delay_ms` | 回车停顿时长（单位：ms），连接建立时下发 + 设置变更时广播 |
 | `restart_server` | 服务端重启确认（data: 'ok'） |
-| `buffer_size` | 当前会话 buffer 占用查询响应（id + used + max，单位：字符数） |
 
 **客户端 → 服务端：**
 
@@ -76,26 +73,22 @@ server.js
 | `create` | 创建新会话 |
 | `input` | 向会话写入数据（id + data） |
 | `kill` | 关闭会话（id） |
-| `buffer` | 请求会话的缓冲区回放（id + 可选 tail，tail 是客户端最近 N 字节原始字符串，默认 N = config.clientTailMax）。服务端按 `endsWith` → `lastIndexOf` → 全量 三档响应（见注意事项 18） |
+| `buffer` | 请求会话屏幕同步（id + screenHash）。screenHash 是客户端当前可见视口指纹（FNV-1a over `translateToString()`），服务端比对自身 headless 视口 hash（见注意事项 20） |
 | `size_slots` | 写大/小尺寸槽位（sizeMode: 'large'\|'small' + rows + cols），服务端会写槽 + 落盘 + 全量广播 |
 | `current_size` | 切换当前尺寸（size: 'large'\|'small'），服务端会切换 + 调所有 PTY + 落盘 + 广播 |
 | `hot_keys` | 更新快捷键配置（data） |
 | `scroll_interval_terminal` | 更新终端按住滚动间隔（data，单位：ms） |
 | `scroll_interval_page` | 更新页面按住滚动间隔（data，单位：ms） |
-| `max_buffer` | 更新缓冲区上限（单位：MB） |
 | `max_frontend_logs` | 更新前端日志上限（单位：条） |
-| `client_tail_max` | 更新客户端 buffer 尾部比对最大长度（data，64 ≤ data ≤ 65536） |
 | `input_bar_button_action` | 更新输入条右侧按钮动作（data: 'newline' \| 'send'） |
 | `input_bar_enter_action` | 更新输入条 Enter 键动作（data: 'newline' \| 'send'） |
 | `input_bar_close_after_send` | 更新发送后关闭输入条（data: boolean） |
 | `enter_delay_ms` | 更新回车停顿时长（data，单位：ms，50–3000） |
 | `restart_server` | 触发服务端重启（PM2 自动重启） |
-| `buffer_size` | 查询当前会话 buffer 占用（id） |
 
 ### 会话生命周期
 
-- 每个会话 = `sessions{}`（内存映射）中的 `{ pty: IPtyProcess, buffer: string }`。
-- 缓冲区上限以 **MB** 存储（默认 10 MB，1 MB = 1,000,000 字符），通过 `config.json` 的 `maxBuffer` 字段配置。**滞回式截断**：`ptyProcess.onData` 中只有当 `buffer.length > maxBufferChars * 2` 时才触发 `slice(-maxBufferChars)`；日常写入路径只做 `buffer += d`（V8 rope 字符串摊销 O(1)）。`maxBufferChars` 是模块级缓存变量，仅在 `loadConfig` 和 `max_buffer` 消息处理时重算。
+- 每个会话 = `sessions{}`（内存映射）中的 `{ pty: IPtyProcess, screen: HeadlessTerminal, serializeAddon: SerializeAddon, _writeSeq }`。`screen` 是 `@xterm/headless` 终端（scrollback = `config.screenHistoryLines`，默认 1000），加载 `Unicode11Addon`（`activeVersion='11'`）与 `SerializeAddon`；PTY `onData` 经 `sess._writeSeq` promise 链串行喂入（每次 `scr.write(d, res)`，确保序列化前流已排空），**不再保留原始字节 buffer**。
 - 进程退出时，删除该会话并向所有客户端广播 `list`。
 - 首次 WebSocket 连接时若没有会话，自动创建一个。
 - 后端使用数字 ID 跟踪会话（`sessionCounter++`）。
@@ -106,7 +99,7 @@ server.js
 |------|------|
 | `server.js` | **整个后端** —— Express 5、WebSocket（/cmd/）、node-pty 创建子进程 |
 | `public/index.html` | **整个前端** —— 内联 JS、xterm.js v6、无打包工具 |
-| `config.json` | 运行时持久化配置（rows、cols、hotkeys、scrollIntervalTerminal、scrollIntervalPage、maxBuffer、maxFrontendLogs、clientTailMax） |
+| `config.json` | 运行时持久化配置（rows、cols、hotkeys、scrollIntervalTerminal、scrollIntervalPage、screenHistoryLines、maxFrontendLogs） |
 | `package.json` | 依赖：express ^5、ws ^8、node-pty ^1、@xterm/xterm ^6、3 个 addon；scripts：start/restart/stop（PM2） |
 | `reasonix.toml` | CodeWhale IDE 配置（非项目运行时配置） |
 
@@ -166,7 +159,7 @@ server.js
 1. **⚠️ 按钮 `line-height` 中英文差异** —— 2026-07-01 修复。通用 `button` 样式缺少 `line-height`，浏览器 `line-height: normal` 对纯英文文本（如"Shell #1"）与含中文文本（如"新建终端"）计算值不同（英文~1.15、中文~1.5），导致按钮高度不一致。修复方式：通用 `button` 规则添加 `line-height: 1.4` 固定行高，所有按钮高度不再受文字语言影响。同步修复了 `.dropdown-menu button` 中 `border: none; background: none;` 导致的 dropdown 按钮额外矮 2px 的问题。
 
 3. **`@xterm/addon-fit` 未使用** —— 在 package.json 中但从未在 index.html 中加载或实例化。可安全移除。
-4. **缓冲区上限由 `config.json` 的 `maxBuffer` 控制**（默认 10 MB，1 MB = 1,000,000 字符），在设置弹窗内输入并实时同步所有客户端。服务端用模块级 `maxBufferChars` 缓存；`onData` 中用滞回式截断（超 2x 触发 slice）。`loadConfig` 自动迁移旧字符数格式（值 ≥ 1000 时视为字符，自动转 MB 并落盘）。
+4. **重连屏幕同步上限由 `config.json` 的 `screenHistoryLines` 控制**（默认 1000，范围 0–20000），即 headless 终端保留的真实滚屏历史行数，重连后客户端可上滚查看。设置弹窗内输入并实时同步所有客户端（`screen_history_lines` 消息）。旧 `maxBuffer`/`clientTailMax`/`syncMode` 字段已在 `loadConfig` 中删除。
 5. **客户端→服务端的 hotkey type 是 `hot_keys`**（下划线），不是 `set_hotkeys` 或 `hotkeys` —— 字符串必须精确匹配。
 6. **端口 65433 是硬编码的** —— 无环境变量或 CLI 覆盖方式。
 7. **无认证/加密** —— 用于受信任网络边界内的本地/LAN 使用。
@@ -178,9 +171,9 @@ server.js
 13. **重连后 buffer 增量拉取**：list 处理器中 `isFirstList` 标志位在 `ws.onopen` 中重置为 true。重连后第一个 list 到达时，对 `oldTermIds ∩ currentIds`（即双方都有的 term）发 `{type:'buffer'}` 请求，断网期间的内容用 `term.reset() + term.write()` 补回。常规 session create / kill 的 list 不会进入该分支，避免误刷旧 term 导致闪烁。`createTermInstance` 内既有的 buffer 请求保留（按职责对称：新建 xterm 立刻拉 buffer 填满）。
 14. **前端布局**：页面宽度由 `#terminal-container`（xterm）决定。CSS 层面 `.toolbar` 和 `#hotkeys-bar` 用 `flex-wrap: wrap`。`.toolbar button` 和 `#hotkeys-bar button` 统一 `min-width: 60px`，防止「编辑」「▲」等短文字按钮被 flex 压缩到看不清（弹窗内的 button 不受此约束，由 `.modal-box button` 单独控制）。**连接状态**：`#wsStatus` 紧跟在「设置」按钮后面（DOM 顺序），`margin-left: 4px` 与按钮隔开，作为 flex 子元素参与自动换行。**JS 同步**：`syncLayoutWidths()` 函数读取 `terminal-container.offsetWidth`，把 `.toolbar` 和 `#hotkeys-bar` 的 `style.width` 设为该值，触发点在 `DOMContentLoaded`（首屏同步）和 `ResizeObserver(terminal-container)`（xterm 尺寸变化同步）。**注意**：原本还有 `window resize` 触发点，但 `#terminal-container { align-self: flex-start }` 不随窗口缩放变化，`window resize` 永远无效，已于 2026-06-30 删除。原因：纯 CSS 的 `width: max-content` 在 flex column 容器中会取所有子元素的最大宽度（hotkeys 按钮过多会撑开页面），用 JS 显式同步更可靠。`html { overflow-x: auto }` 是兜底（xterm 本身比视口宽时出现水平滚动条）。
 15. **设置弹窗**：顶栏「设置」按钮打开。包含终端大小、终端滚动行数、按住滚动间隔(ms)、缓冲区上限(MB)、日志上限(条) 5 个可配置块，加上缓冲区占用（只读、自动检测）一块。复用现有 `.modal-overlay / .modal-box` 样式。`settingsDiv` 是全局 DOM 句柄（与 `editorDiv` 对称）。
-16. **buffer 自动检测**：弹窗打开时即调用 `queryBufferSize()` 拉取当前会话占用（`{type:'buffer_size', id}` → 服务端回 `{type:'buffer_size', id, used, max}`，字符数）。前端用 `/ 1000000` 转 MB，显示为 `当前会话占用: X.XX MB / Y.YY MB (Z.Z%)`。`#bufferSizeResult` 文本依次经历 `检测中...` → 真实占用或 `当前无活动会话` / `检测超时`（5s 兜底）。无活动会话时 `queryBufferSize()` 直接显示「当前无活动会话」并 return，不发请求。
+16. ~~buffer 自动检测~~（已移除，2026-07-21）：原“缓冲区占用”自动检测依赖 `buffer_size` 消息与 `queryBufferSize()`，随 legacy 字节流机制一并删除；设置弹窗不再有该只读块。
 17. **2026-06-30 过度设计审查结论**：发现 3 处过度设计 / 冗余，**均已修复**：
-    1. `public/index.html` 中 4 个 hidden input（`rowsInput/colsInput/scrollStepInput/maxBufferInput`）用 DOM 当 state 容器 → 改为 JS 顶层变量（`let rows = null, cols = null`；`scrollStep/maxBuffer` 原本就同时是 JS 变量，删除 DOM 那份）。`createTermInstance` 用 `Number.isInteger(rows) && Number.isInteger(cols)` 守卫跳过初始 resize（与旧版 hidden input 空 value 行为一致）。
+    1. `public/index.html` 中 3 个 hidden input（`rowsInput/colsInput/scrollStepInput`）用 DOM 当 state 容器 → 改为 JS 顶层变量（`let rows = null, cols = null`；`scrollStep` 原本就同时是 JS 变量，删除 DOM 那份）。`createTermInstance` 用 `Number.isInteger(rows) && Number.isInteger(cols)` 守卫跳过初始 resize（与旧版 hidden input 空 value 行为一致）。
     2. `syncLayoutWidths` 函数 4 个触发点中 `window resize` 是冗余（`#terminal-container { align-self: flex-start }` 不随窗口缩放变化） → 删除 `window.resize` 监听，保留 `DOMContentLoaded` + `ResizeObserver` 两个有效触发点。
     3. `updateWsStatus` 1Hz 轮询 → 改事件驱动。`ws.onopen / onerror / onclose` 三事件触发 `updateWsStatus()`。**重连策略**：
        - `ws.onclose` 内检查 `navigator.onLine`：在线则 `setTimeout(connect, 1000)` 延迟重试；离线则不安排定时器，等 `online` 事件
@@ -189,24 +182,25 @@ server.js
        - **用户测试发现并修复（2026-06-30）**：最初 `connect()` 函数开头有 `if (!navigator.onLine) return` 守卫，导致 `onclose` 设置的定时器在 1 秒后触发时若仍离线就直接 return 且不安排后续重试，形成"悬空"状态。修复方式：将 `navigator.onLine` 判断从 `connect()` 移到 `ws.onclose` 中，由 `onclose` 决定是安排 backoff 还是等待 `online` 事件，`connect()` 只负责建立连接。
     - **已知风险**：移动端"沉默死亡"（TCP 连接被 NAT 清掉但浏览器不感知）场景下，UI 显示"已连接"但实际断了。**当前能覆盖**：飞行模式/无 WiFi 等明确离线状态（`navigator.onLine` 变 false → 不重试；`online` 事件触发 → 立即重连）。**仍覆盖不到**：网络活着但 WS 连接被中间设备单方面清掉。遇到此情况手动 F5 刷新。
     
-    其他 8 个候选点（`min-width: 60px` 移动端点击区域、`availableKeys` 手机点选、`computeSmartName` 命名连贯、70 行 `.modal-box` CSS、3 个独立"应用"按钮、`maxBufferChars` 缓存等）经用户确认均为合理设计或可选优化，**不在本次范围**。完整审查记录见 [docs/superpowers/specs/2026-06-30-over-engineering-audit-design.md](docs/superpowers/specs/2026-06-30-over-engineering-audit-design.md)。**新增/修改代码时如果引入新的 state 容器，优先用 JS 变量**，不再用 hidden input。
+    其他 8 个候选点（`min-width: 60px` 移动端点击区域、`availableKeys` 手机点选、`computeSmartName` 命名连贯、70 行 `.modal-box` CSS、3 个独立"应用"按钮等）经用户确认均为合理设计或可选优化，**不在本次范围**。完整审查记录见 [docs/superpowers/specs/2026-06-30-over-engineering-audit-design.md](docs/superpowers/specs/2026-06-30-over-engineering-audit-design.md)。**新增/修改代码时如果引入新的 state 容器，优先用 JS 变量**，不再用 hidden input。
 
 18. **滚动行数分离（2026-07-01 已移除 scrollStep）**：2026-06-30 引入 scrollStep 控制 ▲上滑终端/▼下滑终端的 SGR 滚轮事件发送次数。2026-07-01 完全移除 scrollStep，所有滚动按钮统一固定每次 1 行 + 按住滚动模式，设置弹窗中不再有"终端滚动行数"输入项。config.json 中的 scrollStep 字段已删除。
 
 19. **PM2 进程管理 + 前端重启**：2026-06-30 引入。服务器由 PM2 管理（`pm2 start server.js --name remote-cmd`），`npm start` 启动。前端设置弹窗新增「重启服务器」按钮（`restartServer()`），发送 `{type:'restart_server'}` 到服务端。服务端回复确认后杀掉所有 PowerShell 子进程，200ms 后 `process.exit(1)` 退出，PM2 检测到非零退出码自动重启新实例。前端 `ws.onclose` 触发 1 秒后自动重连。**PM2 安装**：`npm install -g pm2`（一次性）。**常用命令**：`npm start`（启动）、`npm run restart`（重启）、`npm run stop`（停止）。**Trae 环境例外（2026-06-30）**：Trae PowerShell 工具下 PM2 daemon 反复 EPERM（Windows 命名管道权限），PM2 不可用。`server.js` 实际由独立的 node 守护进程（PID 101804）拉起，113036 是当前 remote-cmd 服务进程。`process.exit(1)` 后 101804 会自动重新 spawn 新的 server.js 实例，前端 ws.onclose 触发 1 秒后自动重连。**恢复 PM2 管理**：需在 Trae 外的 PowerShell 手动执行 `pm2 start server.js --name remote-cmd` + `pm2 save`，或在 `c:\Users\fmy3\.pm2` 不存在的全新环境下使用。
 
-20. **buffer 尾部比对去重 + 增量推送 + 等待期间丢弃 data（2026-06-30 引入）**：解决多终端场景下 buffer 加载慢的问题。设计要点：
-    - **`TermSession.clientTail` 实例字段**：每个终端最近 N 字节（默认 4096，可通过设置弹窗调整）的原始 data/buffer 合并流。`session.appendClientTail(chunk)` 累加 + 滞回式截断（超阈值时 `slice(-clientTailMax)`）。状态随 `Map<number, TermSession>` 生命周期自动管理，无需手动清理。
-    - **buffer 请求带 `tail` 字段**：所有 buffer 请求（list 处理器中新建会话的 `requestBuffer()` 调用、`isFirstList` 重连交集分支）都通过 `session.requestBuffer()` 发出，自动带 `this.clientTail` 作为 tail。
-    - **服务端三档响应**（[server.js L118-L148](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/server.js#L118-L148)）：
-      1. **档 1 未变更**：`buf.endsWith(tail)` 命中 → 回 `{type:'buffer', id, data:''}`（pos 缺席）。客户端跳过 reset + write。
-      2. **档 2 增量推送**：`buf.lastIndexOf(tail) !== -1`（且不命中档 1）→ 回 `{type:'buffer', id, data: buf.slice(i + tail.length), pos: i + tail.length}`。客户端只 `term.write(data)` 追加。
-      3. **档 3 全量**：tail 缺/空串/`lastIndexOf` 没找到 → 回 `{type:'buffer', id, data: buf.slice(-maxBufferChars) || buf}`。客户端 `term.reset() + term.write(data)`。
-    - **`session.pendingBuffer: boolean` 实例字段**：客户端在 `requestBuffer()` 时置 true，`handleBufferResponse()` 内置 false。**等待期间到达的 data 消息直接丢弃**（list 处理器中 `if (s.pendingBuffer) return`）。原因：服务端 send buffer 响应时 `buf.slice(pos)` 已包含 send 那一刻之前的所有 PTY 数据，这些 data 内容已包含在 buffer 响应的 `data` 字段中，写入会导致重复。TCP 有序保证：send buffer 响应之后的 broadcast 一定在 buffer 响应之后到达客户端 → 后续 data 正常处理。这样不需要 `clientLengths` 字典、不需要 overlap 计算。
-    - **`client_tail_max` 消息**：连接建立时下发（来自 config.json）；设置弹窗变更时客户端发 `{type:'client_tail_max', data}` → 服务端存盘 + 广播给所有客户端。收到时 `client_tail_max` 处理器遍历 sessions 调用 `s.trimClientTail(clientTailMax)` 立即按新阈值裁剪已有 clientTail。
-    - **配置字段**：`config.json.clientTailMax`（默认 4096，范围 64-65536）。`loadConfig` 防御性默认：`if (cfg.clientTailMax == null) cfg.clientTailMax = 4096`，避免老用户 config.json 缺字段时 `undefined` 穿透。
-    - **list 处理器新建会话时调 `requestBuffer()`**：`this.clientTail` 是空串 → 服务端 `buf.endsWith('') === true` → 档 1 命中 → 客户端跳过 reset + write。xterm 本身是空的，没有需要恢复的内容。
-    - **list 处理器删除 term 时清理**：`s.dispose(); sessions.delete(id)`（`TermSession.dispose()` 内 `term.dispose(); wrapper.remove();`，`clientTail` / `pendingBuffer` 随 Map GC 清理，无需显式 delete）。
+20. **重连屏幕同步：服务端 headless 整屏序列化（2026-07-18 设计 + 2026-07-21 彻底移除 legacy 字节流兜底）**：解决 TUI 屏幕是二维网格、而旧“字节流 tail 比对”把屏幕建模成一维字节流导致重连只匹配动画增量/全量回放乱码的问题。设计要点：
+    - **服务端 headless 终端**：每个会话一个 `@xterm/headless` 终端（scrollback = `config.screenHistoryLines`，默认 1000），加载 `Unicode11Addon`（`activeVersion='11'`，保证字符宽度/换行对齐）与 `SerializeAddon`。PTY `onData` 经 `sess._writeSeq` promise 链串行喂入（`scr.write(d, res)` 写回调串起），序列化前 `await` 排空，避免拍到半更新屏幕（xterm `write()` 是异步的，解析发生在写回调之后）。
+    - **指纹比对**：`serverViewportHash(screen)` 与客户端 `computeViewportHash(term)` 同为对可见行 `translateToString()` 做 FNV-1a，口径一致（两边均加载 Unicode11Addon）。
+    - **buffer 请求带 `screenHash`**：所有 buffer 请求（新建会话 `createTermInstance` 内的 `requestBuffer()`、`isFirstList` 重连交集分支）都通过 `session.requestBuffer()` 发出，自动带当前可见视口指纹。
+    - **服务端两档响应**（`buffer` 消息处理器，仅 screen 模式）：
+      1. **未变更**：`serverViewportHash === screenHash` 命中 → 回 `{type:'buffer', id, data:''}`。客户端跳过 reset + write，保持原样。
+      2. **整屏重建**：hash 不同 → 回 `{type:'buffer', id, data: serializeAddon.serialize(), reset: true}`（含可见视口 + 真实 scrollback ANSI）。客户端 `term.reset() + term.write(data)`，重连后既能看到完整当前屏、又能上滚看真实历史。
+    - **`session.pendingBuffer: boolean` 实例字段**：客户端 `requestBuffer()` 时置 true，`handleBufferResponse()` 内置 false。**等待期间到达的 data 消息直接丢弃**（`if (s.pendingBuffer) return`），避免 buffer 响应已包含的内容重复写入（TCP 有序保证后续 data 在 buffer 响应之后到达）。
+    - **`screen_history_lines` 消息**：连接建立时下发 + 设置变更时广播。服务端更新 `config.screenHistoryLines` 并 resize headless（`screen.resize`）。
+    - **配置字段**：`config.json.screenHistoryLines`（默认 1000，范围 0–20000）。**旧 `clientTailMax`/`maxBuffer`/`syncMode` 字段及 `client_tail_max`/`max_buffer`/`buffer_size` 消息已全部移除**（`loadConfig` 中 `delete` 兜底）。
+    - **list 处理器新建会话时调 `requestBuffer()`**：screenHash 为空 → 服务端 hash 不同 → 整屏序列化（空屏）重建，xterm 本身空、无内容可恢复。
+    - **list 处理器删除 term 时清理**：`s.dispose(); sessions.delete(id)`（`TermSession.dispose()` 内 `term.dispose(); wrapper.remove(); screen.dispose();`，`_writeSeq` 随 Map GC 清理）。
+    - **Phase 2（逐行 diff 增量）未做**：客户端上传整屏行数组、服务端逐行 diff 只回变更行（变更过多降级整屏）。属性能优化，非正确性必需。
 
 21. **`computeSmartName()` 永不返回 null（2026-07-01 修改）**：修复日志中出现 `(null)` 的问题。
     - **原逻辑**：第一个会话返回 `null`，让前端用 ID 兜底显示；重连时服务端下发 `names: {"0": null}` 覆盖前端已有名称，导致日志显示 `null`。
@@ -243,30 +237,30 @@ server.js
 
 26. **大/小尺寸切换 + 双槽位（2026-07-01 引入）**：顶栏 `#sizeToggleBtn` 按钮在 large/small 之间切换。设置弹窗分大/小两节，每节独立设置行/列。协议：`size_slots`（C→S 写槽 + S→C 全量广播）/ `current_size`（C→S 切换 + S→C 广播当前尺寸）。旧的 `resize` 消息整条删除（C→S 和 S→C 双向）。**应用 = 切换 + 写槽**：用户点"应用"发两条消息（先 `size_slots` 写槽，再 `current_size` 切尺寸）。**默认值**：large=60×120, small=24×80。**记忆**：服务端通过 `config.currentSize` 字段记忆上次切换结果，连接建立时下发。**校验**：服务端对 sizeMode/size 必须是 'large'/'small'，rows/cols 必须在 20-200 整数范围内，非法值拒收。`config.sizeSlots` 字段是对象，键为 'large'/'small'，值为 `{rows, cols}`。**`current_size` 处理器无"无变化跳过"**（2026-07-01 修复行数不生效 bug）：用户在大尺寸时修改大尺寸行数，size_slots 已更新槽位，但 size 名未变 —— 若早返回则 PTY 和 xterm 都不 resize，必须刷新浏览器才能看到。修复后 `current_size` 始终按最新槽位 resize PTY + 落盘 + 广播。前端的 `sizeSlots` 已由上一条 `size_slots` 广播更新，`current_size` 处理器用 `sizeSlots[currentSize]` resize xterm 时拿到新槽位 → xterm 即时刷新。
 
-27. **前后端日志覆盖（2026-07-01 补全）**：所有 WebSocket 消息都有 `addFrontendLog` 记录（设置弹窗 → 日志 按钮可查看），**唯二例外**：`input`（C→S 键盘输入，每按键都记会产生大量噪音）和 `data`（S→C PTY 输出，每帧都记会产生大量噪音）。**接收侧 7 类**（2026-07-01 补全 → `buffer_size` 于 2026-07-01 因 UI 重复移除）：`size_slots`（'尺寸槽位已更新'）/ `current_size`（'当前尺寸切换为 大/小 (rows x cols)'）/ `hotkeys`（'快捷键配置已同步'）/ `scroll_interval_terminal`（'终端按住滚动间隔同步为 X ms'）/ `scroll_interval_page`（'页面按住滚动间隔同步为 X ms'）/ `max_buffer`（'缓冲区上限同步为 X MB'）/ `max_frontend_logs`（'日志上限同步为 X 条'）/ `client_tail_max`（'buffer 去重比对长度同步为 X 字节'）。**发送侧补 1 类**（2026-07-01 补全 → `buffer` 请求于 2026-07-01 因重复移除）：`hot_keys`（'快捷键已同步给服务端'，在 `syncHotkeys` 内）。**不记日志的特例**：
-    - `buffer_size`：开设置弹窗即自动拉取并显示占用情况（'当前会话占用: X.XX MB / Y.YY MB (Z.Z%)'），与日志内容完全重复。
-    - `buffer` 请求：调用点（list 处理器 / createTermInstance / bufferQueue）已记录上下文（'优先加载当前终端' / '新建终端并申请缓存' / '开始加载队列中下一个'），响应侧有'缓冲区无变化/增量/全量回放'三档覆盖整个拉取过程。**新增 wsSend 处理器时必须配套添加日志**，input/data 类高频消息除外。
+27. **前后端日志覆盖（2026-07-01 补全）**：所有 WebSocket 消息都有 `addFrontendLog` 记录（设置弹窗 → 日志 按钮可查看），**唯二例外**：`input`（C→S 键盘输入，每按键都记会产生大量噪音）和 `data`（S→C PTY 输出，每帧都记会产生大量噪音）。**接收侧日志项**（2026-07-01 补全；2026-07-21 移除 `max_buffer`/`client_tail_max`/`buffer_size` 日志项）：`size_slots`（'尺寸槽位已更新'）/ `current_size`（'当前尺寸切换为 大/小 (rows x cols)'）/ `hotkeys`（'快捷键配置已同步'）/ `scroll_interval_terminal`（'终端按住滚动间隔同步为 X ms'）/ `scroll_interval_page`（'页面按住滚动间隔同步为 X ms'）/ `max_frontend_logs`（'日志上限同步为 X 条'）/ `screen_history_lines`（'重连滚屏历史同步为 X 行'）。**发送侧补 1 类**（2026-07-01 补全 → `buffer` 请求于 2026-07-01 因重复移除）：`hot_keys`（'快捷键已同步给服务端'，在 `syncHotkeys` 内）。**不记日志的特例**：
+    - （`buffer_size` 已于 2026-07-21 随 legacy 字节流机制移除，不再有该日志特例。）
+    - `buffer` 请求：调用点（list 处理器 / createTermInstance / bufferQueue）已记录上下文（'优先加载当前终端' / '新建终端并申请缓存' / '开始加载队列中下一个'），响应侧有'指纹命中跳过/整屏重建'两档覆盖整个拉取过程。**新增 wsSend 处理器时必须配套添加日志**，input/data 类高频消息除外。
 
-28. **服务端权威 + 客户端不乐观更新（2026-07-01 修复）**：设置类 `apply*` 处理器**不应在 `wsSend` 之前修改本地状态**，否则 ws 失败时本地已变但服务器没变，下次重连被服务器覆盖 → "看似应用了" 实际没生效的不一致。**正确模式**：只 `wsSend`，本地状态由 `ws.onmessage` 收到 broadcast 后统一更新（接收侧已有 `xxx = msg.data` 赋值）。**已修复**：`applySettingsScrollIntervalTerminal` / `applySettingsScrollIntervalPage` / `applySettingsMaxBuffer` / `applySettingsMaxFrontendLogs` / `applySettingsClientTailMax` —— 删除 `scrollIntervalTerminal = v` / `scrollIntervalPage = v` / `maxBuffer = v` / `maxFrontendLogs = v` / `clientTailMax = v; clientTailMax2 = v * 2` 5 处本地 mutation，删除对应发送侧 `addFrontendLog`（与接收侧 'X 同步为 Y' 重复）。**已是正确模式**（无需改）：`applySettingsSizeFor` / `toggleSize`（size 类只读 sizeSlots/currentSize 不修改）/ `renameCurrent` / `renameAll` / `createNew`（pendingCreate 是创建标志位非配置）/ `killCurrent`（本地 term 由 list 处理器统一删）/ `restartServer` / `syncHotkeys`（hotkeys 已在用户编辑时改）。**fbBtn 保持立即调用**："指令已发出"语义；wsSend 失败时 `wsSend` 内部 catch 会 log 失败原因。**新增 apply 类处理器时**：只发不发本地状态，本地状态由 `ws.onmessage` 接收侧负责更新。
+28. **服务端权威 + 客户端不乐观更新（2026-07-01 修复）**：设置类 `apply*` 处理器**不应在 `wsSend` 之前修改本地状态**，否则 ws 失败时本地已变但服务器没变，下次重连被服务器覆盖 → "看似应用了" 实际没生效的不一致。**正确模式**：只 `wsSend`，本地状态由 `ws.onmessage` 收到 broadcast 后统一更新（接收侧已有 `xxx = msg.data` 赋值）。**已修复**：`applySettingsScrollIntervalTerminal` / `applySettingsScrollIntervalPage` / `applySettingsMaxFrontendLogs` / `applySettingsScreenHistoryLines` —— 删除 `scrollIntervalTerminal = v` / `scrollIntervalPage = v` / `maxFrontendLogs = v` / `screenHistoryLines = v` 等本地 mutation（旧 `applySettingsMaxBuffer` / `applySettingsClientTailMax` 已随 legacy 字节流机制一并移除）。，删除对应发送侧 `addFrontendLog`（与接收侧 'X 同步为 Y' 重复）。**已是正确模式**（无需改）：`applySettingsSizeFor` / `toggleSize`（size 类只读 sizeSlots/currentSize 不修改）/ `renameCurrent` / `renameAll` / `createNew`（pendingCreate 是创建标志位非配置）/ `killCurrent`（本地 term 由 list 处理器统一删）/ `restartServer` / `syncHotkeys`（hotkeys 已在用户编辑时改）。**fbBtn 保持立即调用**："指令已发出"语义；wsSend 失败时 `wsSend` 内部 catch 会 log 失败原因。**新增 apply 类处理器时**：只发不发本地状态，本地状态由 `ws.onmessage` 接收侧负责更新。
 
-29. **WS 消息顺序：先设置后 list（2026-07-02 重构 + 同日扩展）**：服务端 `wss.on('connection')` 下发顺序为 `size_slots → current_size → client_tail_max → list`（参考 [server.js L142-L145](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/server.js#L142-L145)），前端 list 处理器 newIds 分支可直接 `s.resize(sizeSlots[currentSize].cols, sizeSlots[currentSize].rows)` 无条件 resize（参考 [public/index.html L388-L397](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/public/index.html#L388-L397)），`requestBuffer()` 也能用真实的 `clientTailMax` 截断 `clientTail`（不再用默认 4096）。不区分"首次连接"和"后续新建"两条路径。
-    - **设计动机**：bug「新建终端时终端变小」原修复是 list 处理器 newIds 加 `if (slot) resize` 守卫（slot 取不到时跳过），由 `current_size` 处理器 `sessions.forEach` 兜底首次连接场景。用户提出两条路径应统一，**根本办法是调整 WS 消息顺序**：让 list 之前一定有 size_slots/current_size，newIds 一定能取到 slot。**同日扩展**：用户进一步指出 `client_tail_max` 也应该前置——`requestBuffer()` 内部用 `clientTailMax` 截断 `this.clientTail`，若 list 之前没到，list 处理器后续 if 块（isFirstList / pendingCreate / else）调用 `requestBuffer()` 时用的是默认 4096 而不是 config 真实值，可能截断过短导致服务端 lastIndexOf 没命中走档 3 全量（性能问题，非正确性 bug）。
-    - **"影响 list 处理的设置"判定标准**：在 list 处理器（含后续 if 块）中会被立即读取的 JS 变量。当前三条：`sizeSlots` / `currentSize` / `clientTailMax`。其他设置（`hotkeys` / `scroll_interval_*` / `max_buffer` / `max_frontend_logs`）在 list 之后下发不影响 list 处理，按原顺序保持。
+29. **WS 消息顺序：先设置后 list（2026-07-02 重构 + 同日扩展）**：服务端 `wss.on('connection')` 下发顺序为 `size_slots → current_size → screen_history_lines → list`（参考 [server.js L142-L145](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/server.js#L142-L145)），前端 list 处理器 newIds 分支可直接 `s.resize(sizeSlots[currentSize].cols, sizeSlots[currentSize].rows)` 无条件 resize（参考 [public/index.html L388-L397](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/public/index.html#L388-L397)），`requestBuffer()` 用真实的 `screenHistoryLines` 调 headless scrollback。不区分"首次连接"和"后续新建"两条路径。
+    - **设计动机**：bug「新建终端时终端变小」原修复是 list 处理器 newIds 加 `if (slot) resize` 守卫（slot 取不到时跳过），由 `current_size` 处理器 `sessions.forEach` 兜底首次连接场景。用户提出两条路径应统一，**根本办法是调整 WS 消息顺序**：让 list 之前一定有 size_slots/current_size，newIds 一定能取到 slot。**同日扩展**：用户进一步指出 `screen_history_lines` 也应该前置——`requestBuffer()` 内部用 `screenHistoryLines` 调 headless scrollback，若 list 之前没到，list 处理器后续 if 块调用 `requestBuffer()` 时 headless 尚未按真实 scrollback 初始化（性能/历史完整性问题，非正确性 bug）。
+    - **"影响 list 处理的设置"判定标准**：在 list 处理器（含后续 if 块）中会被立即读取的 JS 变量。当前三条：`sizeSlots` / `currentSize` / `screenHistoryLines`。其他设置（`hotkeys` / `scroll_interval_*` / `max_frontend_logs`）在 list 之后下发不影响 list 处理，按原顺序保持。
     - **current_size 处理器保留**（[public/index.html L484-L491](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/public/index.html#L484-L491)）：`sessions.forEach(s => s.resize(...))` 仍负责"用户切换大/小尺寸"时的全量 resize。首次连接时 sessions Map 还没填充（list 未到），forEach 是 no-op；后续 list 到达时 list 处理器统一 resize 新会话。两条路径职责分明：list = 创建新会话并 resize，current_size = 调整现有会话尺寸。
-    - **client_tail_max 处理器保留**（[public/index.html L509-L513](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/public/index.html#L509-L513)）：`clientTailMax = msg.data; clientTailMax2 = msg.data * 2; sessions.forEach(s => s.trimClientTail(clientTailMax))` 仍负责"用户在设置弹窗调整 clientTailMax"时立即按新阈值裁剪已有 clientTail + 更新本地变量。首次连接时 sessions 还没填充（list 未到），forEach 是 no-op；客户端变量同步由 connection 时的 client_tail_max 消息兜底。
+    - **screen_history_lines 处理器保留**（[public/index.html L846-L850](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/public/index.html#L846-L850)）：`screenHistoryLines = msg.data` 仍负责“用户在设置弹窗调整 screenHistoryLines”时立即更新本地变量、回填输入框、并记一条 in 日志。首次连接时 sessions 还没填充（list 未到）无影响；客户端变量同步由 connection 时的 screen_history_lines 消息兜底，服务端据此调整 headless 终端的滚屏历史边界。
     - **安全性**：
-      - 首次连接：size_slots → current_size → client_tail_max → list 顺序下发，list 到达时三个变量都已就绪 ✓
-      - 非首次连接的新建：客户端 JS 变量 sizeSlots/currentSize/clientTailMax 保留，list 到达时立即 resize + requestBuffer 用真实 clientTailMax ✓
+      - 首次连接：size_slots → current_size → screen_history_lines → list 顺序下发，list 到达时三个变量都已就绪 ✓
+      - 非首次连接的新建：客户端 JS 变量 sizeSlots/currentSize/screenHistoryLines 保留，list 到达时立即 resize + requestBuffer 用真实 screenHistoryLines ✓
       - 断网重连：服务端不重发这些设置（客户端变量不丢），list 到达时正常处理 ✓
       - 用户刷新页面后 100ms 内点新建：connection 还没建立时 wsSend 直接 return（pendingCreate 置位但 create 消息未发出），无 list 处理 ✓
     - **不要回退消息顺序**：原顺序（list 在最前）会导致两条逻辑分裂的兜底路径。
 
-30. **首次连接时 createSession 内 broadcast 破坏 list 顺序（2026-07-03 修复）**：上面注意事项 29 说"首次连接顺序下发 size_slots → current_size → client_tail_max → list"，但**实际首版实现漏了一个细节**：`wss.on('connection')` 第一行 `if (Object.keys(sessions).length === 0) createSession();` 在所有 `ws.send` 之前调用，而 `createSession()` 内部 L133 `broadcast(buildListMsg())` 立即把 list 发给所有 `wss.clients`（ws 库的 connection 事件触发时新 ws 已被加入 clients Set，因此新 ws 也会收到）。
+30. **首次连接时 createSession 内 broadcast 破坏 list 顺序（2026-07-03 修复）**：上面注意事项 29 说"首次连接顺序下发 size_slots → current_size → screen_history_lines → list"，但**实际首版实现漏了一个细节**：`wss.on('connection')` 第一行 `if (Object.keys(sessions).length === 0) createSession();` 在所有 `ws.send` 之前调用，而 `createSession()` 内部 L133 `broadcast(buildListMsg())` 立即把 list 发给所有 `wss.clients`（ws 库的 connection 事件触发时新 ws 已被加入 clients Set，因此新 ws 也会收到）。
     - **症状**：用户报"首次连接页面报错 Uncaught TypeError: Cannot read properties of undefined (reading 'cols') at L414"。`s.resize(slot.cols, slot.rows)` 的 `slot` 是 `undefined`。原因：list 消息在 size_slots/current_size 之前到达客户端，list 处理器 newIds 分支执行时前端 `sizeSlots` 仍是默认 `{large: null, small: null}`、`currentSize` 仍是默认 `null`，`sizeSlots[null]` = `undefined`。**仅首次连接触发**（后续连接 sessions 非空，跳过 createSession，不触发 broadcast，ws.send 顺序正确）。
-    - **修复**（[server.js L136-L155](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/server.js#L136-L155)）：把 createSession 调用移到 `ws.send(size_slots/current_size/client_tail_max)` 之后，并加 if/else 分流：
+    - **修复**（[server.js L136-L155](file:///c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD/server.js#L136-L155)）：把 createSession 调用移到 `ws.send(size_slots/current_size/screen_history_lines)` 之后，并加 if/else 分流：
       - 首次连接：`ws.send` × 3 → `createSession()`（内部 broadcast 包含新会话的 list 给新 ws）
       - 非首次连接：`ws.send` × 3 → `ws.send(list)`
-    - **客户端接收顺序统一**：两种情况都是 `size_slots → current_size → client_tail_max → list`，无重复 list，无顺序错乱。
+    - **客户端接收顺序统一**：两种情况都是 `size_slots → current_size → screen_history_lines → list`，无重复 list，无顺序错乱。
     - **历史回顾**（2026-07-02）：之前 `isFirstList` + `if (slot) resize` 兜底正是为了掩盖这个 bug（首版 list 处理器在 size_slots 未到时跳过 resize）。**根因修复后**这条防御仍然存在（`if (slot) resize`），但实际上只要服务端按正确顺序下发，slot 永远不为 null，兜底分支是死代码。**不要简化掉** `if (slot) resize` —— 兜底无成本，保留作为"服务端协议有变动时"的最后一道防线。
     - **教训**：`broadcast()` 在 `connection` 回调内同步触发的副作用要特别小心 —— 它会发给**所有**已 connected 的 ws，包括当前正在 connection 的那个。任何"先设置后 list"的设计都要确认 broadcast 不会在 ws.send 之前跑出去。**后续协议设计规则**：所有"在 connection 块内对当前 ws 发送的、且 broadcast 不应抢先的消息"，必须确保 broadcast 触发点在所有必要的 ws.send 之后。
 
