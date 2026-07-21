@@ -1293,6 +1293,33 @@
         let pinchActive  = false;     // 多指（双指捏合）缩放进行中
         let swipeStartX = 0, swipeStartY = 0, swipeLastY = 0, swipeAccum = 0;
 
+        // === 选区模式移动端触摸选区辅助（2026-07-21）===
+        let selStartCell = { col: 0, row: 0 };  // 选区模式：单指拖选的起点单元格
+        // 取当前活动会话的 xterm 实例；无活动会话时返回 null。
+        function getActiveTerm() {
+            const s = (typeof activeId !== 'undefined' && activeId != null) ? sessions.get(activeId) : null;
+            return s ? s.term : null;
+        }
+        // 把一次触摸点换算成单元格坐标（带视口滚动偏移 + clamp）。
+        // cell 尺寸取内部 API，取值前守卫非空；任一依赖缺失则回退到 {col:0,row:0}。
+        function cellOfTouch(t) {
+            const term = getActiveTerm();
+            if (!term || !term._core || !term._core._renderService ||
+                !term._core._renderService.dimensions || !term._core._renderService.dimensions.css ||
+                !term._core._renderService.dimensions.css.cell || !term.element) {
+                return { col: 0, row: 0 };
+            }
+            const cell = term._core._renderService.dimensions.css.cell;
+            const rect = term.element.getBoundingClientRect();
+            const col = Math.floor((t.clientX - rect.left) / cell.width);
+            const rowVisible = Math.floor((t.clientY - rect.top) / cell.height);
+            const row = term.buffer.active.viewportY + rowVisible;
+            return {
+                col: Math.max(0, Math.min(term.cols - 1, col)),
+                row: Math.max(0, Math.min(term.buffer.active.length - 1, row))
+            };
+        }
+
         function setupTouchScroll() {
             document.addEventListener('touchstart',  onTouchScrollStart, { capture: true });
             document.addEventListener('touchmove',   onTouchScrollMove,  { capture: true });
