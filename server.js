@@ -17,10 +17,7 @@ function loadConfig() {
             hotkeys: {},
             scrollIntervalTerminal: 100,
             scrollIntervalPage: 100,
-            maxBuffer: 10,
             maxFrontendLogs: 50,
-            clientTailMax: 4096,
-            syncMode: 'screen', // 'screen' = headless 整屏同步；'legacy' = 旧字节流兜底
             screenHistoryLines: 1000, // headless 终端保留的真实滚屏历史行数（重连可上滚查看）
             swipeThreshold: 24,
             swipeClassify: 10,
@@ -55,16 +52,11 @@ function loadConfig() {
     // === currentSize 兜底：非 'large'/'small' 时填 'large' ===
     if (cfg.currentSize !== 'large' && cfg.currentSize !== 'small') cfg.currentSize = 'large';
 
-    // 保留：旧 maxBuffer 字段是字符数（如 10000），新格式是 MB（如 10）
-    if (typeof cfg.maxBuffer === 'number' && cfg.maxBuffer >= 1000) {
-        const mb = Math.round(cfg.maxBuffer / 1000000);
-        cfg.maxBuffer = (mb >= 1 && mb <= 90) ? mb : 10;
-        console.log(`[migration] maxBuffer 自动从字符数转换为 ${cfg.maxBuffer} MB`);
-        fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2));
-    }
-    if (typeof cfg.maxBuffer !== 'number' || cfg.maxBuffer < 1 || cfg.maxBuffer > 90) cfg.maxBuffer = 10;
-    if (cfg.clientTailMax == null) cfg.clientTailMax = 4096;
-    if (cfg.syncMode !== 'legacy' && cfg.syncMode !== 'screen') cfg.syncMode = 'screen';
+    // 清理已废弃的 legacy 重连同步字段（maxBuffer / clientTailMax / syncMode）
+    delete cfg.maxBuffer;
+    delete cfg.clientTailMax;
+    delete cfg.syncMode;
+
     if (!Number.isInteger(cfg.screenHistoryLines) || cfg.screenHistoryLines < 0 || cfg.screenHistoryLines > 20000) cfg.screenHistoryLines = 1000;
     if (typeof cfg.scrollIntervalTerminal !== 'number' || cfg.scrollIntervalTerminal < 1 || cfg.scrollIntervalTerminal > 1000) cfg.scrollIntervalTerminal = 100;
     if (typeof cfg.scrollIntervalPage !== 'number' || cfg.scrollIntervalPage < 1 || cfg.scrollIntervalPage > 1000) cfg.scrollIntervalPage = 100;
@@ -87,11 +79,6 @@ function saveConfig(cfg) {
     fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2));
 }
 let config = loadConfig();
-// 缓存 maxBuffer 对应的字符数（1 MB = 1,000,000 字符），仅在配置变更时重算
-let maxBufferChars = (config.maxBuffer || 10) * 1000000;
-
-// 重连同步序列化产物硬上限（约 4MB），超限降级 legacy 全量字节流兜底
-const maxSyncBytes = 4 * 1000 * 1000;
 
 const app = express();
 const server = http.createServer(app);
@@ -270,7 +257,7 @@ function createSession() {
     // 任何后续输出（含 \x07 本身和任何其他字节）都会 clearTimeout 重置 timer；只有"输出静止 N ms"且 bellArmed 才广播。
     // TUI 持续输出 → timer 不断重置，bellArmed=true 但永远不会到点 → 0 次通知。
     // TUI 停下 1 秒 → timer 到点 → 1 次通知。
-    sessions[newId] = { pty: ptyProcess, buffer: '', inputLine: '', name: computeSmartName(), bellTimer: null, bellArmed: false };
+    sessions[newId] = { pty: ptyProcess, inputLine: '', name: computeSmartName(), bellTimer: null, bellArmed: false };
     // === 重连同步：headless 终端维护"当前可见屏幕 + 有界真实滚屏历史" ===
     // scrollback 用有界行数（config.screenHistoryLines，绝不为 0，否则重连无法上滚看历史）。
     // 加载 Unicode11Addon 与客户端一致，保证字符宽度/换行对齐；SerializeAddon 用于重连时序列化整屏。
@@ -287,9 +274,8 @@ function createSession() {
         sessions[newId].serializeAddon = serializeAddon;
         sessions[newId]._writeSeq = Promise.resolve();
     }
-    // buffer 保留原始字节（含可能的 \x07），便于前端重连时完整回放（legacy 兜底 + 超上限降级用）
+    // headless 终端负责重连同步；不再维护原始字节流
     ptyProcess.onData((d) => {
-        sessions[newId].buffer += d;
         // 同步喂给 headless 终端，折叠成当前屏幕状态（重连同步用）。
         // 用写回调串行链 _writeSeq 保证 serialize 前所有 write 已解析（异步时序，不可同步 serialize）。
         const scr = sessions[newId].screen;
@@ -297,10 +283,6 @@ function createSession() {
             sessions[newId]._writeSeq = sessions[newId]._writeSeq.then(() => new Promise(res => {
                 try { scr.write(d, res); } catch (e) { res(); }
             })).catch(() => {});
-        }
-        // 滞回式：超 2x 才截断，截到 1x（避免每帧 O(N) slice）
-        if (sessions[newId].buffer.length > maxBufferChars * 2) {
-            sessions[newId].buffer = sessions[newId].buffer.slice(-maxBufferChars);
         }
         // === BEL 去抖：任何输出都重置 timer，含 \x07 时把 bellArmed 置 true ===
         if (sessions[newId].bellTimer) {
@@ -333,9 +315,8 @@ function createSession() {
 }
 
 wss.on('connection', (ws) => {
-    // === 先发影响 list 处理的设置（size_slots + current_size + client_tail_max），再发 list ===
-    // 这样前端 list 处理器可以无条件从 sizeSlots[currentSize] 取值 resize 新会话,
-    // requestBuffer 也用真实的 clientTailMax 截断 clientTail（不再用默认 4096）
+    // === 先发影响 list 处理的设置（size_slots + current_size），再发 list ===
+    // 这样前端 list 处理器可以无条件从 sizeSlots[currentSize] 取值 resize 新会话
     // 不区分"首次连接"和"后续新建"两条路径（2026-07-02 重构 + 2026-07-02 扩展）
     //
     // 2026-07-03 修复:首次连接时 createSession() 内部 broadcast(list) 会发给新 ws(此时 wss.clients 已包含新 ws)
@@ -343,12 +324,10 @@ wss.on('connection', (ws) => {
     // 修复方式:先 ws.send 设置,再 createSession()(内部 broadcast 包含新会话的 list 给新 ws,顺序仍在设置之后)
     ws.send(JSON.stringify(buildSizeSlotsMsg()));
     ws.send(JSON.stringify({ type: 'current_size', data: config.currentSize }));
-    ws.send(JSON.stringify({ type: 'client_tail_max', data: config.clientTailMax }));
-    ws.send(JSON.stringify({ type: 'sync_mode', data: config.syncMode }));
     ws.send(JSON.stringify({ type: 'screen_history_lines', data: config.screenHistoryLines }));
     if (Object.keys(sessions).length === 0) {
         // 首次连接：createSession() 内部 broadcast(list) 给所有 ws（含新 ws）
-        // 新 ws 接收顺序：size_slots → current_size → client_tail_max → list
+        // 新 ws 接收顺序：size_slots → current_size → screen_history_lines → list
         createSession();
     } else {
         // 非首次：直接 ws.send(list)
@@ -365,7 +344,6 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'input_bar_close_after_send', data: config.inputBarCloseAfterSend }));
     ws.send(JSON.stringify({ type: 'input_bar_hide_on_blur', data: config.inputBarHideOnBlur }));
     ws.send(JSON.stringify({ type: 'enter_delay_ms', data: config.enterDelayMs }));
-    ws.send(JSON.stringify({ type: 'max_buffer', data: config.maxBuffer }));
     ws.send(JSON.stringify({ type: 'max_frontend_logs', data: config.maxFrontendLogs }));
     ws.send(JSON.stringify({ type: 'bell_debounce_ms', data: config.bellDebounceMs }));
     ws.send(JSON.stringify({ type: 'bell_sound_enabled', data: config.bellSoundEnabled }));
@@ -393,37 +371,7 @@ wss.on('connection', (ws) => {
         else if (type === 'kill' && sessions[id]) sessions[id].pty.kill();
         else if (type === 'buffer' && sessions[id]) {
             const sess = sessions[id];
-            // legacy 模式：旧字节流 tail 匹配（兜底用，Phase 1 保留，待 Task 9 删除）
-            if (config.syncMode === 'legacy') {
-                const buf = sess.buffer;
-                const tail = p.tail;
-                let data;
-                let reset = true;  // 默认全量模式（档 3），需要清空 xterm 重写
-
-                if (tail !== '') {
-                    if (buf.endsWith(tail)) {
-                        // 档 1：未变更
-                        data = '';
-                        reset = false;
-                    } else {
-                        const i = buf.lastIndexOf(tail);
-                        if (i !== -1) {
-                            // 档 2：增量推送
-                            data = buf.slice(i + tail.length);
-                            reset = false;
-                        }
-                    }
-                }
-                if (data === undefined) {
-                    // 档 3：全量（空串或 lastIndexOf 没找到）
-                    data = buf.length > maxBufferChars ? buf.slice(-maxBufferChars) : buf;
-                    // reset 保持 true
-                }
-
-                ws.send(JSON.stringify({ type: 'buffer', id, data, ...(reset ? { reset: true } : {}) }));
-                return;
-            }
-            // screen 模式（默认）：排空 write → 指纹比对 → 未变更发 0 字节，否则整屏序列化
+            // 重连同步（headless 整屏序列化）：排空 write → 指纹比对 → 未变更发 0 字节，否则整屏序列化
             const screen = sess.screen;
             if (!screen) { return; } // 无 headless 终端则不发屏（靠实时流恢复）
             // 先等所有已排队 write 解析完，再读屏幕/比对/序列化，避免拍到半更新屏
@@ -436,15 +384,8 @@ wss.on('connection', (ws) => {
                         ws.send(JSON.stringify({ type: 'buffer', id, data: '' }));
                         return;
                     }
-                    // 变更：序列化整个 buffer（可见视口 + 有界真实滚屏历史）发回
+                    // 变更：序列化整个 buffer（可见视口 + 有界真实滚屏历史）发回，客户端 reset+write 重建
                     const ansi = sess.serializeAddon.serialize();
-                    if (ansi.length > maxSyncBytes) {
-                        // 超上限降级：legacy 全量字节流兜底
-                        const buf = sess.buffer;
-                        const fallback = buf.length > maxBufferChars ? buf.slice(-maxBufferChars) : buf;
-                        ws.send(JSON.stringify({ type: 'buffer', id, data: fallback, reset: true }));
-                        return;
-                    }
                     ws.send(JSON.stringify({ type: 'buffer', id, data: ansi, reset: true }));
                 } catch (e) {
                     // 序列化失败：不发屏，靠实时流恢复，绝不崩
@@ -546,13 +487,7 @@ wss.on('connection', (ws) => {
             broadcast({ type: 'enter_delay_ms', data: config.enterDelayMs });
             saveConfig(config);
         }
-	else if (type === 'max_buffer') {
-            config.maxBuffer = data;
-            maxBufferChars = data * 1000000;  // 关键：更新缓存
-            broadcast({ type: 'max_buffer', data: config.maxBuffer });
-            saveConfig(config);
-        }
-        else if (type === 'screen_history_lines') {
+	else if (type === 'screen_history_lines') {
             // headless 终端 scrollback 在构造时确定，不在运行时热改（避免内部 API 脆弱性）。
             // 新值应用到之后新建的会话；已在运行的会话在下次重连/重建时按新值创建 headless 终端。
             const v = parseInt(data);
@@ -564,11 +499,6 @@ wss.on('connection', (ws) => {
         else if (type === 'max_frontend_logs') {
             config.maxFrontendLogs = data;
             broadcast({ type: 'max_frontend_logs', data: config.maxFrontendLogs });
-            saveConfig(config);
-        }
-        else if (type === 'client_tail_max') {
-            config.clientTailMax = data;
-            broadcast({ type: 'client_tail_max', data: config.clientTailMax });
             saveConfig(config);
         }
         else if (type === 'bell_debounce_ms') {
@@ -602,14 +532,6 @@ wss.on('connection', (ws) => {
             config.bellBeepDurationMs = v;
             broadcast({ type: 'bell_beep_duration_ms', data: config.bellBeepDurationMs });
             saveConfig(config);
-        }
-        else if (type === 'buffer_size' && sessions[id]) {
-            ws.send(JSON.stringify({
-                type: 'buffer_size',
-                id,
-                used: sessions[id].buffer.length,
-                max: maxBufferChars
-            }));
         }
         else if (type === 'rename' && sessions[id]) {
             const name = (data == null ? '' : String(data)).trim().slice(0, 50);

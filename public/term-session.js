@@ -1,9 +1,11 @@
 // public/term-session.js
 // 封装单个终端会话的所有状态与行为。
-// 依赖全局：Terminal, WebLinksAddon, Unicode11Addon,
-//          wsSend, clientTailMax, syncMode
+// 依赖全局：Terminal, WebLinksAddon, Unicode11Addon, wsSend, addFrontendLog
 // （rows/cols 已在 2026-07-01 改用 size_slots/current_size 协议，
 //  TermSession 构造时不立即 resize，等 current_size 消息到达后由外部循环调用 resize）
+//
+// 重连同步：screen 模式（唯一路径）。客户端发可见视口指纹 screenHash，
+// 服务端比对后发 0 字节（未变更）或整屏 ANSI（客户端 reset+write 重建）。旧 legacy 字节流机制已移除。
 
 // 计算 xterm 可见视口的指纹：拼接 0..rows-1 行文本后做轻量 FNV-1a 哈希。
 // 仅用于重连"未变更则跳过"的优化；不相等时服务端会整屏重发，故哈希碰撞可接受（碰撞仅多一次全量）。
@@ -29,7 +31,6 @@ class TermSession {
     constructor(id, container) {
         this.id = id;
         this.name = 'Shell #' + id;
-        this.clientTail = '';
         this.pendingBuffer = false;
         // 选区模式(method 1)：进入时关闭鼠标追踪让 xterm 回到原生选区，
         // 退出时恢复 TUI 原本的鼠标追踪模式。
@@ -90,34 +91,19 @@ class TermSession {
     }
 
     // === 写入 ===
-    // mode 缺省 'append'，'reset' 时先 reset 再 write。
-    // screen 模式（默认）：不维护 clientTail（由服务端 headless 屏幕负责同步）。
-    // legacy 模式：仍追加 clientTail，供断连时发 tail 匹配。
+    // mode 缺省 'append'，'reset' 时先 reset 再 write。重连同步由服务端 headless 屏幕负责。
     write(data, mode = 'append') {
         if (mode === 'reset') this.term.reset();
         this.term.write(data);
-        if (syncMode === 'legacy') this.appendClientTail(data);
     }
 
-    // === Buffer 协议 ===
-    // screen 模式（默认）：发可见视口指纹 screenHash，服务端比对后决定发 0 字节或整屏。
-    // legacy 模式：发尾部字节 tail（旧字节流机制，仅作兜底）。
+    // === Buffer 协议（screen 模式，唯一路径）===
+    // 发可见视口指纹 screenHash，服务端比对后决定发 0 字节（未变更）或整屏 ANSI。
     requestBuffer() {
-        if (syncMode === 'legacy') {
-            // 发送前确保 tail 不超过阈值（appendClientTail 是滞回式，可能还没裁）
-            if (this.clientTail.length > clientTailMax) {
-                this.clientTail = this.clientTail.slice(-clientTailMax);
-            }
-            this.pendingBuffer = true;
-            wsSend({ type: 'buffer', id: this.id, tail: this.clientTail });
-            if (typeof addFrontendLog === 'function') addFrontendLog(`重连请求[legacy] 发 tail ${this.clientTail.length} 字节 (${this.name})`, 'out');
-            this.showBufferLoading();
-            return;
-        }
         const hash = computeViewportHash(this.term);
         this.pendingBuffer = true;
         wsSend({ type: 'buffer', id: this.id, screenHash: hash });
-        if (typeof addFrontendLog === 'function') addFrontendLog(`重连请求[screen] 发指纹 ${hash} (${this.name})`, 'out');
+        if (typeof addFrontendLog === 'function') addFrontendLog(`重连请求 发指纹 ${hash} (${this.name})`, 'out');
         this.showBufferLoading();
     }
 
@@ -140,21 +126,6 @@ class TermSession {
     hideBufferLoading() {
         const el = this.wrapper.querySelector('.buffer-loading');
         if (el) el.remove();
-    }
-
-    // === 尾部维护 ===
-    appendClientTail(chunk) {
-        if (!chunk) return;
-        let buf = this.clientTail + chunk;
-        // 滞回式：超 2x 才截断，截到 1x（避免每帧 O(N) slice）
-        if (buf.length > clientTailMax2) buf = buf.slice(-clientTailMax);
-        this.clientTail = buf;
-    }
-
-    trimClientTail(max) {
-        if (this.clientTail.length > max) {
-            this.clientTail = this.clientTail.slice(-max);
-        }
     }
 
     // === 显示控制 ===
