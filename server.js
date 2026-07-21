@@ -28,6 +28,7 @@ function loadConfig() {
             bellDebounceMs: 1000,
             bellSoundEnabled: true,
             bellToastEnabled: true,
+            bellOsEnabled: true, // 系统通知（OS 弹窗）开关
             bellBeepDurationMs: 300,
             inputBarButtonAction: 'newline',
             inputBarEnterAction: 'send',
@@ -73,6 +74,7 @@ function loadConfig() {
     if (typeof cfg.bellDebounceMs !== 'number' || cfg.bellDebounceMs < 100 || cfg.bellDebounceMs > 10000) cfg.bellDebounceMs = 1000;
     if (typeof cfg.bellSoundEnabled !== 'boolean') cfg.bellSoundEnabled = true;
     if (typeof cfg.bellToastEnabled !== 'boolean') cfg.bellToastEnabled = true;
+    if (typeof cfg.bellOsEnabled !== 'boolean') cfg.bellOsEnabled = true;
     if (typeof cfg.bellBeepDurationMs !== 'number' || cfg.bellBeepDurationMs < 50 || cfg.bellBeepDurationMs > 2000) cfg.bellBeepDurationMs = 300;
     if (cfg.inputBarButtonAction !== 'newline' && cfg.inputBarButtonAction !== 'send') cfg.inputBarButtonAction = 'newline';
     if (cfg.inputBarEnterAction !== 'newline' && cfg.inputBarEnterAction !== 'send') cfg.inputBarEnterAction = 'send';
@@ -368,6 +370,7 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'bell_debounce_ms', data: config.bellDebounceMs }));
     ws.send(JSON.stringify({ type: 'bell_sound_enabled', data: config.bellSoundEnabled }));
     ws.send(JSON.stringify({ type: 'bell_toast_enabled', data: config.bellToastEnabled }));
+    ws.send(JSON.stringify({ type: 'bell_os_enabled', data: config.bellOsEnabled }));
     ws.send(JSON.stringify({ type: 'bell_beep_duration_ms', data: config.bellBeepDurationMs }));
     ws.send(JSON.stringify({ type: 'recent_paths', data: config.recentPaths }));
     ws.on('message', (msg) => {
@@ -585,6 +588,12 @@ wss.on('connection', (ws) => {
             if (typeof data !== 'boolean') return;
             config.bellToastEnabled = data;
             broadcast({ type: 'bell_toast_enabled', data: config.bellToastEnabled });
+            saveConfig(config);
+        }
+        else if (type === 'bell_os_enabled') {
+            if (typeof data !== 'boolean') return;
+            config.bellOsEnabled = data;
+            broadcast({ type: 'bell_os_enabled', data: config.bellOsEnabled });
             saveConfig(config);
         }
         else if (type === 'bell_beep_duration_ms') {
