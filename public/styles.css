@@ -1,6 +1,7 @@
 
         html {
             overflow-x: auto;  /* 兜底：xterm 本身比视口宽时滚动 */
+            interactive-widget: resizes-content;  /* 安卓键盘弹起时锁底栏停在键盘上方，不被遮挡 */
         }
         body {
             margin: 0;
@@ -256,7 +257,10 @@
             flex-wrap: nowrap;       /* 不换行，单行 */
             overflow-x: auto;        /* 超宽横向溢出可滚动 */
             gap: 0;
-            align-items: flex-start; /* 顶部对齐：输入条变高时左右按钮不跟着下移（保持贴顶） */
+            align-items: flex-end;   /* 输入条变高时按钮贴底、文本框向上长 */
+            position: sticky;        /* 锁在视口底边：输入条变高把页面撑超高时，底部栏不掉出屏幕 */
+            bottom: 0;
+            background: #1e1e1e;     /* 吸底后盖住终端，必须不透明，否则终端文字透出 */
             touch-action: pan-x;     /* 移动端授权横向 pan，禁掉竖向误滚 */
         }
         /* 发按键：独立组合器入口，与预设快捷键语义不同，保持为 #hotkeys-bar 直接子项
