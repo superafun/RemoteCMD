@@ -1350,6 +1350,12 @@
 
         function onTouchScrollStart(e) {
             if (selectionMode) {
+                // 选区模式下，终端区域外的触摸（底部快捷键按钮等）不接管选区。
+                // 否则 term.select(col,row,0) 会把已拖出的选区折叠为空，导致 hasSelection() 变 false，
+                // 随后 sendInputMaybeCopy('\x03') 回退到 sendInput('\x03') 让 TUI 退出。
+                // 移动端点底部按钮是 touch 事件、会冒泡到本捕获监听；桌面端是 mouse 事件不会触发，
+                // 因此两端表现不一致。与非选区分支一致：区域外触摸直接放行。
+                if (!e.target || !e.target.closest || !e.target.closest('#terminal-container')) return;
                 // 选区模式：用触摸驱动 xterm 选区，并拦掉 xterm 手势处理器（杜绝 NaN 垃圾）。
                 if (e.touches.length >= 2) {
                     // 多指：走双指缩放拦截，但绝不 preventDefault（保留原生缩放），不干扰选区。
