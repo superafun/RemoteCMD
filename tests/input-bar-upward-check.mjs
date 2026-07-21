@@ -3,8 +3,9 @@ import { chromium } from 'playwright';
 const URL = 'http://localhost:65433';
 
 const browser = await chromium.launch();
+try {
 const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
-await page.goto(URL, { waitUntil: 'networkidle' });
+await page.goto(URL, { waitUntil: 'domcontentloaded' });
 
 // 展开输入条
 await page.click('#inputBarBtn');
@@ -47,11 +48,14 @@ if (m.barPos !== 'sticky') errors.push(`hotkeys-bar position=${m.barPos}，应�
 if (m.barBottom !== '0px') errors.push(`hotkeys-bar bottom=${m.barBottom}，应为 0px`);
 if (m.barAlign !== 'flex-end') errors.push(`hotkeys-bar align-items=${m.barAlign}，应为 flex-end`);
 if (m.wrapAlign !== 'flex-end') errors.push(`inputBarWrap align-items=${m.wrapAlign}，应为 flex-end`);
-if (!m.taMaxH.includes('vh')) errors.push(`文本框 max-height=${m.taMaxH}，应为 ~50vh`);
+const taMaxHV = parseFloat(m.taMaxH); // e.g. "384px" -> 384
+if (!(taMaxHV > 0) || Math.abs(taMaxHV / m.vh - 0.5) > 0.02) errors.push(`文本框 max-height=${m.taMaxH}，应约 50vh(=${0.5*m.vh}px)`);
 if (m.barBg === 'rgba(0, 0, 0, 0)' || m.barBg === 'transparent') errors.push(`hotkeys-bar 背景透明，会透出终端文字`);
 
 await page.screenshot({ path: 'tests/input-bar-upward.png' });
-await browser.close();
 
 if (errors.length) { console.error('FAIL:\n' + errors.join('\n')); process.exit(1); }
 console.log('PASS: 输入条向上扩展、吸底、按钮平齐');
+} finally {
+  await browser.close();
+}
