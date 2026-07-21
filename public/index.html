@@ -1290,6 +1290,7 @@
         // === 触摸滑动模拟鼠标滚轮（纯前端，详见设计文档）===
         let swipeTouchId = null;      // 当前处理的触点 identifier，null=无
         let swipeActive  = false;     // 本次手势是否已判定为滚动
+        let pinchActive  = false;     // 多指（双指捏合）缩放进行中
         let swipeStartX = 0, swipeStartY = 0, swipeLastY = 0, swipeAccum = 0;
 
         function setupTouchScroll() {
@@ -1300,19 +1301,29 @@
         }
 
         function onTouchScrollStart(e) {
-            if (selectionMode) { swipeTouchId = null; swipeActive = false; return; }  // 选区模式交给 xterm 原生拖选
-            if (e.touches.length !== 1) { swipeTouchId = null; swipeActive = false; return; }  // 仅单指
-            const t = e.touches[0];
-            if (!t.target || !t.target.closest || !t.target.closest('#terminal-container')) {
-                swipeTouchId = null; swipeActive = false; return;   // 终端区域外（底部栏等）放行
+            if (selectionMode) return;  // 选区模式：完全交给 xterm 原生处理（含拖选/长按选区）
+            if (!e.target || !e.target.closest || !e.target.closest('#terminal-container'))
+                return;                                 // 终端区域外（底部栏等）放行
+            if (e.touches.length >= 2) {
+                // 双指捏合缩放：挡掉 xterm 手势处理（否则它把双指当滚动、松手惯量发 NaN 垃圾且吃掉缩放），
+                // 但绝不 preventDefault，浏览器按 CSS touch-action: pan-x pinch-zoom 执行原生缩放。
+                pinchActive = true; swipeTouchId = null; swipeActive = false;
+                e.stopPropagation();
+                return;
             }
+            if (e.touches.length !== 1) { swipeTouchId = null; swipeActive = false; return; }
+            // 单指：直接挡掉 xterm 的手势处理（否则它会在 touchstart 记录触摸、touchend 触发
+            // 惯量滚动并发 NaN 坐标的 SGR 垃圾 ESC[<65;NaN;NaNM，还会与我们的 smartScroll 双重滚动）。
+            // 单指滚动我们自己接管；此处不 preventDefault，让轻点聚焦照常。
+            e.stopPropagation();
+            const t = e.touches[0];
             swipeTouchId = t.identifier;
             swipeStartX = t.clientX; swipeStartY = t.clientY;
             swipeLastY = t.clientY; swipeAccum = 0; swipeActive = false;
-            // 注意：此处不 preventDefault，让轻点聚焦 / 长按选区照常
         }
 
         function onTouchScrollMove(e) {
+            if (pinchActive) { e.stopPropagation(); return; }  // 双指缩放中：只挡 xterm，不拦浏览器默认缩放
             if (swipeTouchId === null) return;
             let t = null;
             for (const c of e.changedTouches) if (c.identifier === swipeTouchId) { t = c; break; }
@@ -1323,11 +1334,11 @@
                 if (Math.abs(dy) > swipeClassify && Math.abs(dy) > Math.abs(dx)) {
                     swipeActive = true; swipeAccum = 0; swipeLastY = t.clientY;  // 竖向占优→判定为滚动
                 } else {
-                    return;  // 未达阈值 / 横滑 / 轻点：放行给 xterm
+                    return;  // 未达阈值 / 横滑 / 轻点：放行（已无 xterm 竞争，不会发垃圾）
                 }
             }
             e.preventDefault();
-            e.stopPropagation();   // 捕获阶段 stopPropagation 可截住 xterm 的冒泡阶段选区监听
+            e.stopPropagation();   // 捕获阶段 stopPropagation 截住 xterm 的冒泡阶段监听
             const dyStep = t.clientY - swipeLastY;
             swipeAccum += dyStep;
             swipeLastY = t.clientY;
@@ -1336,7 +1347,19 @@
             while (swipeAccum <= -swipeThreshold) { smartScroll(1);  swipeAccum += swipeThreshold; }  // 手指上滑 → 看更新
         }
 
-        function onTouchScrollEnd() {
+        function onTouchScrollEnd(e) {
+            if (pinchActive) {
+                // 双指缩放：直到全部手指抬起才解除，避免残留单指误触发滑动；
+                // 挡掉 xterm 的 touchend（其惯量逻辑会发 NaN 垃圾），不 preventDefault。
+                e && e.stopPropagation();
+                if (e && e.touches.length > 0) {
+                    swipeTouchId = null; swipeActive = false;  // 还有手指在屏：保持 pinchActive
+                    return;
+                }
+                pinchActive = false;
+            }
+            // 挡掉 xterm 的 touchend：否则它会对单指滑动做惯量滚动并发 NaN 坐标的 SGR 垃圾
+            if (swipeTouchId !== null || swipeActive) e && e.stopPropagation();
             swipeTouchId = null; swipeActive = false;
         }
 
