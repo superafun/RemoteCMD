@@ -42,7 +42,10 @@ class TermSession {
         container.appendChild(this.wrapper);
 
         // 创建 xterm
-        this.term = new Terminal({ allowProposedApi: true });
+        this.term = new Terminal({
+            allowProposedApi: true,
+            fontFamily: 'Consolas, "Microsoft YaHei", monospace'
+        });
         this.term.open(this.wrapper);
         this.term.loadAddon(new WebLinksAddon.WebLinksAddon());
         this.term.loadAddon(new Unicode11Addon.Unicode11Addon());
