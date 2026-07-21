@@ -1372,6 +1372,26 @@
         }
 
         function onTouchScrollMove(e) {
+            if (selectionMode) {
+                // 选区模式：单指移动实时扩展 xterm 选区；多指缩放只拦 xterm 不拦浏览器。
+                if (pinchActive) { e.stopPropagation(); return; }
+                if (e.touches.length === 1) {
+                    const term = getActiveTerm();
+                    if (term) {
+                        const t = e.touches[0];
+                        const c = cellOfTouch(t);
+                        // 规范化：保证 (c1,r1) 在左上、(c2,r2) 在右下
+                        const c1 = Math.min(selStartCell.col, c.col);
+                        const r1 = Math.min(selStartCell.row, c.row);
+                        const c2 = Math.max(selStartCell.col, c.col);
+                        const r2 = Math.max(selStartCell.row, c.row);
+                        const len = (r2 - r1) * term.cols + (c2 - c1) + 1;
+                        term.select(c1, r1, len);
+                    }
+                    e.stopPropagation();
+                }
+                return;
+            }
             if (pinchActive) { e.stopPropagation(); return; }  // 双指缩放中：只挡 xterm，不拦浏览器默认缩放
             if (swipeTouchId === null) return;
             let t = null;
