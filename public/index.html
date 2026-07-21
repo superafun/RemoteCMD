@@ -1328,7 +1328,25 @@
         }
 
         function onTouchScrollStart(e) {
-            if (selectionMode) return;  // 选区模式：完全交给 xterm 原生处理（含拖选/长按选区）
+            if (selectionMode) {
+                // 选区模式：用触摸驱动 xterm 选区，并拦掉 xterm 手势处理器（杜绝 NaN 垃圾）。
+                if (e.touches.length >= 2) {
+                    // 多指：走双指缩放拦截，但绝不 preventDefault（保留原生缩放），不干扰选区。
+                    pinchActive = true; swipeTouchId = null; swipeActive = false;
+                    e.stopPropagation();
+                    return;
+                }
+                if (e.touches.length === 1) {
+                    const term = getActiveTerm();
+                    if (term) {
+                        const c = cellOfTouch(e.touches[0]);
+                        selStartCell = c;                    // 记录拖选起点（move 中用于规范化）
+                        term.select(c.col, c.row, 0);   // 折叠光标到起点；后续 move 实时扩展
+                    }
+                    e.stopPropagation();                // 捕获阶段截住 xterm 冒泡监听，避免 NaN
+                }
+                return;
+            }
             if (!e.target || !e.target.closest || !e.target.closest('#terminal-container'))
                 return;                                 // 终端区域外（底部栏等）放行
             // 自愈：若上一次捏合的最终抬手事件被浏览器丢失而导致 pinchActive 卡在 true，
