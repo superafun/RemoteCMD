@@ -60,15 +60,21 @@ class TermSession {
         // 键盘 Ctrl+V：粘贴系统剪贴板内容，覆盖 xterm 默认的 \x16 转发（见注意事项 38）。
         // 二者都必须在捕获阶段拦截——xterm 处理按键时若先动作，默认行为会抢先。
         this.wrapper.addEventListener('keydown', async e => {
-            if (e.ctrlKey && !e.shiftKey && !e.altKey &&
-                (e.key === 'c' || e.key === 'C') && this.term.hasSelection()) {
+            // 快捷键匹配同时接受 e.key / e.code / e.keyCode：
+            // 移动端真机外接键盘或某些软键盘按 Ctrl+C/V 时 e.key 常为 'Unidentified'，
+            // 真实按键藏在 e.code('KeyC'/'KeyV') 或 e.keyCode(67/86) 里。只判 e.key 会让快捷键
+            // 在手机上静默失效，且 xterm 把原始字节(\x03/\x16)漏发到 PTY（见跨端事件通道记忆）。
+            const isCopy = e.ctrlKey && !e.shiftKey && !e.altKey &&
+                (e.key === 'c' || e.key === 'C' || e.code === 'KeyC' || e.keyCode === 67);
+            const isPaste = e.ctrlKey && !e.shiftKey && !e.altKey &&
+                (e.key === 'v' || e.key === 'V' || e.code === 'KeyV' || e.keyCode === 86);
+            if (isCopy && this.term.hasSelection()) {
                 e.preventDefault();
                 e.stopPropagation();
                 if (window.copyTermSelection) await window.copyTermSelection(this.term);
                 return;
             }
-            if (e.ctrlKey && !e.shiftKey && !e.altKey &&
-                (e.key === 'v' || e.key === 'V')) {
+            if (isPaste) {
                 e.preventDefault();
                 e.stopPropagation();
                 if (window.pasteFromClipboard) await window.pasteFromClipboard(this.term, this.id);
