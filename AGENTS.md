@@ -333,7 +333,7 @@ server.js
 40. **输入条高度对齐侧边按键（2026-07-14 修复）**：底部栏输入条展开后，textarea（`#inputBarText`）高度原先比左右按键（发按键/换行）高出一截、且文字离框底有较大的空白，视觉不和谐。
     - **根因**：单行/空状态的 textarea 高度由 `autoGrow()`（`public/index.html`）设 `height = scrollHeight`（内容高 + 上下 padding，不含边框）决定，与按钮高度公式相同，差异在**垂直 padding**（textarea 原上下各 4px，按钮上下各 6px）+ 真实浏览器单行行盒渲染使底部留白偏大。
     - **修复**：`public/styles.css` `#inputBarText` 的 `padding` 由 `4px 6px` 逐步收紧为 `4px 6px 2px` 最终 `4px 6px 0`（仅收底部，顶部与左右不变），文字贴框底、整体高度贴近侧边按键，用户验收"刚好对齐"。
-    - **不含写死高度**：保持 `autoGrow`（`height = scrollHeight`）+ `overflow: auto` + `max-height: 160px`，单行内容恰好塞进框、**无滚动条**；多行照常增长。此前"强行写死 height"导致滚动条的坑不复现。
+    - **不含写死高度**：保持 `autoGrow`（`height = scrollHeight`）+ `overflow: auto` + `max-height`（原 `160px`，2026-07-21 改为 `50vh`，见条目 43），单行内容恰好塞进框、**无滚动条**；多行照常增长。此前"强行写死 height"导致滚动条的坑不复现。
     - **范围**：纯前端 `styles.css` 一处改动，刷新即生效，不动 `server.js`/协议；如需像素级锁死对齐，备选方案为运行时读取「换行」按钮 `clientHeight` 反推 textarea 高度（未采用，当前 padding 法已满足）。
 
 41. **BEL 终端响铃通知通道（2026-07-14 引入）**：后端检测 PTY 输出中的 ASCII BEL 字符 `\x07`，前端显示 `终端通知: <终端名>` Toast + 播放 1kHz 蜂鸣（默认 300ms，可配）。PowerShell 中可用 `Write-Host "`a"`、`[Console]::Write("`a")`、`` `a `` 字面量等触发。`[console]::Beep()` 直接调用 Windows 系统蜂鸣器，不走 PTY 输出，因此**不触发**该通道（设计约束）。
@@ -345,6 +345,18 @@ server.js
     - **前端**：复用通用 `showToast(text, 'success')`（带堆叠偏移，多终端同时 bell 不重叠），无点击行为。蜂鸣失败时（浏览器自动播放策略拒绝）静默吞错不影响 Toast。`AudioContext` 懒初始化（首次响铃时 `new`）+ 幂等 `resume()`，避免页面加载即触发自动播放警告。
 
 42. **回车停顿设置项 enterDelayMs（2026-07-15 引入）**：输入条发送文本时「整段正文发出」与「单独发 `\r` 回车」之间的停顿，原为硬编码 `ENTER_DELAY=300ms`，现改为可配置、多端同步的设置项 `enterDelayMs`（默认 300，范围 50–3000，step 50）。完整链路：`config.json` 字段 → `loadConfig` 默认(300)+兜底(越界回退 300) → 连接时 `ws.send({type:'enter_delay_ms'})` 下发 → ws handler 校验(非整数/越界拒收)+`saveConfig`+`broadcast` → 前端 `applySettingsEnterDelay()`（只 `wsSend`，服务端权威）→ 接收侧 `enterDelayMs = msg.data` + 前端日志。`sendInputBar()` 内 `await sleep(enterDelayMs)` 取代 `await sleep(ENTER_DELAY)`；`ENTER_DELAY` 常量已删除。Enter 键发送（`inputBarEnterAction==='send'`）与右侧「发送」按钮（`inputBarButtonAction==='send'`）共用 `sendInputBar()`，停顿两者同步受控。设置弹窗「输入条动作」组新增「回车停顿 (ms)」行（number input + 应用按钮，沿用 `swipe_threshold` 模式，非即时应用）。**改了 `server.js` 需 `npm run restart`**（由用户执行，AI 不擅自重启）。
+
+43. **输入条向上扩展吸底（2026-07-21 修复）**：输入条展开输入超过一行时，文本框原先**向下**扩展，把整个页面撑得比屏幕还高，底部「发按键 / 换行」按钮被挤到屏幕外，需下滑才能看到全部内容。改为文本框**向上**扩展、盖住终端底部一部分，且按钮始终贴屏幕底可见。
+    - **根因**：`#hotkeys-bar` 与 `#inputBarWrap` 为 `align-items: flex-start`（按钮贴顶、文本框向下长）；底部栏处于正常文档流，页面总高超过视口后其底边掉出屏幕底边。
+    - **修复**（`public/styles.css`，纯 CSS，不动 `server.js`/协议/`autoGrow`）：
+        - `#hotkeys-bar` 加 `position: sticky; bottom: 0` 锁视口底边；因 sticky 保留在 `#page` 流盒内，宽度自动等于终端宽度（**未用 `fixed`**，否则变全屏宽）。
+        - `#hotkeys-bar`、`#inputBarWrap` 的 `align-items` 由 `flex-start` 改 `flex-end` → 文本框底边与按钮底边平齐，多行时文本框向上长盖住终端。
+        - `#inputBarText` 上限 `max-height: 160px` → `50vh`，超半屏后内部滚动（`overflow: auto` 已具备）。
+        - `#hotkeys-bar` 加不透明 `background: #1e1e1e`，吸底盖住终端时文字不透出。
+        - `html` 加 `interactive-widget: resizes-content`，安卓软键盘弹起时锁底栏停在键盘上方（现代 Chrome 默认 `resizes-visual` 已如此；不引入 `visualViewport` JS）。
+        - `autoGrow()`（`public/index.html`）未改，仍 `height = scrollHeight` + `max-height` 钳制渲染高度。
+    - **验证**：`tests/input-bar-upward-check.mjs` 用 Playwright 直接打开真实运行服务（`http://localhost:65433`），量 `getBoundingClientRect`/`getComputedStyle` 真实像素断言——`sticky` 且 `bottom: 0px`、两条 `flex-end`、文本框 `max-height ≈ 50vh`、栏背景不透明、文本框与终端重叠、文本框底边与「换行」按钮底边平齐、输入条底边贴视口底；基线（改前）FAIL、改后 PASS。Playwright 以 `npm i playwright --no-save` 临时装入，未写入 `package.json`。
+    - **范围**：纯前端 `styles.css` 改动，刷新即生效，不动 `server.js`/协议。已知小瑕疵：xterm 默认背景黑 `#000000`、栏背景 `#1e1e1e`，吸底盖住终端时顶边有一道色阶（与现有 toolbar/终端 色差一致，非新回归，可选统一）。安卓真机（HTTPS）键盘场景由用户真机验收。
 
 ## 开发工作流
 
