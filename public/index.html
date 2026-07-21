@@ -16,10 +16,10 @@
         <div class="toolbar">
             <button id="sessionSelectBtn"></button>
             <div id="sessionDropdown" class="dropdown-menu"></div>
-            <button onclick="renameCurrent()">重命�??</button>
+            <button onclick="renameCurrent()">重命名</button>
             <button onclick="createNew()">新建终端</button>
-            <button id="recentPathsBtn">最近路�??</button>
-            <button id="sizeToggleBtn" onclick="toggleSize()">�??</button>
+            <button id="recentPathsBtn">最近路径</button>
+            <button id="sizeToggleBtn" onclick="toggleSize()">大</button>
             <button id="selectModeBtn" onclick="toggleSelectMode()">选区模式</button>
             <button id="openSettingsBtn" onclick="openSettingsModal()">设置</button>
             <div id="recentPathsDropdown" class="dropdown-menu"></div>
@@ -27,18 +27,18 @@
         </div>
         <div id="terminal-container"></div>
         <div id="hotkeys-bar">
-            <button id="sendKeysBtn" onclick="openSendKeysPanel()">发按�??</button>
-            <button id="inputBarBtn" onclick="toggleInputBar()">输入�??</button>
+            <button id="sendKeysBtn" onclick="openSendKeysPanel()">发按键</button>
+            <button id="inputBarBtn" onclick="toggleInputBar()">输入条</button>
             <div id="inputBarWrap" style="display:none;">
-                <textarea id="inputBarText" placeholder="输入内容，回车发送，点换行键换一�??" rows="1"></textarea>
+                <textarea id="inputBarText" placeholder="输入内容，回车发送，点换行键换一行" rows="1"></textarea>
                 <button id="inputBarSend" onclick="inputBarRightButton()">换行</button>
             </div>
             <div id="hotkeysList" style="display:flex;gap:0;flex-wrap:nowrap;">
                 <button id="editBtn">编辑</button>
                 <div id="scrollGroup" style="display:flex;flex-shrink:0;margin-left:auto;">
-                    <button id="scrollUpBtn">▲上�??</button>
-                    <button id="scrollDownBtn">▼下�??</button>
-                    <button id="scrollBottomBtn">▽到底页�??</button>
+                    <button id="scrollUpBtn">▲上滑</button>
+                    <button id="scrollDownBtn">▼下滑</button>
+                    <button id="scrollBottomBtn">▽到底页面</button>
                 </div>
             </div>
         </div>
@@ -47,51 +47,51 @@
     <script>
         const terminalContainer = document.getElementById('terminal-container');
         let ws = null;
-        const sessions = new Map();  // number id �?? TermSession
+        const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
         let recentPaths = [];
         const wsProtocol = location.protocol === 'https:' ? 'wss' : 'ws';
         let hotkeys = {};
         let scrollIntervalTerminal = 100;
         let scrollIntervalPage = 100;
-        let swipeThreshold = 24;   // 滑动滚动阈�?(px)，设置可改、实时生�??
-        let swipeClassify  = 10;   // 滑动判定阈�?(px)，设置可改、实时生�??
+        let swipeThreshold = 24;   // 滑动滚动阈值(px)，设置可改、实时生效
+        let swipeClassify  = 10;   // 滑动判定阈值(px)，设置可改、实时生效
         let showScrollButtons = true;
         let inputBarButtonAction = 'newline';
         let inputBarEnterAction = 'send';
         let inputBarCloseAfterSend = false;
-        let enterDelayMs = 300;   // 输入条回车停�??(ms)，设置可改、多端同�??
+        let enterDelayMs = 300;   // 输入条回车停顿(ms)，设置可改、多端同步
         let inputBarHideOnBlur = true;
-        // sizeSlots / currentSize 替代�?? rows/cols�??2026-07-01 改用 size_slots/current_size 协议�??
-        // 初始 null：服务端消息到达前不调用 term.resize，也不渲染弹窗默认�?
+        // sizeSlots / currentSize 替代原 rows/cols（2026-07-01 改用 size_slots/current_size 协议）
+        // 初始 null：服务端消息到达前不调用 term.resize，也不渲染弹窗默认值
         let sizeSlots = { large: null, small: null };
         let currentSize = null;  // 'large' | 'small' | null
         let editorDiv = null;
         let editingKey = null;
         // 标记"刚才那个 create 请求是不是本客户端发起的"，决定新终端是否自动切换
         let pendingCreate = false;
-        let isFirstList = true;  // 重连后第一�?? list 标志，用于触�?? diff 交集�?? buffer 增量拉取
-        let bufferQueue = [];  // 等待加载缓存的后台终�?? ID 队列
+        let isFirstList = true;  // 重连后第一个 list 标志，用于触发 diff 交集的 buffer 增量拉取
+        let bufferQueue = [];  // 等待加载缓存的后台终端 ID 队列
         let screenHistoryLines = 1000;  // headless 终端保留的真实滚屏历史行数（重连可上滚查看）
         let settingsDiv = null;  // 设置弹窗 DOM 句柄
         // === 前端日志 ===
         let maxFrontendLogs = 50;
         const frontendLogs = [];
         // === BEL 通知设置 ===
-        let bellDebounceMs = 1000;   // 服务端去抖窗口（ms），�?? config.json.bellDebounceMs 同步
-        let bellSoundEnabled = true; // 蜂鸣开�??
-        let bellToastEnabled = true; // Toast 开�??
-        let bellOsEnabled = true;    // 系统通知（OS 弹窗）开�??
-        let bellBeepDurationMs = 300; // 蜂鸣单声时长（ms�??
-        // 保留 hotkeyList 内固定尾部元素（编辑按钮 + 滚动按钮组）的引�??
-        // renderHotkeys() �?? bar.innerHTML = '' 会把它们�?? DOM 树摘�??,getElementById 失效
+        let bellDebounceMs = 1000;   // 服务端去抖窗口（ms），与 config.json.bellDebounceMs 同步
+        let bellSoundEnabled = true; // 蜂鸣开关
+        let bellToastEnabled = true; // Toast 开关
+        let bellOsEnabled = true;    // 系统通知（OS 弹窗）开关
+        let bellBeepDurationMs = 300; // 蜂鸣单声时长（ms）
+        // 保留 hotkeyList 内固定尾部元素（编辑按钮 + 滚动按钮组）的引用
+        // renderHotkeys() 中 bar.innerHTML = '' 会把它们从 DOM 树摘下,getElementById 失效
         // 必须用变量持有引用才能在 renderHotkeys 末尾 appendChild 回去
         const editBtnEl = document.getElementById('editBtn');
         const scrollGroupEl = document.getElementById('scrollGroup');
 
-        // dir: 'out' = 客户端→服务�?? (C→S, 蓝色 �??)
-        //      'in'  = 服务端→客户�?? (S→C, 绿色 �??)
-        //      undefined/其他 = 本地事件 (无方�??,无前缀)
+        // dir: 'out' = 客户端→服务端 (C→S, 蓝色 →)
+        //      'in'  = 服务端→客户端 (S→C, 绿色 ←)
+        //      undefined/其他 = 本地事件 (无方向,无前缀)
         function addFrontendLog(msg, dir) {
             const t = new Date();
             const time = t.toLocaleString('zh-CN', { hour12: false });
@@ -102,10 +102,10 @@
             }
         }
 
-        // 解析快捷键名为转义序�??
+        // 解析快捷键名为转义序列
         function parseHotkey(s) {
             const map = {
-                '�??': '\x1b[A', '�??': '\x1b[B', '�??': '\x1b[C', '�??': '\x1b[D',
+                '↑': '\x1b[A', '↓': '\x1b[B', '→': '\x1b[C', '←': '\x1b[D',
                 'Up': '\x1b[A', 'Down': '\x1b[B', 'Right': '\x1b[C', 'Left': '\x1b[D',
                 'Home': '\x1b[H', 'End': '\x1b[F', 'PgUp': '\x1b[5~', 'PgDn': '\x1b[6~',
                 'Insert': '\x1b[2~', 'Delete': '\x1b[3~', 'Tab': '\t', 'Enter': '\r', 'Space': ' ',
@@ -116,8 +116,8 @@
             let m = s.match(/^Ctrl\+([A-Z])$/i);
             if (m) return String.fromCharCode(m[1].toUpperCase().charCodeAt(0) - 64);
 
-            // Alt+字母 �?? Escape 前缀 + 小写字母（如 Alt+M �?? \x1bm�??
-            // 实际键盘 Alt+字母发送的是小写，大写 \x1bM 会被解释�?? VT100 控制序列
+            // Alt+字母 → Escape 前缀 + 小写字母（如 Alt+M → \x1bm）
+            // 实际键盘 Alt+字母发送的是小写，大写 \x1bM 会被解释为 VT100 控制序列
             m = s.match(/^Alt\+([A-Z])$/i);
             if (m) {
                 return '\x1b' + m[1].toLowerCase();
@@ -127,12 +127,12 @@
             if (m) return '\x1b' + m[1];
             return s;
         }
-        const availableKeys = ['Ctrl', 'Alt', 'Shift', '�??', '�??', '�??', '�??', 'Up', 'Down', 'Right', 'Left', 'Home', 'End', 'PgUp', 'PgDn', 'Insert', 'Delete', 'Tab', 'Enter', 'Esc', 'Backspace', 'Space', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
+        const availableKeys = ['Ctrl', 'Alt', 'Shift', '↑', '↓', '→', '←', 'Up', 'Down', 'Right', 'Left', 'Home', 'End', 'PgUp', 'PgDn', 'Insert', 'Delete', 'Tab', 'Enter', 'Esc', 'Backspace', 'Space', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
         // 直接发送面板用：修饰键（勾选式组合，单独成区）
         const MODIFIER_KEYS = ['Ctrl', 'Alt', 'Shift'];
         // 直接发送面板用：主键（字母 + 功能键，点一下即与当前勾选的修饰键组合并发送）
-        const PRIMARY_KEYS = ['�??', '�??', '�??', '�??', 'Up', 'Down', 'Right', 'Left', 'Home', 'End', 'PgUp', 'PgDn', 'Insert', 'Delete', 'Tab', 'Enter', 'Esc', 'Backspace', 'Space', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
-        // 当前勾选的修饰键（方案A：勾选式组合，非物理按住�??
+        const PRIMARY_KEYS = ['↑', '↓', '→', '←', 'Up', 'Down', 'Right', 'Left', 'Home', 'End', 'PgUp', 'PgDn', 'Insert', 'Delete', 'Tab', 'Enter', 'Esc', 'Backspace', 'Space', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
+        // 当前勾选的修饰键（方案A：勾选式组合，非物理按住）
         let activeMods = new Set();
 
         // === 设置弹窗 ===
@@ -146,26 +146,26 @@
             html += '<div class="modal-group">';
             html += '<div class="modal-group-title">终端尺寸</div>';
 
-            // 大尺�??
+            // 大尺寸
             html += '<div class="modal-row">';
-            html += '<span class="modal-label" style="min-width:0;">大尺�??</span>';
-            html += '�?? <input type="number" id="settingsLargeRowsInput" min="20" max="200" style="width:80px;">';
-            html += '�?? <input type="number" id="settingsLargeColsInput" min="20" max="200" style="width:80px;">';
+            html += '<span class="modal-label" style="min-width:0;">大尺寸</span>';
+            html += '行 <input type="number" id="settingsLargeRowsInput" min="20" max="200" style="width:80px;">';
+            html += '列 <input type="number" id="settingsLargeColsInput" min="20" max="200" style="width:80px;">';
             html += '<button class="btn-primary" id="btn-apply-largeSize" onclick="applySettingsLargeSize()">应用</button>';
             html += '</div>';
 
-            // 小尺�??
+            // 小尺寸
             html += '<div class="modal-row">';
-            html += '<span class="modal-label" style="min-width:0;">小尺�??</span>';
-            html += '�?? <input type="number" id="settingsSmallRowsInput" min="20" max="200" style="width:80px;">';
-            html += '�?? <input type="number" id="settingsSmallColsInput" min="20" max="200" style="width:80px;">';
+            html += '<span class="modal-label" style="min-width:0;">小尺寸</span>';
+            html += '行 <input type="number" id="settingsSmallRowsInput" min="20" max="200" style="width:80px;">';
+            html += '列 <input type="number" id="settingsSmallColsInput" min="20" max="200" style="width:80px;">';
             html += '<button class="btn-primary" id="btn-apply-smallSize" onclick="applySettingsSmallSize()">应用</button>';
             html += '</div>';
             html += '</div>'; // end 终端尺寸
 
-            // === 滚动与滑�?? ===
+            // === 滚动与滑动 ===
             html += '<div class="modal-group">';
-            html += '<div class="modal-group-title">滚动与滑�??</div>';
+            html += '<div class="modal-group-title">滚动与滑动</div>';
 
             // 显示滚动按钮
             html += '<div class="modal-row">';
@@ -187,24 +187,24 @@
             html += '<button class="btn-primary" id="btn-apply-scrollIntervalPage" onclick="applySettingsScrollIntervalPage()">应用</button>';
             html += '</div>';
 
-            // 滑动滚动阈�? (px)
+            // 滑动滚动阈值 (px)
             html += '<div class="modal-row">';
-            html += '<span class="modal-label">滑动滚动阈�? (px)</span>';
+            html += '<span class="modal-label">滑动滚动阈值 (px)</span>';
             html += '<input type="number" id="settingsSwipeThresholdInput" min="1" max="200" step="1" style="width:80px;">';
             html += '<button class="btn-primary" id="btn-apply-swipeThreshold" onclick="applySettingsSwipeThreshold()">应用</button>';
             html += '</div>';
 
-            // 滑动判定阈�? (px)
+            // 滑动判定阈值 (px)
             html += '<div class="modal-row">';
-            html += '<span class="modal-label">滑动判定阈�? (px)</span>';
+            html += '<span class="modal-label">滑动判定阈值 (px)</span>';
             html += '<input type="number" id="settingsSwipeClassifyInput" min="1" max="100" step="1" style="width:80px;">';
             html += '<button class="btn-primary" id="btn-apply-swipeClassify" onclick="applySettingsSwipeClassify()">应用</button>';
             html += '</div>';
-            html += '</div>'; // end 滚动与滑�??
+            html += '</div>'; // end 滚动与滑动
 
-            // === 输入条动�?? ===
+            // === 输入条动作 ===
             html += '<div class="modal-group">';
-            html += '<div class="modal-group-title">输入条动�??</div>';
+            html += '<div class="modal-group-title">输入条动作</div>';
 
             // 焦点丢失时隐藏输入条
             html += '<div class="modal-row">';
@@ -212,9 +212,9 @@
             html += '<span id="hint-inputBarHideOnBlur" class="apply-hint"></span>';
             html += '</div>';
 
-            // 发送后关闭输入�??
+            // 发送后关闭输入条
             html += '<div class="modal-row">';
-            html += '<label class="modal-label"><input type="checkbox" id="settingsInputBarCloseAfterSendInput" onchange="applySettingsInputBarCloseAfterSend()"> 发送后关闭输入�??</label>';
+            html += '<label class="modal-label"><input type="checkbox" id="settingsInputBarCloseAfterSendInput" onchange="applySettingsInputBarCloseAfterSend()"> 发送后关闭输入条</label>';
             html += '<span id="hint-inputBarCloseAfterSend" class="apply-hint"></span>';
             html += '</div>';
 
@@ -229,57 +229,60 @@
             html += '<div class="modal-row">';
             html += '<span class="modal-label">右侧按钮动作</span>';
             html += '<select id="settingsInputBarButtonActionInput">'
-                  + '<option value="newline">换行</option><option value="send">发�?</option></select>';
+                  + '<option value="newline">换行</option><option value="send">发送</option></select>';
             html += '<button class="btn-primary" id="btn-apply-inputBarButtonAction" onclick="applySettingsInputBarButtonAction()">应用</button>';
             html += '</div>';
 
-            // Enter 键动�??
+            // Enter 键动作
             html += '<div class="modal-row">';
-            html += '<span class="modal-label">Enter 键动�??</span>';
+            html += '<span class="modal-label">Enter 键动作</span>';
             html += '<select id="settingsInputBarEnterActionInput">'
-                  + '<option value="newline">换行</option><option value="send">发�?</option></select>';
+                  + '<option value="newline">换行</option><option value="send">发送</option></select>';
             html += '<button class="btn-primary" id="btn-apply-inputBarEnterAction" onclick="applySettingsInputBarEnterAction()">应用</button>';
             html += '</div>';
-            html += '</div>'; // end 输入条动�??
+            html += '</div>'; // end 输入条动作
 
-            // === 缓冲�?? ===
+            // === 缓冲区 ===
             html += '<div class="modal-group">';
-            html += '<div class="modal-group-title">缓冲�??</div>';
+            html += '<div class="modal-group-title">缓冲区</div>';
 
-            // 重连滚屏历史行数（headless scrollback�??
+
+            // 重连滚屏历史行数（headless scrollback）
             html += '<div class="modal-row">';
-            html += '<span class="modal-label">重连滚屏历史 (�??)</span>';
+            html += '<span class="modal-label">重连滚屏历史 (行)</span>';
             html += '<input type="number" id="settingsScreenHistoryLinesInput" min="0" max="20000" step="100" style="width:80px;">';
             html += '<button class="btn-primary" id="btn-apply-screenHistoryLines" onclick="applySettingsScreenHistoryLines()">应用</button>';
             html += '</div>';
 
-            // 日志上限 (�??)
+            // 日志上限 (条)
             html += '<div class="modal-row">';
-            html += '<span class="modal-label">日志上限 (�??)</span>';
+            html += '<span class="modal-label">日志上限 (条)</span>';
             html += '<input type="number" id="settingsMaxFrontendLogsInput" min="10" max="10000" step="10" style="width:80px;">';
             html += '<button class="btn-primary" id="btn-apply-maxFrontendLogs" onclick="applySettingsMaxFrontendLogs()">应用</button>';
             html += '</div>';
-            html += '</div>'; // end 缓冲�??
+
+
+            html += '</div>'; // end 缓冲区
 
             // === 通知 ===
             html += '<div class="modal-group">';
             html += '<div class="modal-group-title">通知</div>';
 
-            // 通知声音开�??
+            // 通知声音开关
             html += '<div class="modal-row">';
             html += '<label class="modal-label"><input type="checkbox" id="settingsBellSoundEnabledInput" onchange="applySettingsBellSoundEnabled()"> 通知声音</label>';
             html += '<span id="hint-bellSoundEnabled" class="apply-hint"></span>';
             html += '</div>';
 
-            // 通知 Toast 开�??
+            // 通知 Toast 开关
             html += '<div class="modal-row">';
             html += '<label class="modal-label"><input type="checkbox" id="settingsBellToastEnabledInput" onchange="applySettingsBellToastEnabled()"> 通知 Toast</label>';
             html += '<span id="hint-bellToastEnabled" class="apply-hint"></span>';
             html += '</div>';
 
-            // 系统通知（OS 弹窗）开�??
+            // 系统通知（OS 弹窗）开关
             html += '<div class="modal-row">';
-            html += '<label class="modal-label"><input type="checkbox" id="settingsBellOsEnabledInput" onchange="applySettingsBellOsEnabled()"> 系统通知（OS 弹窗�??</label>';
+            html += '<label class="modal-label"><input type="checkbox" id="settingsBellOsEnabledInput" onchange="applySettingsBellOsEnabled()"> 系统通知（OS 弹窗）</label>';
             html += '<span id="hint-bellOsEnabled" class="apply-hint"></span>';
             html += '</div>';
 
@@ -299,9 +302,9 @@
             html += '</div>'; // end 通知
 
             html += '<div class="modal-actions">';
-            html += '<button class="btn-danger" onclick="restartServer()">重启服务�??</button>';
+            html += '<button class="btn-danger" onclick="restartServer()">重启服务器</button>';
             html += '<button class="btn-danger" onclick="killCurrent()">关闭当前终端</button>';
-            html += '<button onclick="renameAll()">重命名全�??</button>';
+            html += '<button onclick="renameAll()">重命名全部</button>';
             html += '<button onclick="openLogModal()">日志</button>';
             html += '<button onclick="closeSettingsModal()" style="margin-left:auto;">关闭</button>';
             html += '</div>';
@@ -334,6 +337,7 @@
             document.getElementById('settingsBellToastEnabledInput').checked = bellToastEnabled;
             document.getElementById('settingsBellOsEnabledInput').checked = bellOsEnabled;
             document.getElementById('settingsBellBeepDurationInput').value = bellBeepDurationMs;
+
         }
 
         function closeSettingsModal() {
@@ -346,19 +350,19 @@
             let html = '<div class="modal-overlay" onclick="if(event.target===this)this.remove()">';
             html += '<div class="modal-box" style="min-width:520px;max-width:680px;">';
             html += '<h3>后台日志 <span style="font-size:11px;color:#888;font-weight:400;margin-left:8px;">';
-            html += '<span style="color:#4a9eff">�??</span> 客户端→服务�?? &nbsp; ';
-            html += '<span style="color:#4caf50">�??</span> 服务端→客户�??';
+            html += '<span style="color:#4a9eff">→</span> 客户端→服务端 &nbsp; ';
+            html += '<span style="color:#4caf50">←</span> 服务端→客户端';
             html += '</span></h3>';
             html += '<div id="logContent" style="background:#0d0d0d;color:#c0c0c0;padding:10px;border-radius:4px;max-height:50vh;overflow-y:auto;font-family:Consolas,monospace;font-size:12px;line-height:1.6;">';
             if (frontendLogs.length === 0) {
                 html += '暂无日志';
             } else {
-                // 每条日志独占一�??,前缀按方向上�??
+                // 每条日志独占一行,前缀按方向上色
                 frontendLogs.forEach(log => {
                     const timeColor = '#666';
                     let arrow = '', arrowColor = '';
-                    if (log.dir === 'out') { arrow = '�??'; arrowColor = '#4a9eff'; }
-                    else if (log.dir === 'in') { arrow = '�??'; arrowColor = '#4caf50'; }
+                    if (log.dir === 'out') { arrow = '→'; arrowColor = '#4a9eff'; }
+                    else if (log.dir === 'in') { arrow = '←'; arrowColor = '#4caf50'; }
                     const sep = log.dir ? ` <span style="color:${arrowColor};font-weight:bold">${arrow}</span> ` : '  ';
                     html += `<div style="white-space:pre-wrap;"><span style="color:${timeColor}">${log.time}</span>${sep}${log.msg}</div>`;
                 });
@@ -378,18 +382,18 @@
             showToast(`终端通知: ${s.name}`, 'success');
         }
 
-        // 系统级通知（浏览器 Notification �?? 操作系统弹窗）�?
-        // 仅当开关开启且浏览器已授权才弹；未授权/不支持则静默跳过（Toast+蜂鸣仍由 bell 分支处理）�?
+        // 系统级通知（浏览器 Notification → 操作系统弹窗）。
+        // 仅当开关开启且浏览器已授权才弹；未授权/不支持则静默跳过（Toast+蜂鸣仍由 bell 分支处理）。
         function fireOsNotification(id) {
             if (!('Notification' in window)) return;            // 浏览器不支持
-            if (Notification.permission !== 'granted') return;  // 未授权不�??
+            if (Notification.permission !== 'granted') return;  // 未授权不弹
             const s = sessions.get(id);
             const name = s ? s.name : '终端';
             try {
                 const n = new Notification('终端通知', { body: `${name} 触发提示`, tag: 'remote-cmd-bell' });
                 n.onclick = () => { window.focus(); n.close(); };
             } catch (e) {
-                // 某些环境构�? Notification 抛错，静默失败不影响 Toast/蜂鸣
+                // 某些环境构造 Notification 抛错，静默失败不影响 Toast/蜂鸣
             }
         }
 
@@ -399,7 +403,7 @@
                 if (!audioCtx) {
                     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 }
-                // 单声蜂鸣，时长由 bellBeepDurationMs 控制（默�?? 300ms）：取消之前的两声设计，宁可首部被激活竞态截掉也不留白�?
+                // 单声蜂鸣，时长由 bellBeepDurationMs 控制（默认 300ms）：取消之前的两声设计，宁可首部被激活竞态截掉也不留白。
                 if (audioCtx.state === 'suspended') audioCtx.resume();
                 const dur = bellBeepDurationMs / 1000;
                 const osc = audioCtx.createOscillator();
@@ -421,7 +425,7 @@
         function fbBtn(id, ok) {
             const btn = document.getElementById(id);
             if (!btn) return;
-            btn.textContent = ok ? '✓已应用' : '✗无�??';
+            btn.textContent = ok ? '✓已应用' : '✗无效';
             btn.style.color = ok ? '#4caf50' : '#f44336';
             setTimeout(() => { btn.textContent = '应用'; btn.style.color = ''; }, 1500);
         }
@@ -516,6 +520,7 @@
             }
         }
 
+
         function applySettingsScreenHistoryLines() {
             const v = parseInt(document.getElementById('settingsScreenHistoryLinesInput').value);
             if (Number.isInteger(v) && v >= 0 && v <= 20000) {
@@ -535,6 +540,7 @@
                 fbBtn('btn-apply-maxFrontendLogs', false);
             }
         }
+
 
         function applySettingsBellDebounceMs() {
             const v = parseInt(document.getElementById('settingsBellDebounceMsInput').value);
@@ -579,8 +585,8 @@
             }
         }
 
-        // === �??/小尺寸槽位应用（2026-07-01 引入�?? ===
-        // 应用 = �?? sizeSlots 槽位 + �?? currentSize（两条消息）
+        // === 大/小尺寸槽位应用（2026-07-01 引入） ===
+        // 应用 = 写 sizeSlots 槽位 + 切 currentSize（两条消息）
         function applySettingsSizeFor(sizeMode) {
             const isLarge = sizeMode === 'large';
             const rInput = document.getElementById(`settings${isLarge ? 'Large' : 'Small'}RowsInput`);
@@ -591,31 +597,31 @@
                 fbBtn(`btn-apply-${sizeMode}Size`, false);
                 return;
             }
-            // 第一步：�?? sizeSlots 槽位（服务端会全量广�?? size_slots�??
+            // 第一步：写 sizeSlots 槽位（服务端会全量广播 size_slots）
             wsSend({ type: 'size_slots', sizeMode, rows: r, cols: c });
-            // 第二步：切到目标尺寸（服务端会广�?? current_size + �?? PTY�??
+            // 第二步：切到目标尺寸（服务端会广播 current_size + 调 PTY）
             wsSend({ type: 'current_size', size: sizeMode });
-            addFrontendLog(`${isLarge ? '�??' : '�??'}尺寸变更�?? ${r}x${c}`, 'out');
+            addFrontendLog(`${isLarge ? '大' : '小'}尺寸变更为 ${r}x${c}`, 'out');
             fbBtn(`btn-apply-${sizeMode}Size`, true);
         }
 
         function applySettingsLargeSize() { applySettingsSizeFor('large'); }
         function applySettingsSmallSize() { applySettingsSizeFor('small'); }
 
-        // === 顶栏�??/小尺寸切换按钮（2026-07-01 引入�?? ===
+        // === 顶栏大/小尺寸切换按钮（2026-07-01 引入） ===
         function toggleSize() {
             const newSize = currentSize === 'small' ? 'large' : 'small';
             const slot = sizeSlots[newSize];
-            if (!slot) return;  // size_slots 消息还没到（极端情况�??
+            if (!slot) return;  // size_slots 消息还没到（极端情况）
             wsSend({ type: 'current_size', size: newSize });
-            addFrontendLog(`切换�??${newSize === 'large' ? '�??' : '�??'}尺寸 (${slot.rows}x${slot.cols})`, 'out');
-            // 按钮文字由服务端广播 current_size 后回填，避免乐观更新与服务端不一�??
+            addFrontendLog(`切换为${newSize === 'large' ? '大' : '小'}尺寸 (${slot.rows}x${slot.cols})`, 'out');
+            // 按钮文字由服务端广播 current_size 后回填，避免乐观更新与服务端不一致
         }
 
-        // === 选区模式（method 1：DECRST �?? xterm 鼠标追踪 + 原生拖选，纯前端）===
-        // 进入：term-session.js �?? term.write �?? DECRST 关掉 xterm 自身鼠标追踪�??
-        //       xterm 回到原生拖选；退出时�?? DECSET 按保存模式精确恢复�?
-        // 所有观察信息打到浏览器控制台（DevTools）�?
+        // === 选区模式（method 1：DECRST 关 xterm 鼠标追踪 + 原生拖选，纯前端）===
+        // 进入：term-session.js 用 term.write 发 DECRST 关掉 xterm 自身鼠标追踪，
+        //       xterm 回到原生拖选；退出时发 DECSET 按保存模式精确恢复。
+        // 所有观察信息打到浏览器控制台（DevTools）。
         let selectionMode = false;
 
         function toggleSelectMode() {
@@ -626,7 +632,7 @@
                 selectionMode = true;
                 window.selectionMode = true;
                 btn.classList.add('mod-active');
-                s.enableNativeSelection();   // 关鼠标追踪，xterm 回到原生拖�?
+                s.enableNativeSelection();   // 关鼠标追踪，xterm 回到原生拖选
             } else {
                 exitSelectMode();
             }
@@ -644,21 +650,21 @@
 
         function updateSizeToggleText() {
             const btn = document.getElementById('sizeToggleBtn');
-            if (btn) btn.textContent = currentSize === 'small' ? '�??' : '�??';
+            if (btn) btn.textContent = currentSize === 'small' ? '小' : '大';
         }
 
         function restartServer() {
-            if (!confirm('确认重启服务器？\n所有终端会话将被关闭，断网期间的内容将丢失�??')) return;
+            if (!confirm('确认重启服务器？\n所有终端会话将被关闭，断网期间的内容将丢失。')) return;
             closeSettingsModal();
             addFrontendLog('服务器重启中...', 'out');
             wsSend({ type: 'restart_server' });
         }
 
 
-        // 重连定时器（避免无网络时疯狂重试�??3 秒后重试�??
+        // 重连定时器（避免无网络时疯狂重试，3 秒后重试）
         let reconnectTimer = null;
         function connect() {
-            // 重连�?? UI 状态复位（选区模式是本地状态，重连视为全新开始）
+            // 重连后 UI 状态复位（选区模式是本地状态，重连视为全新开始）
             selectionMode = false;
             window.selectionMode = false;
             const smBtn = document.getElementById('selectModeBtn');
@@ -672,8 +678,8 @@
                 addFrontendLog('正在重连...');
                 ws = new WebSocket(`${wsProtocol}://${location.host}/cmd/`);
                 ws.onopen = () => {
-                    addFrontendLog('连接已建�??');
-                    // 重连后第一�?? list 标志重置，让 list 处理器对 diff 交集�?? buffer 请求
+                    addFrontendLog('连接已建立');
+                    // 重连后第一个 list 标志重置，让 list 处理器对 diff 交集发 buffer 请求
                     isFirstList = true;
                     bufferQueue = [];  // 清空残留队列
                     updateWsStatus();
@@ -696,15 +702,15 @@
                 ws.onmessage = (event) => {
                     const msg = JSON.parse(event.data);
                     if (msg.type === 'list') {
-                        // 更新 names（如果服务端带了 msg.names�??
+                        // 更新 names（如果服务端带了 msg.names）
                         if (msg.names) {
                             Object.entries(msg.names).forEach(([id, name]) => {
                                 const s = sessions.get(+id);  // + 号把字符串转数字
-                                if (s) s.name = name;   // 为已有的会话更新名称，避免重复创�??
+                                if (s) s.name = name;   // 为已有的会话更新名称，避免重复创建
                             });
                         }
-                        const currentIds = msg.ids.map(Number);  // Object.keys �?? 字符串数组，转数�??
-                        const oldIds = Array.from(sessions.keys());  // �?? sessions 中获取当前所有会�?? ID
+                        const currentIds = msg.ids.map(Number);  // Object.keys → 字符串数组，转数字
+                        const oldIds = Array.from(sessions.keys());  // 从 sessions 中获取当前所有会话 ID
 
                         // 创建新会话（只创建，不申请缓存）
                         const newIds = currentIds.filter(id => !sessions.has(id));
@@ -713,12 +719,12 @@
                             if (msg.names?.[id]) s.name = msg.names[id];
                             sessions.set(id, s);
                             // 同步当前尺寸：服务端先发 size_slots/current_size 再发 list,
-                            // sizeSlots[currentSize] 一定就�??,直接 resize 无需守卫�??2026-07-02 重构�??
+                            // sizeSlots[currentSize] 一定就绪,直接 resize 无需守卫（2026-07-02 重构）
                             const slot = sizeSlots[currentSize];
                             s.resize(slot.cols, slot.rows);
                         });
 
-                        // 删除已不存在的会�??
+                        // 删除已不存在的会话
                         oldIds.forEach(id => {
                             if (!currentIds.includes(id)) {
                                 const s = sessions.get(id);
@@ -744,30 +750,30 @@
                             if (allIds.length > 0) {
                                 const foregroundId = allIds.includes(activeId) ? activeId : allIds[0];
                                 sessions.get(foregroundId).requestBuffer();
-                                addFrontendLog('优先加载当前终端 ' + sessions.get(foregroundId).name + ' 的缓�??', 'out');
+                                addFrontendLog('优先加载当前终端 ' + sessions.get(foregroundId).name + ' 的缓存', 'out');
                                 if (activeId == null) switchSession(foregroundId);
                                 bufferQueue.push(...allIds.filter(id => id !== foregroundId));
                                 if (bufferQueue.length > 0) {
-                                    addFrontendLog('其余 ' + bufferQueue.length + ' 个终端缓存排队等�??');
+                                    addFrontendLog('其余 ' + bufferQueue.length + ' 个终端缓存排队等待');
                                 }
                             }
                         } else if (pendingCreate) {
-                            // 本客户端新建终端：第一个激活并立即加载，其余排�??
+                            // 本客户端新建终端：第一个激活并立即加载，其余排队
                             pendingCreate = false;
                             newIds.forEach((id, idx) => {
                                 if (idx === 0) {
-                                    addFrontendLog('新建终端' + sessions.get(id).name + '并优先申请缓�??', 'out');
+                                    addFrontendLog('新建终端' + sessions.get(id).name + '并优先申请缓存', 'out');
                                     sessions.get(id).requestBuffer();
                                     switchSession(id);
                                 } else {
-                                    addFrontendLog('新建终端' + sessions.get(id).name + '，缓存排队等�??', 'out');
+                                    addFrontendLog('新建终端' + sessions.get(id).name + '，缓存排队等待', 'out');
                                     bufferQueue.push(id);
                                 }
                             });
                         } else {
-                            // 正常使用：全部立即加�??
+                            // 正常使用：全部立即加载
                             newIds.forEach(id => {
-                                addFrontendLog('新建终端' + sessions.get(id).name + '并申请缓�??', 'out');
+                                addFrontendLog('新建终端' + sessions.get(id).name + '并申请缓存', 'out');
                                 sessions.get(id).requestBuffer();
                             });
                         }
@@ -776,24 +782,24 @@
                         const s = sessions.get(msg.id);
                         if (!s) return;
                         const result = s.handleBufferResponse(msg);
-                        const mode = 'screen';  // legacy �ֽ��������ѳ����Ƴ�����ʣ screen ģʽ
+                        const mode = 'screen';  // legacy 字节流兜底已彻底移除，仅剩 screen 模式
                         if (result === 'skip') {
-                            // screen 模式指纹命中：服务端�?? 0 字节，客户端保持原样（验�??"未变更则不发"优化�??
-                            addFrontendLog(`重连[${mode}] 指纹命中，发 0 字节，跳过回�?? (${s.name})`, 'in');
+                            // screen 模式指纹命中：服务端发 0 字节，客户端保持原样（验证"未变更则不发"优化）
+                            addFrontendLog(`重连[${mode}] 指纹命中，发 0 字节，跳过回放 (${s.name})`, 'in');
                         } else if (result === 'incremental') {
                             addFrontendLog(`重连[${mode}] 增量回放 ${msg.data.length} 字节 (${s.name})`, 'in');
                         } else if (result === 'full') {
-                            // screen 模式整屏重建：data �?? headless 序列化的整屏 ANSI（含可见视口+真实滚屏历史�??
-                            const tag = mode === 'screen' ? '整屏重建(含历�??)' : '全量回放';
+                            // screen 模式整屏重建：data 为 headless 序列化的整屏 ANSI（含可见视口+真实滚屏历史）
+                            const tag = mode === 'screen' ? '整屏重建(含历史)' : '全量回放';
                             addFrontendLog(`重连[${mode}] ${tag} ${msg.data.length} 字节 (${s.name})`, 'in');
                         }
-                        // 当前终端缓存加载完毕，触发队列中的下一�??
+                        // 当前终端缓存加载完毕，触发队列中的下一个
                         if (bufferQueue.length > 0) {
                             const nextId = bufferQueue.shift();
                             const nextSession = sessions.get(nextId);
                             if (nextSession) {
                                 nextSession.requestBuffer();
-                                addFrontendLog('开始加载队列中下一个终�?? ' + nextSession.name + ' 的缓�??', 'out');
+                                addFrontendLog('开始加载队列中下一个终端 ' + nextSession.name + ' 的缓存', 'out');
                             }
                         }
                     } else if (msg.type === 'data') {
@@ -814,7 +820,7 @@
                             document.getElementById('settingsSmallRowsInput').value = sizeSlots.small.rows;
                             document.getElementById('settingsSmallColsInput').value = sizeSlots.small.cols;
                         }
-                        addFrontendLog('尺寸槽位已更�??', 'in');
+                        addFrontendLog('尺寸槽位已更新', 'in');
                     } else if (msg.type === 'current_size') {
                         currentSize = msg.data;
                         const slot = sizeSlots[currentSize];
@@ -822,7 +828,7 @@
                             sessions.forEach(s => s.resize(slot.cols, slot.rows));
                         }
                         updateSizeToggleText();
-                        addFrontendLog(`当前尺寸切换�?? ${currentSize === 'large' ? '�??' : '�??'} (${slot ? slot.rows + 'x' + slot.cols : '未配�??'})`, 'in');
+                        addFrontendLog(`当前尺寸切换为 ${currentSize === 'large' ? '大' : '小'} (${slot ? slot.rows + 'x' + slot.cols : '未配置'})`, 'in');
                     } else if (msg.type === 'hotkeys') {
                         hotkeys = msg.data || {};
                         renderHotkeys();
@@ -830,33 +836,33 @@
                         addFrontendLog('快捷键配置已同步', 'in');
                     } else if (msg.type === 'scroll_interval_terminal') {
                         scrollIntervalTerminal = msg.data;
-                        addFrontendLog('终端按住滚动间隔同步�?? ' + scrollIntervalTerminal + ' ms', 'in');
+                        addFrontendLog('终端按住滚动间隔同步为 ' + scrollIntervalTerminal + ' ms', 'in');
                     } else if (msg.type === 'scroll_interval_page') {
                         scrollIntervalPage = msg.data;
-                        addFrontendLog('页面按住滚动间隔同步�?? ' + scrollIntervalPage + ' ms', 'in');
+                        addFrontendLog('页面按住滚动间隔同步为 ' + scrollIntervalPage + ' ms', 'in');
                     } else if (msg.type === 'max_frontend_logs') {
                         maxFrontendLogs = msg.data;
-                        addFrontendLog('日志上限同步�?? ' + maxFrontendLogs + ' �??', 'in');
+                        addFrontendLog('日志上限同步为 ' + maxFrontendLogs + ' 条', 'in');
                     } else if (msg.type === 'screen_history_lines') {
                         screenHistoryLines = msg.data;
                         const inp = document.getElementById('settingsScreenHistoryLinesInput');
                         if (inp) inp.value = screenHistoryLines;
-                        addFrontendLog('重连滚屏历史行数同步�?? ' + screenHistoryLines, 'in');
+                        addFrontendLog('重连滚屏历史行数同步为 ' + screenHistoryLines, 'in');
                     } else if (msg.type === 'bell_debounce_ms') {
                         bellDebounceMs = msg.data;
-                        addFrontendLog('通知防抖时长同步�?? ' + bellDebounceMs + ' ms', 'in');
+                        addFrontendLog('通知防抖时长同步为 ' + bellDebounceMs + ' ms', 'in');
                     } else if (msg.type === 'bell_sound_enabled') {
                         bellSoundEnabled = msg.data;
-                        addFrontendLog('通知声音�??' + (bellSoundEnabled ? '开�??' : '关闭'), 'in');
+                        addFrontendLog('通知声音已' + (bellSoundEnabled ? '开启' : '关闭'), 'in');
                     } else if (msg.type === 'bell_toast_enabled') {
                         bellToastEnabled = msg.data;
-                        addFrontendLog('通知 Toast �??' + (bellToastEnabled ? '开�??' : '关闭'), 'in');
+                        addFrontendLog('通知 Toast 已' + (bellToastEnabled ? '开启' : '关闭'), 'in');
                     } else if (msg.type === 'bell_os_enabled') {
                         bellOsEnabled = msg.data;
-                        addFrontendLog('系统通知�??' + (bellOsEnabled ? '开�??' : '关闭'), 'in');
+                        addFrontendLog('系统通知已' + (bellOsEnabled ? '开启' : '关闭'), 'in');
                     } else if (msg.type === 'bell_beep_duration_ms') {
                         bellBeepDurationMs = msg.data;
-                        addFrontendLog('蜂鸣声音长度同步�?? ' + bellBeepDurationMs + ' ms', 'in');
+                        addFrontendLog('蜂鸣声音长度同步为 ' + bellBeepDurationMs + ' ms', 'in');
                     } else if (msg.type === 'swipe_threshold') {
                         swipeThreshold = msg.data;
                         addFrontendLog('滑动滚动阈值同步为 ' + swipeThreshold + ' px', 'in');
@@ -870,10 +876,10 @@
                     } else if (msg.type === 'input_bar_button_action') {
                         inputBarButtonAction = msg.data;
                         applyInputBarButtonLabel();
-                        addFrontendLog('右侧按钮动作同步�?? ' + (inputBarButtonAction === 'send' ? '发�?' : '换行'), 'in');
+                        addFrontendLog('右侧按钮动作同步为 ' + (inputBarButtonAction === 'send' ? '发送' : '换行'), 'in');
                     } else if (msg.type === 'input_bar_enter_action') {
                         inputBarEnterAction = msg.data;
-                        addFrontendLog('Enter 键动作同步为 ' + (inputBarEnterAction === 'send' ? '发�?' : '换行'), 'in');
+                        addFrontendLog('Enter 键动作同步为 ' + (inputBarEnterAction === 'send' ? '发送' : '换行'), 'in');
                     } else if (msg.type === 'input_bar_close_after_send') {
                         inputBarCloseAfterSend = msg.data;
                         addFrontendLog('发送后关闭输入条同步为 ' + (inputBarCloseAfterSend ? '关闭' : '保持展开'), 'in');
@@ -882,25 +888,25 @@
                         addFrontendLog('焦点丢失隐藏输入条同步为 ' + (inputBarHideOnBlur ? '隐藏' : '保持展开'), 'in');
                     } else if (msg.type === 'enter_delay_ms') {
                         enterDelayMs = msg.data;
-                        addFrontendLog('回车停顿同步�?? ' + enterDelayMs + ' ms', 'in');
+                        addFrontendLog('回车停顿同步为 ' + enterDelayMs + ' ms', 'in');
                     } else if (msg.type === 'restart_server') {
-                        addFrontendLog('服务端确认重�??', 'in');
+                        addFrontendLog('服务端确认重启', 'in');
                     } else if (msg.type === 'recent_paths') {
                         recentPaths = msg.data || [];
                         renderRecentPathsDropdown();
                         if (msg.added) {
-                            addFrontendLog('最近路径已添加: ' + msg.added + ' (�?? ' + recentPaths.length + ' �??)', 'in');
+                            addFrontendLog('最近路径已添加: ' + msg.added + ' (共 ' + recentPaths.length + ' 条)', 'in');
                         } else if (msg.deleted) {
-                            addFrontendLog('最近路径已删除: ' + msg.deleted + ' (�?? ' + recentPaths.length + ' �??)', 'in');
+                            addFrontendLog('最近路径已删除: ' + msg.deleted + ' (共 ' + recentPaths.length + ' 条)', 'in');
                         } else {
-                            addFrontendLog('最近路径已同步: ' + recentPaths.length + ' �??', 'in');
+                            addFrontendLog('最近路径已同步: ' + recentPaths.length + ' 条', 'in');
                         }
                     }
                 };
             }
         }
-        // === 同步顶栏/快捷键栏宽度�?? xterm ===
-        // 页面宽度�?? xterm 决定；toolbar/hotkeys-bar 跟随 xterm 宽度（flex-wrap 内部换行�??
+        // === 同步顶栏/快捷键栏宽度到 xterm ===
+        // 页面宽度由 xterm 决定；toolbar/hotkeys-bar 跟随 xterm 宽度（flex-wrap 内部换行）
         function syncLayoutWidths() {
             const term = document.getElementById('terminal-container');
             if (!term || term.offsetWidth === 0) return;
@@ -910,14 +916,14 @@
             if (toolbar) toolbar.style.width = w;
             if (hotkeys) hotkeys.style.width = w;
         }
-        // DOM 加载完成后首次同�??
+        // DOM 加载完成后首次同步
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', syncLayoutWidths);
         } else {
             syncLayoutWidths();
         }
-        // 窗口尺寸变化时不再同步（#terminal-container { align-self: flex-start } 不随窗口缩放�??
-        // xterm 尺寸变化时同步（设置弹窗�?? rows/cols 后触发）
+        // 窗口尺寸变化时不再同步（#terminal-container { align-self: flex-start } 不随窗口缩放）
+        // xterm 尺寸变化时同步（设置弹窗改 rows/cols 后触发）
         if (typeof ResizeObserver !== 'undefined') {
             const term = document.getElementById('terminal-container');
             if (term) new ResizeObserver(syncLayoutWidths).observe(term);
@@ -925,7 +931,7 @@
         // 触摸滑动模拟鼠标滚轮（捕获阶段监听，全局只挂一次）
         setupTouchScroll();
 
-        // 滚动按钮显隐：根据服务端同步�?? showScrollButtons 决定是否显示整个 #scrollGroup
+        // 滚动按钮显隐：根据服务端同步的 showScrollButtons 决定是否显示整个 #scrollGroup
         function applyScrollButtonsVisibility() {
             scrollGroupEl.classList.toggle('hidden', !showScrollButtons);
         }
@@ -935,17 +941,17 @@
         renderSessionSelect();
         connect();
         document.getElementById('editBtn').onclick = openHotkeyEditor;
-        // editBtn 引用已保留为 editBtnEl（被 renderHotkeys 重新附加），上行�?? getElementById 在首�??
-        // init 时拿到引用并赋�? onclick 即可，后续即使元素被摘下再附加，onclick 仍在同一 JS 对象�??
+        // editBtn 引用已保留为 editBtnEl（被 renderHotkeys 重新附加），上行的 getElementById 在首次
+        // init 时拿到引用并赋值 onclick 即可，后续即使元素被摘下再附加，onclick 仍在同一 JS 对象上
         document.getElementById('scrollBottomBtn').onclick = scrollBottom;
-        // 按住连续滚动（pointerdown 触发，pointerup/pointerleave/pointercancel 停止�??
-        // setInterval 创建时调�?? intervalGetter() 读一次周期，运行期间不变（需释放+再次按住才按新值）
-        // 触摸/笔：先判定是否为「滑动手势」——pointerdown 后位移超阈值视为横滑底部栏�??
-        //   取消滚动动作（不发送序列），避免横滑底部栏时误把「按住滚动」当�?? SGR 滚轮序列发到后端
+        // 按住连续滚动（pointerdown 触发，pointerup/pointerleave/pointercancel 停止）
+        // setInterval 创建时调用 intervalGetter() 读一次周期，运行期间不变（需释放+再次按住才按新值）
+        // 触摸/笔：先判定是否为「滑动手势」——pointerdown 后位移超阈值视为横滑底部栏，
+        //   取消滚动动作（不发送序列），避免横滑底部栏时误把「按住滚动」当成 SGR 滚轮序列发到后端
         function setupHoldScroll(btnId, fn, intervalGetter) {
             const btn = document.getElementById(btnId);
-            let timer = null;        // 持续滚动�?? setInterval
-            let startTimer = null;   // 触摸下延迟首发的定时�??
+            let timer = null;        // 持续滚动的 setInterval
+            let startTimer = null;   // 触摸下延迟首发的定时器
             let pointerId = null;
             let startX = 0, startY = 0, swiped = false, activated = false;
             const stop = () => {
@@ -963,7 +969,7 @@
                     fn();
                     timer = setInterval(fn, intervalGetter());
                 } else {
-                    // 触摸/笔：延迟 120ms 再发首次；若其间发生位移（滑动），startTimer 被清�?? �?? 零误�??
+                    // 触摸/笔：延迟 120ms 再发首次；若其间发生位移（滑动），startTimer 被清掉 → 零误发
                     startTimer = setTimeout(() => {
                         if (!swiped) { activated = true; fn(); timer = setInterval(fn, intervalGetter()); }
                     }, 120);
@@ -978,7 +984,7 @@
             });
             btn.addEventListener('pointerup', (e) => {
                 if (e.pointerId !== pointerId) return;
-                if (!swiped && !activated) fn();   // 触摸快速轻�?? = 发一�??
+                if (!swiped && !activated) fn();   // 触摸快速轻点 = 发一次
                 stop();
             });
             btn.addEventListener('pointerleave', stop);
@@ -987,8 +993,8 @@
         // 合并后的 2 个滚动按钮：按当前会话模式自适应选择按住间隔（TUI 用终端间隔，CLI 用页面间隔）
         function getScrollInterval() {
             const s = sessions.get(activeId);
-            if (s && s.term.modes.mouseTrackingMode !== 'none') return scrollIntervalTerminal;  // TUI：smartScroll �?? SGR
-            return scrollIntervalPage;  // 普�? CLI：smartScroll 滚视�??
+            if (s && s.term.modes.mouseTrackingMode !== 'none') return scrollIntervalTerminal;  // TUI：smartScroll 发 SGR
+            return scrollIntervalPage;  // 普通 CLI：smartScroll 滚视口
         }
         setupHoldScroll('scrollUpBtn',   () => smartScroll(-1), getScrollInterval);
         setupHoldScroll('scrollDownBtn', () => smartScroll(1),  getScrollInterval);
@@ -1027,7 +1033,7 @@
             dd.style.minWidth = rect.width + 'px';
             dd.classList.toggle('open');
         });
-        // 点击下拉菜单外部时关�??
+        // 点击下拉菜单外部时关闭
         document.addEventListener('click', (e) => {
             const btn = document.getElementById('sessionSelectBtn');
             const dd = document.getElementById('sessionDropdown');
@@ -1040,7 +1046,7 @@
             pendingCreate = true;
             wsSend({ type: 'create' });
         }
-        // 渲染「最近路径」下拉内�??
+        // 渲染「最近路径」下拉内容
         function renderRecentPathsDropdown() {
             const dd = document.getElementById('recentPathsDropdown');
             dd.innerHTML = '';
@@ -1054,40 +1060,40 @@
             recentPaths.forEach(p => {
                 const item = document.createElement('div');
                 item.className = 'recent-path-item';
-                item.title = p;   // 悬停整行显示完整路径（原�?? tooltip）；�?? �?? title 取更内层，不冲突
+                item.title = p;   // 悬停整行显示完整路径（原生 tooltip）；✕ 的 title 取更内层，不冲突
 
                 const expandBtn = document.createElement('button');
                 expandBtn.className = 'recent-path-expand';
                 expandBtn.type = 'button';
-                expandBtn.textContent = '�??';   // �?? (U+25B8)
+                expandBtn.textContent = '▸';   // ▸ (U+25B8)
                 expandBtn.title = '展开/收起完整路径';
                 expandBtn.addEventListener('click', (e) => {
                     e.stopPropagation();                       // 避免触发整行复制
                     const on = item.classList.toggle('expanded');
-                    expandBtn.textContent = on ? '�??' : '�??';    // �?? (U+25BE)
+                    expandBtn.textContent = on ? '▾' : '▸';    // ▾ (U+25BE)
                 });
                 item.appendChild(expandBtn);
 
                 const label = document.createElement('span');
                 label.className = 'recent-path-label';
-                label.textContent = p;   // �?? textContent，避免路径特殊字符破�?? DOM
+                label.textContent = p;   // 用 textContent，避免路径特殊字符破坏 DOM
                 item.appendChild(label);
 
                 const del = document.createElement('button');
                 del.className = 'recent-path-del';
                 del.type = 'button';
-                del.textContent = '�??';   // �?? (U+2715)
-                del.title = '删除该路�??';
+                del.textContent = '✕';   // ✕ (U+2715)
+                del.title = '删除该路径';
                 del.addEventListener('click', (e) => {
                     e.stopPropagation();  // 避免触发整行复制
                     wsSend({ type: 'recent_paths_delete', data: p });
-                    showToast('已删�??', 'success');
+                    showToast('已删除', 'success');
                 });
                 item.appendChild(del);
 
                 item.addEventListener('click', () => {
                     copyToClipboard(p);
-                    showToast('已复�??', 'success');
+                    showToast('已复制', 'success');
                     dd.classList.remove('open');
                 });
                 dd.appendChild(item);
@@ -1105,7 +1111,7 @@
             renderRecentPathsDropdown();
             dd.classList.toggle('open');
         });
-        // 点击下拉外部关闭（复�?? sessionDropdown 同款 document 监听模式�??
+        // 点击下拉外部关闭（复用 sessionDropdown 同款 document 监听模式）
         document.addEventListener('click', (e) => {
             const btn = document.getElementById('recentPathsBtn');
             const dd = document.getElementById('recentPathsDropdown');
@@ -1122,10 +1128,10 @@
         function renameCurrent() {
             if (activeId == null) return;
             const cur = sessions.get(activeId)?.name || ('Shell #' + activeId);
-            const name = prompt('重命名当前会�??', cur);
+            const name = prompt('重命名当前会话', cur);
             if (name === null) return;
             wsSend({ type: 'rename', id: activeId, data: name });
-            addFrontendLog('终端重命�??: ' + (name.trim() || '(�??)'), 'out');
+            addFrontendLog('终端重命名: ' + (name.trim() || '(空)'), 'out');
         }
         function renameAll() {
             wsSend({ type: 'rename_all' });
@@ -1138,12 +1144,12 @@
             try {
                 ws.send(JSON.stringify(obj));
             } catch (e) {
-                addFrontendLog('发送失�??: ' + e.message);
+                addFrontendLog('发送失败: ' + e.message);
             }
         }
         function sendInput(data) { if (activeId) wsSend({ type: 'input', id: activeId, data: data }); }
 
-        // 显示短暂 Toast 提示�??1.5s 自动消失，允许堆叠）
+        // 显示短暂 Toast 提示（1.5s 自动消失，允许堆叠）
         let toastCount = 0;
         function showToast(message, type = 'success') {
             const div = document.createElement('div');
@@ -1160,7 +1166,7 @@
         }
 
         // === Ctrl+C 选区复制 ===
-        // 复制到剪贴板：优�?? navigator.clipboard，失�??/不可用退�?? execCommand 兜底
+        // 复制到剪贴板：优先 navigator.clipboard，失败/不可用退回 execCommand 兜底
         function copyToClipboard(text) {
             if (navigator.clipboard?.writeText) {
                 return navigator.clipboard.writeText(text)
@@ -1170,7 +1176,7 @@
             return Promise.resolve(fallbackCopy(text));
         }
 
-        // �?? secure 上下文兜底（用户环境�?? HTTPS，此路径仅作保险�??
+        // 非 secure 上下文兜底（用户环境为 HTTPS，此路径仅作保险）
         function fallbackCopy(text) {
             const ta = document.createElement('textarea');
             ta.value = text;
@@ -1185,13 +1191,13 @@
             if (prevFocus && prevFocus.focus) prevFocus.focus();
             return ok;
         }
-        // 复制终端选区并清除选区，返�?? Promise<boolean>（供键盘路径 term-session.js 调用�??
+        // 复制终端选区并清除选区，返回 Promise<boolean>（供键盘路径 term-session.js 调用）
         function copyTermSelection(term) {
             const sel = term.getSelection();
             term.clearSelection();
             if (sel) {
                 return copyToClipboard(sel).then(ok => {
-                    showToast(ok ? '已复�??' : '复制失败', ok ? 'success' : 'error');
+                    showToast(ok ? '已复制' : '复制失败', ok ? 'success' : 'error');
                     if (ok && selectionMode) { exitSelectMode(); }
                     return ok;
                 }).catch(() => false);
@@ -1201,22 +1207,22 @@
         window.copyTermSelection = copyTermSelection;
 
         // === Ctrl+V 粘贴 ===
-        // 读取系统剪贴板并写进 PTY，模拟右�??"粘贴"行为�??
-        // �?? Ctrl+C 选区复制对称：复制是写剪贴板，粘贴是读剪贴板�??
+        // 读取系统剪贴板并写进 PTY，模拟右键"粘贴"行为。
+        // 与 Ctrl+C 选区复制对称：复制是写剪贴板，粘贴是读剪贴板。
         // 换行归一化与 xterm 默认 paste 一致（\r\n→\r，\n→\r），
-        // �?? TUI 把换行解释为确认而非字段内换行�?
+        // 使 TUI 把换行解释为确认而非字段内换行。
         async function pasteFromClipboard(term, id) {
             let text = null;
             if (navigator.clipboard?.readText) {
                 try { text = await navigator.clipboard.readText(); } catch (e) { text = null; }
             }
-            if (text == null) { showToast('粘贴失败(无法访问剪贴�??)', 'error'); return; }
+            if (text == null) { showToast('粘贴失败(无法访问剪贴板)', 'error'); return; }
             text = text.replace(/\r\n/g, '\r').replace(/\n/g, '\r');
             if (text) wsSend({ type: 'input', id, data: text });
         }
         window.pasteFromClipboard = pasteFromClipboard;
 
-        // 发送输入，�?? Ctrl+C 在存在选区时改为复�??
+        // 发送输入，但 Ctrl+C 在存在选区时改为复制
         async function sendInputMaybeCopy(data) {
             if (data === '\x03') {
                 const s = sessions.get(activeId);
@@ -1227,31 +1233,31 @@
 
         function scrollBottom() { sessions.get(activeId)?.scrollToBottom(); }
 
-        // 统一滚动：与真实鼠标滚轮同逻辑（TUI 鼠标追踪开→发 SGR �?? PTY；否则→�?? xterm 视口�??
-        function smartScroll(dir) {            // dir: -1 上滑（看更早内容�??, +1 下滑
+        // 统一滚动：与真实鼠标滚轮同逻辑（TUI 鼠标追踪开→发 SGR 给 PTY；否则→滚 xterm 视口）
+        function smartScroll(dir) {            // dir: -1 上滑（看更早内容）, +1 下滑
             const s = sessions.get(activeId);
             if (!s) return;
             if (s.term.modes.mouseTrackingMode !== 'none')
-                s.sendSgrWheel(dir);          // TUI 自己�??
+                s.sendSgrWheel(dir);          // TUI 自己滚
             else
-                s.scrollLines(dir);           // 普�? CLI：xterm 滚视口看历史
+                s.scrollLines(dir);           // 普通 CLI：xterm 滚视口看历史
         }
 
         // === 触摸滑动模拟鼠标滚轮（纯前端，详见设计文档）===
-        let swipeTouchId = null;      // 当前处理的触�?? identifier，null=�??
+        let swipeTouchId = null;      // 当前处理的触点 identifier，null=无
         let swipeActive  = false;     // 本次手势是否已判定为滚动
-        let pinchActive  = false;     // 多指（双指捏合）缩放进行�??
+        let pinchActive  = false;     // 多指（双指捏合）缩放进行中
         let swipeStartX = 0, swipeStartY = 0, swipeLastY = 0, swipeAccum = 0;
 
-        // === 选区模式移动端触摸选区辅助�??2026-07-21�??===
-        let selStartCell = { col: 0, row: 0 };  // 选区模式：单指拖选的起点单元�??
-        // 取当前活动会话的 xterm 实例；无活动会话时返�?? null�??
+        // === 选区模式移动端触摸选区辅助（2026-07-21）===
+        let selStartCell = { col: 0, row: 0 };  // 选区模式：单指拖选的起点单元格
+        // 取当前活动会话的 xterm 实例；无活动会话时返回 null。
         function getActiveTerm() {
             const s = (typeof activeId !== 'undefined' && activeId != null) ? sessions.get(activeId) : null;
             return s ? s.term : null;
         }
-        // 把一次触摸点换算成单元格坐标（带视口滚动偏移 + clamp）�?
-        // cell 尺寸取内�?? API，取值前守卫非空；任一依赖缺失则回退�?? {col:0,row:0}�??
+        // 把一次触摸点换算成单元格坐标（带视口滚动偏移 + clamp）。
+        // cell 尺寸取内部 API，取值前守卫非空；任一依赖缺失则回退到 {col:0,row:0}。
         function cellOfTouch(t) {
             const term = getActiveTerm();
             if (!term || !term._core || !term._core._renderService ||
@@ -1279,15 +1285,15 @@
 
         function onTouchScrollStart(e) {
             if (selectionMode) {
-                // 选区模式下，终端区域外的触摸（底部快捷键按钮等）不接管选区�??
-                // 否则 term.select(col,row,0) 会把已拖出的选区折叠为空，导�?? hasSelection() �?? false�??
-                // 随后 sendInputMaybeCopy('\x03') 回退�?? sendInput('\x03') �?? TUI 退出�?
-                // 移动端点底部按钮�?? touch 事件、会冒泡到本捕获监听；桌面端�?? mouse 事件不会触发�??
-                // 因此两端表现不一致。与非选区分支一致：区域外触摸直接放行�?
+                // 选区模式下，终端区域外的触摸（底部快捷键按钮等）不接管选区。
+                // 否则 term.select(col,row,0) 会把已拖出的选区折叠为空，导致 hasSelection() 变 false，
+                // 随后 sendInputMaybeCopy('\x03') 回退到 sendInput('\x03') 让 TUI 退出。
+                // 移动端点底部按钮是 touch 事件、会冒泡到本捕获监听；桌面端是 mouse 事件不会触发，
+                // 因此两端表现不一致。与非选区分支一致：区域外触摸直接放行。
                 if (!e.target || !e.target.closest || !e.target.closest('#terminal-container')) return;
-                // 选区模式：用触摸驱动 xterm 选区，并拦掉 xterm 手势处理器（杜绝 NaN 垃圾）�?
+                // 选区模式：用触摸驱动 xterm 选区，并拦掉 xterm 手势处理器（杜绝 NaN 垃圾）。
                 if (e.touches.length >= 2) {
-                    // 多指：走双指缩放拦截，但绝不 preventDefault（保留原生缩放），不干扰选区�??
+                    // 多指：走双指缩放拦截，但绝不 preventDefault（保留原生缩放），不干扰选区。
                     pinchActive = true; swipeTouchId = null; swipeActive = false;
                     e.stopPropagation();
                     return;
@@ -1296,30 +1302,30 @@
                     const term = getActiveTerm();
                     if (term) {
                         const c = cellOfTouch(e.touches[0]);
-                        selStartCell = c;                    // 记录拖选起点（move 中用于规范化�??
+                        selStartCell = c;                    // 记录拖选起点（move 中用于规范化）
                         term.select(c.col, c.row, 0);   // 折叠光标到起点；后续 move 实时扩展
                     }
-                    e.stopPropagation();                // 捕获阶段截住 xterm 冒泡监听，避�?? NaN
+                    e.stopPropagation();                // 捕获阶段截住 xterm 冒泡监听，避免 NaN
                 }
                 return;
             }
             if (!e.target || !e.target.closest || !e.target.closest('#terminal-container'))
-                return;                                 // 终端区域外（底部栏等）放�??
-            // 自愈：若上一次捏合的最终抬手事件被浏览器丢失而导�?? pinchActive 卡在 true�??
-            // 后续任何单指触摸都说�??"已无捏合在进�??"，强制解除，避免单指滚动被误判为 pinch 而失效�?
-            // �?? touches<2 时解除；真正的双指捏合由下方 e.touches.length>=2 重新置位，无回归�??
+                return;                                 // 终端区域外（底部栏等）放行
+            // 自愈：若上一次捏合的最终抬手事件被浏览器丢失而导致 pinchActive 卡在 true，
+            // 后续任何单指触摸都说明"已无捏合在进行"，强制解除，避免单指滚动被误判为 pinch 而失效。
+            // 仅 touches<2 时解除；真正的双指捏合由下方 e.touches.length>=2 重新置位，无回归。
             if (pinchActive && e.touches.length < 2) pinchActive = false;
             if (e.touches.length >= 2) {
-                // 双指捏合缩放：挡�?? xterm 手势处理（否则它把双指当滚动、松手惯量发 NaN 垃圾且吃掉缩放）�??
-                // 但绝�?? preventDefault，浏览器�?? CSS touch-action: pan-x pinch-zoom 执行原生缩放�??
+                // 双指捏合缩放：挡掉 xterm 手势处理（否则它把双指当滚动、松手惯量发 NaN 垃圾且吃掉缩放），
+                // 但绝不 preventDefault，浏览器按 CSS touch-action: pan-x pinch-zoom 执行原生缩放。
                 pinchActive = true; swipeTouchId = null; swipeActive = false;
                 e.stopPropagation();
                 return;
             }
             if (e.touches.length !== 1) { swipeTouchId = null; swipeActive = false; return; }
-            // 单指：直接挡�?? xterm 的手势处理（否则它会�?? touchstart 记录触摸、touchend 触发
-            // 惯量滚动并发 NaN 坐标�?? SGR 垃圾 ESC[<65;NaN;NaNM，还会与我们�?? smartScroll 双重滚动）�?
-            // 单指滚动我们自己接管；此处不 preventDefault，让轻点聚焦照常�??
+            // 单指：直接挡掉 xterm 的手势处理（否则它会在 touchstart 记录触摸、touchend 触发
+            // 惯量滚动并发 NaN 坐标的 SGR 垃圾 ESC[<65;NaN;NaNM，还会与我们的 smartScroll 双重滚动）。
+            // 单指滚动我们自己接管；此处不 preventDefault，让轻点聚焦照常。
             e.stopPropagation();
             const t = e.touches[0];
             swipeTouchId = t.identifier;
@@ -1329,14 +1335,14 @@
 
         function onTouchScrollMove(e) {
             if (selectionMode) {
-                // 选区模式：单指移动实时扩�?? xterm 选区；多指缩放只�?? xterm 不拦浏览器�?
+                // 选区模式：单指移动实时扩展 xterm 选区；多指缩放只拦 xterm 不拦浏览器。
                 if (pinchActive) { e.stopPropagation(); return; }
                 if (e.touches.length === 1) {
                     const term = getActiveTerm();
                     if (term) {
                         const t = e.touches[0];
                         const c = cellOfTouch(t);
-                        // 规范化：保证 (c1,r1) 在左上�?(c2,r2) 在右�??
+                        // 规范化：保证 (c1,r1) 在左上、(c2,r2) 在右下
                         const c1 = Math.min(selStartCell.col, c.col);
                         const r1 = Math.min(selStartCell.row, c.row);
                         const c2 = Math.max(selStartCell.col, c.col);
@@ -1359,26 +1365,26 @@
                 if (Math.abs(dy) > swipeClassify && Math.abs(dy) > Math.abs(dx)) {
                     swipeActive = true; swipeAccum = 0; swipeLastY = t.clientY;  // 竖向占优→判定为滚动
                 } else {
-                    return;  // 未达阈�? / 横滑 / 轻点：放行（已无 xterm 竞争，不会发垃圾�??
+                    return;  // 未达阈值 / 横滑 / 轻点：放行（已无 xterm 竞争，不会发垃圾）
                 }
             }
             e.preventDefault();
-            e.stopPropagation();   // 捕获阶段 stopPropagation 截住 xterm 的冒泡阶段监�??
+            e.stopPropagation();   // 捕获阶段 stopPropagation 截住 xterm 的冒泡阶段监听
             const dyStep = t.clientY - swipeLastY;
             swipeAccum += dyStep;
             swipeLastY = t.clientY;
-            // 移动端自然手感：手指上滑(accum �??)→内容向上→看更�??/更下方；手指下滑(accum �??)→看更早
-            while (swipeAccum >= swipeThreshold)  { smartScroll(-1); swipeAccum -= swipeThreshold; }  // 手指下滑 �?? 看更�??
-            while (swipeAccum <= -swipeThreshold) { smartScroll(1);  swipeAccum += swipeThreshold; }  // 手指上滑 �?? 看更�??
+            // 移动端自然手感：手指上滑(accum 负)→内容向上→看更新/更下方；手指下滑(accum 正)→看更早
+            while (swipeAccum >= swipeThreshold)  { smartScroll(-1); swipeAccum -= swipeThreshold; }  // 手指下滑 → 看更早
+            while (swipeAccum <= -swipeThreshold) { smartScroll(1);  swipeAccum += swipeThreshold; }  // 手指上滑 → 看更新
         }
 
         function onTouchScrollEnd(e) {
             if (selectionMode) {
-                // 选区模式：清起点，但保留选区（供复制按钮 / Ctrl+C 使用）�?
+                // 选区模式：清起点，但保留选区（供复制按钮 / Ctrl+C 使用）。
                 if (pinchActive) {
                     e && e.stopPropagation();
                     if (e && e.touches.length > 0) {
-                        swipeTouchId = null; swipeActive = false;  // 还有手指在屏：保�?? pinchActive
+                        swipeTouchId = null; swipeActive = false;  // 还有手指在屏：保持 pinchActive
                         return;
                     }
                     pinchActive = false;
@@ -1389,21 +1395,21 @@
                 return;
             }
             if (pinchActive) {
-                // 双指缩放：直到全部手指抬起才解除，避免残留单指误触发滑动�??
-                // 挡掉 xterm �?? touchend（其惯量逻辑会发 NaN 垃圾），�?? preventDefault�??
+                // 双指缩放：直到全部手指抬起才解除，避免残留单指误触发滑动；
+                // 挡掉 xterm 的 touchend（其惯量逻辑会发 NaN 垃圾），不 preventDefault。
                 e && e.stopPropagation();
                 if (e && e.touches.length > 0) {
-                    swipeTouchId = null; swipeActive = false;  // 还有手指在屏：保�?? pinchActive
+                    swipeTouchId = null; swipeActive = false;  // 还有手指在屏：保持 pinchActive
                     return;
                 }
                 pinchActive = false;
             }
-            // 挡掉 xterm �?? touchend：否则它会对单指滑动做惯量滚动并�?? NaN 坐标�?? SGR 垃圾
+            // 挡掉 xterm 的 touchend：否则它会对单指滑动做惯量滚动并发 NaN 坐标的 SGR 垃圾
             if (swipeTouchId !== null || swipeActive) e && e.stopPropagation();
             swipeTouchId = null; swipeActive = false;
         }
 
-        // === 快捷�?? ===
+        // === 快捷键 ===
         function renderHotkeys() {
             const bar = document.getElementById('hotkeysList');
             bar.innerHTML = '';
@@ -1413,22 +1419,22 @@
                 btn.onclick = () => sendInputMaybeCopy(hotkeys[name]);
                 bar.appendChild(btn);
             });
-            // 「编辑」按钮和 #scrollGroup �?? hotkeyList 的固定尾部元�??
-            // renderHotkeys 重跑时（添加/删除/编辑/移动快捷键）需要重新附�??
-            // CSS 换行�?? #scrollGroup 会跟着 hotkeyList 内部 flex-wrap �??,
-            // 自然落到有空隙的那一行右�??
+            // 「编辑」按钮和 #scrollGroup 是 hotkeyList 的固定尾部元素
+            // renderHotkeys 重跑时（添加/删除/编辑/移动快捷键）需要重新附加
+            // CSS 换行时 #scrollGroup 会跟着 hotkeyList 内部 flex-wrap 走,
+            // 自然落到有空隙的那一行右侧
             bar.appendChild(editBtnEl);
             bar.appendChild(scrollGroupEl);
         }
 
-        // === 直接发送快捷键面板（发按键，方案A：勾选式组合，不预设不持久化�??===
+        // === 直接发送快捷键面板（发按键，方案A：勾选式组合，不预设不持久化）===
         let sendKeysPanel = null;
         function openSendKeysPanel() {
             if (sendKeysPanel) { sendKeysPanel.remove(); sendKeysPanel = null; }
-            activeMods.clear();  // 每次打开重置勾�?
+            activeMods.clear();  // 每次打开重置勾选
             let html = '<div class="modal-overlay" style="z-index:1000;" onclick="if(event.target===this)closeSendKeysPanel()">';
             html += '<div class="modal-box" style="min-width:360px;">';
-            html += '<h3>发送按�??</h3>';
+            html += '<h3>发送按键</h3>';
             // 修饰键勾选区
             html += '<div class="modal-row" style="flex-direction:column;align-items:flex-start;gap:4px;">';
             html += '<div style="color:#a0a0a0;">修饰键（可多选）</div>';
@@ -1436,11 +1442,11 @@
             MODIFIER_KEYS.forEach(k => {
                 html += `<button type="button" onclick="toggleMod(this)" data-mod="${k}">${k}</button>`;
             });
-            html += '<button type="button" onclick="clearMods()">清空修饰�??</button>';
+            html += '<button type="button" onclick="clearMods()">清空修饰键</button>';
             html += '</div></div>';
             // 主键区（点一下即发送）
             html += '<div class="modal-row" style="flex-direction:column;align-items:flex-start;gap:4px;">';
-            html += '<div style="color:#a0a0a0;">主键（点一下即发送到当前终端�??</div>';
+            html += '<div style="color:#a0a0a0;">主键（点一下即发送到当前终端）</div>';
             html += '<div style="display:flex;gap:4px;flex-wrap:wrap;">';
             PRIMARY_KEYS.forEach(k => {
                 html += `<button type="button" onclick="pickAndSend(this)">${k}</button>`;
@@ -1458,7 +1464,7 @@
             if (sendKeysPanel) { sendKeysPanel.remove(); sendKeysPanel = null; }
             activeMods.clear();
         }
-        // 勾�?/取消修饰键，toggle 按钮高亮
+        // 勾选/取消修饰键，toggle 按钮高亮
         function toggleMod(btn) {
             const mod = btn.dataset.mod;
             if (activeMods.has(mod)) {
@@ -1469,7 +1475,7 @@
                 btn.classList.add('mod-active');
             }
         }
-        // 清空所有修饰键勾�?
+        // 清空所有修饰键勾选
         function clearMods() {
             activeMods.clear();
             document.querySelectorAll('.modal-box button.mod-active').forEach(b => b.classList.remove('mod-active'));
@@ -1478,11 +1484,11 @@
         function pickAndSend(btn) {
             const name = [...activeMods, btn.textContent].join('+');
             sendInputMaybeCopy(parseHotkey(name));
-            addFrontendLog('直接发�?: ' + name, 'out');
+            addFrontendLog('直接发送: ' + name, 'out');
             closeSendKeysPanel();
         }
 
-        // === 底部输入条（内联多行输入框，发送补回车执行�??===
+        // === 底部输入条（内联多行输入框，发送补回车执行）===
         const inputBarBtn = document.getElementById('inputBarBtn');
         const inputBarWrap = document.getElementById('inputBarWrap');
         const inputBarText = document.getElementById('inputBarText');
@@ -1497,11 +1503,11 @@
             }
         }
         function openInputBar() {
-            inputBarBtn.style.display = 'none';      // 展开时连同输入条按钮一起隐�??
-            hotkeysListEl.style.display = 'none';    // 展开时隐藏快捷键�??
-            inputBarWrap.style.display = 'flex';     // 输入条独占整�??
-            applyInputBarButtonLabel();              // 按当前设置刷新右侧按钮文�??
-            // 不再清空 value：保留上次未发送草稿，autoGrow 按现有内容重算高�??
+            inputBarBtn.style.display = 'none';      // 展开时连同输入条按钮一起隐藏
+            hotkeysListEl.style.display = 'none';    // 展开时隐藏快捷键栏
+            inputBarWrap.style.display = 'flex';     // 输入条独占整行
+            applyInputBarButtonLabel();              // 按当前设置刷新右侧按钮文字
+            // 不再清空 value：保留上次未发送草稿，autoGrow 按现有内容重算高度
             autoGrow(inputBarText);
             inputBarText.focus();
         }
@@ -1510,12 +1516,12 @@
             // （与其他快捷键按钮一致：点完后焦点仍在终端输入框，键盘不收）
             sessions.get(activeId)?.focus();
             inputBarWrap.style.display = 'none';
-            inputBarBtn.style.display = '';          // 恢复输入条按�??
+            inputBarBtn.style.display = '';          // 恢复输入条按钮
             hotkeysListEl.style.display = 'flex';    // 恢复快捷键栏
             if (clear) { inputBarText.value = ''; }
-            // 不显式设 height='auto':下次 openInputBar �?? autoGrow() 会自己重�??
+            // 不显式设 height='auto':下次 openInputBar → autoGrow() 会自己重置
         }
-        // 保留草稿地关闭（焦点移出用）：不清空内容，下次点开仍可�??
+        // 保留草稿地关闭（焦点移出用）：不清空内容，下次点开仍可见
         function closeInputBarPreserve() { closeInputBar(false); }
         // 清空内容但保持展开、焦点留在输入框（Esc / 发送后用）
         function clearInputBar() {
@@ -1524,12 +1530,12 @@
             autoGrow(inputBarText);
             // 不移动焦点：桌面端光标留在输入框；移动端软键盘不收回，可连续输入
         }
-        // textarea 自动增高：原�?? textarea 不随内容变高，需�?? scrollHeight 手动撑高
+        // textarea 自动增高：原生 textarea 不随内容变高，需按 scrollHeight 手动撑高
         function autoGrow(ta) {
             ta.style.height = 'auto';
             ta.style.height = ta.scrollHeight + 'px';
         }
-        // 输入条回车停顿（ms），模拟手动�?? Enter 前的手感；值来自设置项 enterDelayMs（多端同步），非硬编�??
+        // 输入条回车停顿（ms），模拟手动按 Enter 前的手感；值来自设置项 enterDelayMs（多端同步），非硬编码
         function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
         // 换行按钮：在光标处插入一个换行；空内容时不做事并退出输入条
@@ -1541,36 +1547,36 @@
             autoGrow(inputBarText);
             inputBarText.focus();
         }
-        // 右侧按钮：按当前设置决定是换行还是发�??
+        // 右侧按钮：按当前设置决定是换行还是发送
         function inputBarRightButton() {
             if (inputBarButtonAction === 'send') sendInputBar();
             else insertNewline();
         }
-        // 按钮文字随设置切「换行�?/「发送�?
+        // 按钮文字随设置切「换行」/「发送」
         function applyInputBarButtonLabel() {
             const btn = document.getElementById('inputBarSend');
-            if (btn) btn.textContent = (inputBarButtonAction === 'send') ? '发�?' : '换行';
+            if (btn) btn.textContent = (inputBarButtonAction === 'send') ? '发送' : '换行';
         }
         async function sendInputBar() {
             const t = inputBarText.value.replace(/\n+$/, '');   // 去末尾换行，避免多发空行
             if (!t) { return; }                                  // 空内容：不发送、不关闭（回车发送语义）
             const targetId = activeId;                            // 捕获目标会话，防止发送途中切换会话串台
-            const textSeq = t.replace(/\n/g, '\r');              // 正文内容，\n→\r，不含末尾回�??
+            const textSeq = t.replace(/\n/g, '\r');              // 正文内容，\n→\r，不含末尾回车
             // 原：clearInputBar();  // 清空内容但保持展开
             // 改：按设置决定收起还是保持展开
-            if (inputBarCloseAfterSend) closeInputBar();   // 清空并收起（closeInputBar 默认 clear=true�??
+            if (inputBarCloseAfterSend) closeInputBar();   // 清空并收起（closeInputBar 默认 clear=true）
             else clearInputBar();                          // 清空保持展开
-            if (!targetId) return;                               // 捕获时无活动会话则不发�?
-            wsSend({ type: 'input', id: targetId, data: textSeq });  // 整段正文一次性发�??
-            await sleep(enterDelayMs);                          // 停顿，模拟手动按 Enter 前的手感（取自设置项�??
-            wsSend({ type: 'input', id: targetId, data: '\r' });     // 单独发回�?? = 确认/执行
+            if (!targetId) return;                               // 捕获时无活动会话则不发送
+            wsSend({ type: 'input', id: targetId, data: textSeq });  // 整段正文一次性发出
+            await sleep(enterDelayMs);                          // 停顿，模拟手动按 Enter 前的手感（取自设置项）
+            wsSend({ type: 'input', id: targetId, data: '\r' });     // 单独发回车 = 确认/执行
         }
         inputBarText.addEventListener('input', () => autoGrow(inputBarText));
         inputBarText.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 e.preventDefault();
-                if (inputBarText.value) clearInputBar();   // 有内容：清空、保持展开、焦点留输入�??
-                else closeInputBar();                       // 无内容：隐藏输入�??
+                if (inputBarText.value) clearInputBar();   // 有内容：清空、保持展开、焦点留输入框
+                else closeInputBar();                       // 无内容：隐藏输入条
             }
             else if (e.key === 'Enter') {
                 e.preventDefault();
@@ -1582,8 +1588,8 @@
             if (inputBarWrap.style.display !== 'flex') return;   // 已关闭则忽略，防止程序化 close 后的二次触发
             if (!inputBarHideOnBlur) return;                     // 设置关闭：失焦不隐藏
             const r = e.relatedTarget;
-            if (r && inputBarWrap.contains(r)) return;            // 焦点仍在输入条内（如换行按钮），不关�??
-            closeInputBarPreserve();                             // 点外�??/终端：关闭但保留草稿
+            if (r && inputBarWrap.contains(r)) return;            // 焦点仍在输入条内（如换行按钮），不关闭
+            closeInputBarPreserve();                             // 点外部/终端：关闭但保留草稿
         });
 
         function openHotkeyEditor() {
@@ -1591,9 +1597,9 @@
             const names = Object.keys(hotkeys);
             let html = '<div class="modal-overlay" onclick="if(event.target===this)closeEditor()">';
             html += '<div class="modal-box">';
-            html += '<h3>编辑快捷�??</h3>';
+            html += '<h3>编辑快捷键</h3>';
             html += '<div class="modal-row">';
-            html += '<input id="hkName" placeholder="显示名称（如 Alt+M�??" style="flex:1;min-width:0;">';
+            html += '<input id="hkName" placeholder="显示名称（如 Alt+M）" style="flex:1;min-width:0;">';
             html += '<button onclick="resolveHotkey()">解析</button>';
             html += '</div>';
             html += '<div class="modal-row">';
@@ -1606,12 +1612,12 @@
             } else {
                 names.forEach(n => {
                     const val = hotkeys[n];
-                    const displayVal = val.length > 14 ? val.slice(0, 14) + '�??' : val;
+                    const displayVal = val.length > 14 ? val.slice(0, 14) + '…' : val;
                     const safe = n.replace(/'/g, "\\'");
-                    // draggable + data-hotkey-name �?? drag 事件能找到源项的 key
+                    // draggable + data-hotkey-name 让 drag 事件能找到源项的 key
                     // 不用 inline ondragstart 因为要读 currentTarget.dataset
                     html += `<div class="hotkey-item" draggable="true" data-hotkey-name="${n}">`;
-                    html += '<span class="drag-handle" title="拖动排序">�??</span>';
+                    html += '<span class="drag-handle" title="拖动排序">☰</span>';
                     html += `<span class="hk-label" title="${val}">${n}: ${displayVal}</span>`;
                     html += '<div class="btn-group">';
                     html += `<button onclick="editHotkey('${safe}')">编辑</button>`;
@@ -1627,14 +1633,14 @@
             div.innerHTML = html;
             editorDiv = div.firstElementChild;
             document.body.appendChild(editorDiv);
-            // 拖拽排序:弹窗 DOM 建好后遍�?? .hotkey-item 绑定 dragstart/dragover/dragleave/drop
-            // draggable=true �?? innerHTML 里已经写�??,这里只挂事件
+            // 拖拽排序:弹窗 DOM 建好后遍历 .hotkey-item 绑定 dragstart/dragover/dragleave/drop
+            // draggable=true 在 innerHTML 里已经写好,这里只挂事件
             bindHotkeyDragSort(editorDiv);
         }
 
-        // 拖拽排序:支持拖到目标项的"上半部分"插到它前�??,�??"下半部分"插到它后�??
-        // �?? dragover 时鼠�?? y 坐标与目标中线的相对位置决定插入方向
-        // 不用 e.target 避免嵌套子元�??(.drag-handle / .hk-label / button)事件源判断复�??
+        // 拖拽排序:支持拖到目标项的"上半部分"插到它前面,或"下半部分"插到它后面
+        // 用 dragover 时鼠标 y 坐标与目标中线的相对位置决定插入方向
+        // 不用 e.target 避免嵌套子元素(.drag-handle / .hk-label / button)事件源判断复杂
         function bindHotkeyDragSort(modal) {
             let draggedName = null;
             modal.querySelectorAll('.hotkey-item').forEach(item => {
@@ -1658,15 +1664,15 @@
                     e.dataTransfer.dropEffect = 'move';
                     const rect = item.getBoundingClientRect();
                     const isAbove = e.clientY < rect.top + rect.height / 2;
-                    // 清理所�?? .hotkey-item 的指示类,只给当前项加
+                    // 清理所有 .hotkey-item 的指示类,只给当前项加
                     modal.querySelectorAll('.hotkey-item').forEach(el => {
                         el.classList.remove('drag-over-top', 'drag-over-bottom');
                     });
                     item.classList.add(isAbove ? 'drag-over-top' : 'drag-over-bottom');
                 });
                 item.addEventListener('dragleave', e => {
-                    // dragleave 在进入子元素时也会冒泡触�??,只在真正离开 .hotkey-item 边界时清
-                    // relatedTarget 是进入的元素,若仍�?? item 子树里则不动
+                    // dragleave 在进入子元素时也会冒泡触发,只在真正离开 .hotkey-item 边界时清
+                    // relatedTarget 是进入的元素,若仍在 item 子树里则不动
                     if (!item.contains(e.relatedTarget)) {
                         item.classList.remove('drag-over-top', 'drag-over-bottom');
                     }
@@ -1681,7 +1687,7 @@
                     const fromIdx = order.indexOf(draggedName);
                     const toIdx = order.indexOf(targetName);
                     if (fromIdx === -1 || toIdx === -1) return;
-                    // 取出后重新定�?? target 的新索引(因为数组变了)
+                    // 取出后重新定位 target 的新索引(因为数组变了)
                     // insertBefore 决定是插在它前还是后
                     order.splice(fromIdx, 1);
                     let newIdx = order.indexOf(targetName);
@@ -1759,19 +1765,19 @@
             addFrontendLog('快捷键已同步给服务端', 'out');
         }
 
-        // === 连接状态检测（事件驱动�??2026-06-30 �?? 1Hz 轮询改为事件触发�??===
+        // === 连接状态检测（事件驱动，2026-06-30 由 1Hz 轮询改为事件触发）===
         const wsStatusEl = document.getElementById('wsStatus');
         function updateWsStatus() {
             const ok = ws && ws.readyState === 1;
-            wsStatusEl.textContent = ok ? '已连�??' : '已断�??';
+            wsStatusEl.textContent = ok ? '已连接' : '已断连';
             wsStatusEl.style.color = ok ? 'green' : 'red';
         }
 
-        // 移动端：阻止按钮 mousedown 默认行为，避免软键盘因焦点转移而收起，但后来发现，不用这条也行，完全通过css屏蔽更好，于是去�??
+        // 移动端：阻止按钮 mousedown 默认行为，避免软键盘因焦点转移而收起，但后来发现，不用这条也行，完全通过css屏蔽更好，于是去掉
         // document.addEventListener('mousedown', e => { if (e.target.tagName === 'BUTTON') e.preventDefault(); });
-        // 浏览器报告网络恢复时立即重连（不�?? 3 �?? backoff�??
-        window.addEventListener('online', () => { addFrontendLog('网络恢复，触发重�??'); connect(); });
-        // 移动端：阻止按钮 pointerdown 的焦点转移，保持键盘状态不�??
+        // 浏览器报告网络恢复时立即重连（不等 3 秒 backoff）
+        window.addEventListener('online', () => { addFrontendLog('网络恢复，触发重连'); connect(); });
+        // 移动端：阻止按钮 pointerdown 的焦点转移，保持键盘状态不变
         document.addEventListener('pointerdown', function(e) { if (e.target.closest('button')) e.preventDefault(); }, { capture: true, passive: false });
     </script>
 </body>
