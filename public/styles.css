@@ -299,18 +299,6 @@
         #inputBarSend {
             flex-shrink: 0;
         }
-        .dropdown-menu {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            background: #1e1e1e;
-            border: 1px solid #555;
-            min-width: 100%;
-            white-space: nowrap;
-        }
-        .dropdown-menu.open {
-            display: block;
-        }
         .dropdown-menu button {
             display: block;
             width: 100%;
@@ -459,6 +447,7 @@
     color: #e0e0e0;
     max-height: 60vh;          /* 新增：手机端展开多行后不溢出视口 */
     overflow-y: auto;          /* 新增：超出则滚动 */
+    white-space: nowrap;       /* 保留迁移前会话下拉项不换行行为 */
 }
 .dropdown-menu.open { display: block; }
 .dropdown-empty { padding: 6px 10px; color: #888; white-space: nowrap; }
