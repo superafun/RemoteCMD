@@ -1304,6 +1304,10 @@
             if (selectionMode) return;  // 选区模式：完全交给 xterm 原生处理（含拖选/长按选区）
             if (!e.target || !e.target.closest || !e.target.closest('#terminal-container'))
                 return;                                 // 终端区域外（底部栏等）放行
+            // 自愈：若上一次捏合的最终抬手事件被浏览器丢失而导致 pinchActive 卡在 true，
+            // 后续任何单指触摸都说明"已无捏合在进行"，强制解除，避免单指滚动被误判为 pinch 而失效。
+            // 仅 touches<2 时解除；真正的双指捏合由下方 e.touches.length>=2 重新置位，无回归。
+            if (pinchActive && e.touches.length < 2) pinchActive = false;
             if (e.touches.length >= 2) {
                 // 双指捏合缩放：挡掉 xterm 手势处理（否则它把双指当滚动、松手惯量发 NaN 垃圾且吃掉缩放），
                 // 但绝不 preventDefault，浏览器按 CSS touch-action: pan-x pinch-zoom 执行原生缩放。
