@@ -1417,6 +1417,21 @@
         }
 
         function onTouchScrollEnd(e) {
+            if (selectionMode) {
+                // 选区模式：清起点，但保留选区（供复制按钮 / Ctrl+C 使用）。
+                if (pinchActive) {
+                    e && e.stopPropagation();
+                    if (e && e.touches.length > 0) {
+                        swipeTouchId = null; swipeActive = false;  // 还有手指在屏：保持 pinchActive
+                        return;
+                    }
+                    pinchActive = false;
+                }
+                if (swipeTouchId !== null || swipeActive) e && e.stopPropagation();
+                selStartCell = { col: 0, row: 0 };
+                swipeTouchId = null; swipeActive = false;
+                return;
+            }
             if (pinchActive) {
                 // 双指缩放：直到全部手指抬起才解除，避免残留单指误触发滑动；
                 // 挡掉 xterm 的 touchend（其惯量逻辑会发 NaN 垃圾），不 preventDefault。
