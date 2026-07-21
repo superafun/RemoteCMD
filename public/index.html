@@ -407,6 +407,21 @@
             showToast(`终端通知: ${s.name}`, 'success');
         }
 
+        // 系统级通知（浏览器 Notification → 操作系统弹窗）。
+        // 仅当开关开启且浏览器已授权才弹；未授权/不支持则静默跳过（Toast+蜂鸣仍由 bell 分支处理）。
+        function fireOsNotification(id) {
+            if (!('Notification' in window)) return;            // 浏览器不支持
+            if (Notification.permission !== 'granted') return;  // 未授权不弹
+            const s = sessions.get(id);
+            const name = s ? s.name : '终端';
+            try {
+                const n = new Notification('终端通知', { body: `${name} 触发提示`, tag: 'remote-cmd-bell' });
+                n.onclick = () => { window.focus(); n.close(); };
+            } catch (e) {
+                // 某些环境构造 Notification 抛错，静默失败不影响 Toast/蜂鸣
+            }
+        }
+
         let audioCtx = null;
         function playBeep() {
             try {
@@ -853,6 +868,7 @@
                     } else if (msg.type === 'bell') {
                         if (bellToastEnabled) showBellToast(msg.id);
                         if (bellSoundEnabled) playBeep();
+                        if (bellOsEnabled) fireOsNotification(msg.id);
                     } else if (msg.type === 'size_slots') {
                         sizeSlots = msg.data;  // 全量覆盖
                         // 弹窗打开时同步：仅在 modal 已开时刷新输入框
