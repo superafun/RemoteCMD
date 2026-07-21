@@ -281,14 +281,14 @@
             flex: 1 1 0;           /* 填满整行：发按键(最左)与换行(最右)之间全部是输入条 */
             min-width: 0;
             gap: 0;                /* 输入框右边缘紧贴换行按钮，不留空隙 */
-            align-items: flex-start;
+            align-items: flex-end; /* 文本框底边与换行按钮底边平齐，文本框向上长 */
         }
         #inputBarText {
             flex: 1;               /* 占满中间全部空间，尽可能宽 */
             min-width: 0;
             resize: none;
             overflow: auto;
-            max-height: 160px;
+            max-height: 50vh;      /* 原为 160px：超半屏后内部滚动，盖住终端底部一部分 */
             background: #1e1e1e;
             color: #eee;
             border: 1px solid #555;
