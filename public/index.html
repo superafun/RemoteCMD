@@ -85,6 +85,7 @@
         let bellDebounceMs = 1000;   // 服务端去抖窗口（ms），与 config.json.bellDebounceMs 同步
         let bellSoundEnabled = true; // 蜂鸣开关
         let bellToastEnabled = true; // Toast 开关
+        let bellOsEnabled = true;    // 系统通知（OS 弹窗）开关
         let bellBeepDurationMs = 300; // 蜂鸣单声时长（ms）
         // 保留 hotkeyList 内固定尾部元素（编辑按钮 + 滚动按钮组）的引用
         // renderHotkeys() 中 bar.innerHTML = '' 会把它们从 DOM 树摘下,getElementById 失效
@@ -300,6 +301,12 @@
             html += '<span id="hint-bellToastEnabled" class="apply-hint"></span>';
             html += '</div>';
 
+            // 系统通知（OS 弹窗）开关
+            html += '<div class="modal-row">';
+            html += '<label class="modal-label"><input type="checkbox" id="settingsBellOsEnabledInput" onchange="applySettingsBellOsEnabled()"> 系统通知（OS 弹窗）</label>';
+            html += '<span id="hint-bellOsEnabled" class="apply-hint"></span>';
+            html += '</div>';
+
             // 通知防抖时长 (ms)
             html += '<div class="modal-row">';
             html += '<span class="modal-label">通知防抖时长 (ms)</span>';
@@ -351,6 +358,7 @@
             document.getElementById('settingsBellDebounceMsInput').value = bellDebounceMs;
             document.getElementById('settingsBellSoundEnabledInput').checked = bellSoundEnabled;
             document.getElementById('settingsBellToastEnabledInput').checked = bellToastEnabled;
+            document.getElementById('settingsBellOsEnabledInput').checked = bellOsEnabled;
             document.getElementById('settingsBellBeepDurationInput').value = bellBeepDurationMs;
 
             // 打开即自动检测当前会话 buffer 占用
@@ -582,6 +590,16 @@
             const v = document.getElementById('settingsBellToastEnabledInput').checked;
             wsSend({ type: 'bell_toast_enabled', data: v });
             flashHint('hint-bellToastEnabled');
+        }
+
+        function applySettingsBellOsEnabled() {
+            const v = document.getElementById('settingsBellOsEnabledInput').checked;
+            // 首次开启时申请浏览器通知权限
+            if (v && 'Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+            wsSend({ type: 'bell_os_enabled', data: v });
+            flashHint('hint-bellOsEnabled');
         }
 
         function applySettingsBellBeepDuration() {
@@ -893,6 +911,9 @@
                     } else if (msg.type === 'bell_toast_enabled') {
                         bellToastEnabled = msg.data;
                         addFrontendLog('通知 Toast 已' + (bellToastEnabled ? '开启' : '关闭'), 'in');
+                    } else if (msg.type === 'bell_os_enabled') {
+                        bellOsEnabled = msg.data;
+                        addFrontendLog('系统通知已' + (bellOsEnabled ? '开启' : '关闭'), 'in');
                     } else if (msg.type === 'bell_beep_duration_ms') {
                         bellBeepDurationMs = msg.data;
                         addFrontendLog('蜂鸣声音长度同步为 ' + bellBeepDurationMs + ' ms', 'in');
