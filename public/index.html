@@ -81,8 +81,7 @@
         let bellSoundEnabled = true; // 蜂鸣开关
         let bellToastEnabled = true; // Toast 开关
         let bellOsEnabled = true;    // 系统通知（OS 弹窗）开关
-        let ntfyEnabled = false;   // ntfy push to phone switch
-        let ntfyTopic = '';        // ntfy topic (password; random & unguessable)
+
         let feishuAppId = '';     // 飞书自建应用 app_id
         let feishuAppSecret = ''; // 飞书自建应用 app_secret（仅服务端用）
         let feishuReceiveId = ''; // 接收 ID：邮箱/chat_id/open_id/user_id
@@ -290,13 +289,7 @@
             html += '<div class="modal-row">';
             html += '<label class="modal-label"><input type="checkbox" id="settingsBellOsEnabledInput" onchange="applySettingsBellOsEnabled()"> 系统通知（OS 弹窗）</label>';
             html += '<span id="hint-bellOsEnabled" class="apply-hint"></span>';
-            // ntfy push to phone
-            html += '<div class="modal-row">';
-            html += '<label class="modal-label"><input type="checkbox" id="settingsNtfyEnabledInput" onchange="applySettingsNtfyEnabled()"> Push to phone (ntfy)</label>';
-            html += '<input type="text" id="settingsNtfyTopicInput" placeholder="topic, e.g. remotecmd-9f3a2c7b" style="flex:1;min-width:120px;">';
-            html += '<button class="btn-primary" id="btn-apply-ntfyTopic" onclick="applySettingsNtfyTopic()">Apply</button>';
-            html += '<span id="hint-ntfy" class="apply-hint"></span>';
-            html += '</div>';
+
             // 飞书自建应用（国内可达、走飞书系统推送，省电不依赖谷歌）
             html += '<div class="modal-row">';
             html += '<span class="modal-label">飞书应用 (Feishu App)</span>';
@@ -365,8 +358,7 @@
             document.getElementById('settingsBellSoundEnabledInput').checked = bellSoundEnabled;
             document.getElementById('settingsBellToastEnabledInput').checked = bellToastEnabled;
             document.getElementById('settingsBellOsEnabledInput').checked = bellOsEnabled;
-            document.getElementById('settingsNtfyEnabledInput').checked = ntfyEnabled;
-            document.getElementById('settingsNtfyTopicInput').value = ntfyTopic;
+
             document.getElementById('settingsFeishuAppIdInput').value = feishuAppId;
             document.getElementById('settingsFeishuAppSecretInput').value = feishuAppSecret;
             document.getElementById('settingsFeishuReceiveIdInput').value = feishuReceiveId;
@@ -600,26 +592,10 @@
             flashHint('hint-bellOsEnabled');
         }
 
-        function applySettingsNtfyEnabled() {
-            const v = document.getElementById('settingsNtfyEnabledInput').checked;
-            wsSend({ type: 'ntfy_enabled', data: v });
-            flashHint('hint-ntfy');
-        }
-
         function applySettingsDoneToken() {
             const v = document.getElementById('settingsDoneTokenInput').value.trim();
             wsSend({ type: 'done_token', data: v });
             flashHint('hint-doneToken');
-        }
-
-        function applySettingsNtfyTopic() {
-            const v = document.getElementById('settingsNtfyTopicInput').value.trim();
-            if (!v) {
-                flashHint('hint-ntfy', 'topic required');
-                return;
-            }
-            wsSend({ type: 'ntfy_topic', data: v });
-            flashHint('hint-ntfy');
         }
 
         function applySettingsFeishu() {
@@ -924,12 +900,6 @@
                     } else if (msg.type === 'bell_os_enabled') {
                         bellOsEnabled = msg.data;
                         addFrontendLog('系统通知已' + (bellOsEnabled ? '开启' : '关闭'), 'in');
-                    } else if (msg.type === 'ntfy_enabled') {
-                        ntfyEnabled = msg.data;
-                        addFrontendLog('ntfy push ' + (ntfyEnabled ? 'on' : 'off'), 'in');
-                    } else if (msg.type === 'ntfy_topic') {
-                        ntfyTopic = msg.data;
-                        addFrontendLog('ntfy topic synced: ' + ntfyTopic, 'in');
                     } else if (msg.type === 'feishu_app_id') {
                         feishuAppId = msg.data;
                         addFrontendLog('feishu app_id synced', 'in');

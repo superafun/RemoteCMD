@@ -28,8 +28,7 @@ function loadConfig() {
             bellToastEnabled: true,
             bellOsEnabled: true, // 系统通知（OS 弹窗）开关
             bellBeepDurationMs: 300,
-            ntfyEnabled: false, // 推送通知到手机 (ntfy) 开关
-            ntfyTopic: '', // ntfy 话题名（即密码，需随机不可猜）
+
             feishuAppId: '', // 飞书自建应用 app_id（完成标记命中后通过应用 API 发消息）
             feishuAppSecret: '', // 飞书自建应用 app_secret（仅服务端使用，换 tenant_access_token）
             feishuReceiveId: '', // 接收消息的 ID：邮箱/群 chat_id/open_id/user_id（依 receive_type）
@@ -75,8 +74,7 @@ function loadConfig() {
     if (typeof cfg.bellToastEnabled !== 'boolean') cfg.bellToastEnabled = true;
     if (typeof cfg.bellOsEnabled !== 'boolean') cfg.bellOsEnabled = true;
     if (typeof cfg.bellBeepDurationMs !== 'number' || cfg.bellBeepDurationMs < 50 || cfg.bellBeepDurationMs > 2000) cfg.bellBeepDurationMs = 300;
-    if (typeof cfg.ntfyEnabled !== 'boolean') cfg.ntfyEnabled = false;
-    if (typeof cfg.ntfyTopic !== 'string') cfg.ntfyTopic = '';
+
             if (typeof cfg.feishuAppId !== 'string') cfg.feishuAppId = '';
             if (typeof cfg.feishuAppSecret !== 'string') cfg.feishuAppSecret = '';
             if (typeof cfg.feishuReceiveId !== 'string') cfg.feishuReceiveId = '';
@@ -339,15 +337,7 @@ function createSession() {
             if (idx >= 0) {
                 sessions[newId].doneCarry = buf.slice(idx + tok.length);
                 broadcast({ type: 'bell', id: newId });
-                // ntfy 安卓推送出口：完成标记命中后，向话题 POST 一行消息（fire-and-forget）
-                if (config.ntfyEnabled && config.ntfyTopic) {
-                    const name = sessions[newId] ? sessions[newId].name : '终端';
-                    fetch('https://ntfy.sh/' + encodeURIComponent(config.ntfyTopic), {
-                        method: 'POST',
-                        headers: { 'Title': 'RemoteCMD 通知', 'Tag': 'bell' },
-                        body: `终端「${name}」任务完成`
-                    }).catch(() => {});
-                }                // 飞书自建应用推送出口：完成标记命中后通过应用 API 发消息（fire-and-forget）
+                // 飞书自建应用推送出口：完成标记命中后通过应用 API 发消息（fire-and-forget）
                 if (config.feishuAppId && config.feishuAppSecret && config.feishuReceiveId) {
                     const name = sessions[newId] ? sessions[newId].name : '终端';
                     const feishuText = '终端「' + name + '」任务完成';
@@ -408,8 +398,7 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'bell_sound_enabled', data: config.bellSoundEnabled }));
     ws.send(JSON.stringify({ type: 'bell_toast_enabled', data: config.bellToastEnabled }));
     ws.send(JSON.stringify({ type: 'bell_os_enabled', data: config.bellOsEnabled }));
-    ws.send(JSON.stringify({ type: 'ntfy_enabled', data: config.ntfyEnabled }));
-    ws.send(JSON.stringify({ type: 'ntfy_topic', data: config.ntfyTopic }));
+
     ws.send(JSON.stringify({ type: 'feishu_app_id', data: config.feishuAppId }));
     ws.send(JSON.stringify({ type: 'feishu_app_secret', data: config.feishuAppSecret }));
     ws.send(JSON.stringify({ type: 'feishu_receive_id', data: config.feishuReceiveId }));
@@ -590,18 +579,7 @@ wss.on('connection', (ws) => {
             broadcast({ type: 'bell_os_enabled', data: config.bellOsEnabled });
             saveConfig(config);
         }
-        else if (type === 'ntfy_enabled') {
-            if (typeof data !== 'boolean') return;
-            config.ntfyEnabled = data;
-            broadcast({ type: 'ntfy_enabled', data: config.ntfyEnabled });
-            saveConfig(config);
-        }
-        else if (type === 'ntfy_topic') {
-            if (typeof data !== 'string') return;
-            config.ntfyTopic = data;
-            broadcast({ type: 'ntfy_topic', data: config.ntfyTopic });
-            saveConfig(config);
-        }
+
         else if (type === 'feishu_app_id') {
             if (typeof data !== 'string') return;
             config.feishuAppId = data;
