@@ -23,16 +23,6 @@ function loadConfig() {
             swipeThreshold: 24,
             swipeClassify: 10,
             showScrollButtons: true,
-            doneToken: 'REMOTECMD_DONE', // 完成标记：PTY 输出流精确匹配该串才触发通知（替换 BEL）
-            bellSoundEnabled: true,
-            bellToastEnabled: true,
-            bellOsEnabled: true, // 系统通知（OS 弹窗）开关
-            bellBeepDurationMs: 300,
-
-            feishuAppId: '', // 飞书自建应用 app_id（完成标记命中后通过应用 API 发消息）
-            feishuAppSecret: '', // 飞书自建应用 app_secret（仅服务端使用，换 tenant_access_token）
-            feishuReceiveId: '', // 接收消息的 ID：邮箱/群 chat_id/open_id/user_id（依 receive_type）
-            feishuReceiveType: 'email', // 接收 ID 类型：email / chat_id / open_id / user_id
             inputBarButtonAction: 'newline',
             inputBarEnterAction: 'send',
             inputBarCloseAfterSend: false,
@@ -69,16 +59,6 @@ function loadConfig() {
     if (typeof cfg.swipeThreshold !== 'number' || cfg.swipeThreshold < 1 || cfg.swipeThreshold > 200) cfg.swipeThreshold = 24;
     if (typeof cfg.swipeClassify !== 'number' || cfg.swipeClassify < 1 || cfg.swipeClassify > 100) cfg.swipeClassify = 10;
     if (typeof cfg.showScrollButtons !== 'boolean') cfg.showScrollButtons = true;
-    if (typeof cfg.doneToken !== 'string') cfg.doneToken = 'REMOTECMD_DONE';
-    if (typeof cfg.bellSoundEnabled !== 'boolean') cfg.bellSoundEnabled = true;
-    if (typeof cfg.bellToastEnabled !== 'boolean') cfg.bellToastEnabled = true;
-    if (typeof cfg.bellOsEnabled !== 'boolean') cfg.bellOsEnabled = true;
-    if (typeof cfg.bellBeepDurationMs !== 'number' || cfg.bellBeepDurationMs < 50 || cfg.bellBeepDurationMs > 2000) cfg.bellBeepDurationMs = 300;
-
-        if (typeof cfg.feishuAppId !== 'string') cfg.feishuAppId = '';
-        if (typeof cfg.feishuAppSecret !== 'string') cfg.feishuAppSecret = '';
-        if (typeof cfg.feishuReceiveId !== 'string') cfg.feishuReceiveId = '';
-        if (typeof cfg.feishuReceiveType !== 'string' || ['email','chat_id','open_id','user_id'].indexOf(cfg.feishuReceiveType) === -1) cfg.feishuReceiveType = 'email';
     if (cfg.inputBarButtonAction !== 'newline' && cfg.inputBarButtonAction !== 'send') cfg.inputBarButtonAction = 'newline';
     if (cfg.inputBarEnterAction !== 'newline' && cfg.inputBarEnterAction !== 'send') cfg.inputBarEnterAction = 'send';
     if (typeof cfg.inputBarCloseAfterSend !== 'boolean') cfg.inputBarCloseAfterSend = false;
@@ -172,46 +152,6 @@ console.warn = function (...args) {
 };
 process.on('uncaughtException', (e) => { console.error('uncaughtException:', e && e.stack ? e.stack : e); });
 process.on('unhandledRejection', (e) => { console.error('unhandledRejection:', e && e.stack ? e.stack : e); });
-// 飞书自建应用：缓存 tenant_access_token（提前 60s 刷新，避免每次发消息都换 token）
-let _feishuToken = null;
-let _feishuTokenExpire = 0;
-// 凭证变更后必须使缓存失效，否则会拿着旧 app 的 token 静默失败
-function invalidateFeishuToken() {
-    _feishuToken = null;
-    _feishuTokenExpire = 0;
-}
-function getFeishuTenantToken() {
-    const now = Date.now();
-    if (_feishuToken && now < _feishuTokenExpire) return Promise.resolve(_feishuToken);
-    return fetch('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ app_id: config.feishuAppId, app_secret: config.feishuAppSecret })
-    }).then(r => r.json()).then(j => {
-        if (j.code !== 0) throw new Error('feishu token failed: ' + j.code + ' ' + j.msg);
-        _feishuToken = j.tenant_access_token;
-        _feishuTokenExpire = now + ((j.expire || 7200) - 60) * 1000;
-        return _feishuToken;
-    });
-}
-// 通过飞书自建应用 API 发送一条文本消息（fire-and-forget，调用方自行 .catch）
-function sendFeishuMessage(text) {
-    return getFeishuTenantToken().then(token => {
-        const body = {
-            receive_id: config.feishuReceiveId,
-            msg_type: 'text',
-            content: JSON.stringify({ text: text })
-        };
-        return fetch('https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=' + encodeURIComponent(config.feishuReceiveType), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-            body: JSON.stringify(body)
-        }).then(r => r.json()).then(j => {
-            if (j.code !== 0) throw new Error('feishu send failed: ' + j.code + ' ' + j.msg);
-        });
-    });
-}
-
 // 记录一条最近路径：去重 + 置顶 + 截断到 10 + 写盘 + 广播
 function addRecentPath(raw) {
     const p = (raw || '').trim();
@@ -320,9 +260,7 @@ function createSession() {
         rows: slot.rows,
         cwd: process.env.USERPROFILE
     });
-    // doneCarry: 完成标记跨 chunk 拼接缓冲。标记串可能被拆成多次 onData 到达，
-    // 把未匹配完的尾部暂存于此，下次来的 chunk 拼上继续匹配，保证精确命中一次。
-    sessions[newId] = { pty: ptyProcess, inputLine: '', name: computeSmartName(), doneCarry: '' };
+    sessions[newId] = { pty: ptyProcess, inputLine: '', name: computeSmartName() };
     // === 重连同步：headless 终端维护"当前可见屏幕 + 有界真实滚屏历史" ===
     // scrollback 用有界行数（config.screenHistoryLines，绝不为 0，否则重连无法上滚看历史）。
     // 加载 Unicode11Addon 与客户端一致，保证字符宽度/换行对齐；SerializeAddon 用于重连时序列化整屏。
@@ -348,28 +286,6 @@ function createSession() {
             sessions[newId]._writeSeq = sessions[newId]._writeSeq.then(() => new Promise(res => {
                 try { scr.write(d, res); } catch (e) { res(); }
             })).catch(() => {});
-        }
-        // === 完成标记扫描：精确匹配可配置标记串（默认 REMOTECMD_DONE）即触发通知（替换 BEL 去抖）===
-        // 标记跨 chunk 到达时用 doneCarry 拼接尾部；命中后只消费到标记处、保留其后未读内容。
-        // 标记原样随 data 透传（可见、可验证），不滤除。
-        const tok = config.doneToken || '';
-        if (tok) {
-            const buf = (sessions[newId].doneCarry || '') + d;
-            const idx = buf.indexOf(tok);
-            if (idx >= 0) {
-                sessions[newId].doneCarry = buf.slice(idx + tok.length);
-                broadcast({ type: 'bell', id: newId });
-                // 飞书自建应用推送出口：完成标记命中后通过应用 API 发消息（fire-and-forget）
-                if (config.feishuAppId && config.feishuAppSecret && config.feishuReceiveId) {
-                    const name = sessions[newId] ? sessions[newId].name : '终端';
-                    const feishuText = '终端「' + name + '」任务完成';
-                    sendFeishuMessage(feishuText).catch(e => console.error('[feishu] 推送失败:', e.message));
-                }
-
-            } else {
-                // 未命中：只保留末尾最多 tok.length 字节，避免缓冲无限增长
-                sessions[newId].doneCarry = buf.length > tok.length ? buf.slice(buf.length - tok.length) : buf;
-            }
         }
         // data 消息：原样透传（完成标记也照发，终端可见可验证）。
         // 前端 buffer 始终与后端一致，重连回放无差异。
@@ -416,16 +332,6 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'input_bar_hide_on_blur', data: config.inputBarHideOnBlur }));
     ws.send(JSON.stringify({ type: 'enter_delay_ms', data: config.enterDelayMs }));
     ws.send(JSON.stringify({ type: 'max_frontend_logs', data: config.maxFrontendLogs }));
-    ws.send(JSON.stringify({ type: 'done_token', data: config.doneToken }));
-    ws.send(JSON.stringify({ type: 'bell_sound_enabled', data: config.bellSoundEnabled }));
-    ws.send(JSON.stringify({ type: 'bell_toast_enabled', data: config.bellToastEnabled }));
-    ws.send(JSON.stringify({ type: 'bell_os_enabled', data: config.bellOsEnabled }));
-
-        ws.send(JSON.stringify({ type: 'feishu_app_id', data: config.feishuAppId }));
-    ws.send(JSON.stringify({ type: 'feishu_app_secret', data: config.feishuAppSecret }));
-    ws.send(JSON.stringify({ type: 'feishu_receive_id', data: config.feishuReceiveId }));
-    ws.send(JSON.stringify({ type: 'feishu_receive_type', data: config.feishuReceiveType }));
-    ws.send(JSON.stringify({ type: 'bell_beep_duration_ms', data: config.bellBeepDurationMs }));
     ws.send(JSON.stringify({ type: 'recent_paths', data: config.recentPaths }));
     ws.on('message', (msg) => {
         const p = JSON.parse(msg.toString());
@@ -577,64 +483,7 @@ wss.on('connection', (ws) => {
             broadcast({ type: 'max_frontend_logs', data: config.maxFrontendLogs });
             saveConfig(config);
         }
-        else if (type === 'done_token') {
-            if (typeof data !== 'string') return;
-            config.doneToken = data;
-            broadcast({ type: 'done_token', data: config.doneToken });
-            saveConfig(config);
-        }
-        else if (type === 'bell_sound_enabled') {
-            if (typeof data !== 'boolean') return;
-            config.bellSoundEnabled = data;
-            broadcast({ type: 'bell_sound_enabled', data: config.bellSoundEnabled });
-            saveConfig(config);
-        }
-        else if (type === 'bell_toast_enabled') {
-            if (typeof data !== 'boolean') return;
-            config.bellToastEnabled = data;
-            broadcast({ type: 'bell_toast_enabled', data: config.bellToastEnabled });
-            saveConfig(config);
-        }
-        else if (type === 'bell_os_enabled') {
-            if (typeof data !== 'boolean') return;
-            config.bellOsEnabled = data;
-            broadcast({ type: 'bell_os_enabled', data: config.bellOsEnabled });
-            saveConfig(config);
-        }
 
-        else if (type === 'feishu_app_id') {
-            if (typeof data !== 'string') return;
-            config.feishuAppId = data;
-            invalidateFeishuToken();
-            broadcast({ type: 'feishu_app_id', data: config.feishuAppId });
-            saveConfig(config);
-        }
-        else if (type === 'feishu_app_secret') {
-            if (typeof data !== 'string') return;
-            config.feishuAppSecret = data;
-            broadcast({ type: 'feishu_app_secret', data: config.feishuAppSecret });
-            invalidateFeishuToken();
-            saveConfig(config);
-        }
-        else if (type === 'feishu_receive_id') {
-            if (typeof data !== 'string') return;
-            config.feishuReceiveId = data;
-            broadcast({ type: 'feishu_receive_id', data: config.feishuReceiveId });
-            saveConfig(config);
-        }
-        else if (type === 'feishu_receive_type') {
-            if (typeof data !== 'string' || ['email','chat_id','open_id','user_id'].indexOf(data) === -1) return;
-            config.feishuReceiveType = data;
-            broadcast({ type: 'feishu_receive_type', data: config.feishuReceiveType });
-            saveConfig(config);
-        }
-        else if (type === 'bell_beep_duration_ms') {
-            const v = parseInt(data);
-            if (!Number.isInteger(v) || v < 50 || v > 2000) return;
-            config.bellBeepDurationMs = v;
-            broadcast({ type: 'bell_beep_duration_ms', data: config.bellBeepDurationMs });
-            saveConfig(config);
-        }
         else if (type === 'rename' && sessions[id]) {
             const name = (data == null ? '' : String(data)).trim().slice(0, 50);
             sessions[id].name = name === '' ? computeSmartName() : name;
