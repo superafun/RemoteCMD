@@ -83,8 +83,10 @@
         let bellOsEnabled = true;    // 系统通知（OS 弹窗）开关
         let ntfyEnabled = false;   // ntfy push to phone switch
         let ntfyTopic = '';        // ntfy topic (password; random & unguessable)
-        let feishuWebhook = '';   // 飞书机器人 webhook 地址（完成标记命中后推送）
-        let feishuSecret = '';    // 飞书 webhook 签名密钥（开启签名校验才填）
+        let feishuAppId = '';     // 飞书自建应用 app_id
+        let feishuAppSecret = ''; // 飞书自建应用 app_secret（仅服务端用）
+        let feishuReceiveId = ''; // 接收 ID：邮箱/chat_id/open_id/user_id
+        let feishuReceiveType = 'email'; // 接收 ID 类型
         let doneToken = 'REMOTECMD_DONE'; // completion marker (replaces BEL)
         let bellBeepDurationMs = 300; // 蜂鸣单声时长（ms）
         // 保留 hotkeyList 内固定尾部元素（编辑按钮 + 滚动按钮组）的引用
@@ -295,11 +297,20 @@
             html += '<button class="btn-primary" id="btn-apply-ntfyTopic" onclick="applySettingsNtfyTopic()">Apply</button>';
             html += '<span id="hint-ntfy" class="apply-hint"></span>';
             html += '</div>';
-            // 飞书机器人推送（国内可达、走飞书系统推送，省电不依赖谷歌）
+            // 飞书自建应用（国内可达、走飞书系统推送，省电不依赖谷歌）
             html += '<div class="modal-row">';
-            html += '<span class="modal-label">飞书通知 (Feishu)</span>';
-            html += '<input type="text" id="settingsFeishuWebhookInput" placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/xxxx" style="flex:1;min-width:160px;">';
-            html += '<input type="text" id="settingsFeishuSecretInput" placeholder="签名密钥（开启签名校验才填）" style="flex:1;min-width:160px;">';
+            html += '<span class="modal-label">飞书应用 (Feishu App)</span>';
+            html += '<input type="text" id="settingsFeishuAppIdInput" placeholder="app_id（飞书开放平台应用凭证）" style="flex:1;min-width:160px;">';
+            html += '<input type="password" id="settingsFeishuAppSecretInput" placeholder="app_secret（仅服务端用）" style="flex:1;min-width:160px;">';
+            html += '</div>';
+            html += '<div class="modal-row">';
+            html += '<input type="text" id="settingsFeishuReceiveIdInput" placeholder="接收 ID：你的邮箱 / 群 chat_id / open_id" style="flex:1;min-width:160px;">';
+            html += '<select id="settingsFeishuReceiveTypeInput" onchange="applySettingsFeishu()" style="flex:0 0 auto;">';
+            html += '<option value="email">邮箱(email)</option>';
+            html += '<option value="chat_id">群(chat_id)</option>';
+            html += '<option value="open_id">open_id</option>';
+            html += '<option value="user_id">user_id</option>';
+            html += '</select>';
             html += '<button class="btn-primary" id="btn-apply-feishu" onclick="applySettingsFeishu()">应用</button>';
             html += '<span id="hint-feishu" class="apply-hint"></span>';
             html += '</div>';
@@ -356,8 +367,10 @@
             document.getElementById('settingsBellOsEnabledInput').checked = bellOsEnabled;
             document.getElementById('settingsNtfyEnabledInput').checked = ntfyEnabled;
             document.getElementById('settingsNtfyTopicInput').value = ntfyTopic;
-            document.getElementById('settingsFeishuWebhookInput').value = feishuWebhook;
-            document.getElementById('settingsFeishuSecretInput').value = feishuSecret;
+            document.getElementById('settingsFeishuAppIdInput').value = feishuAppId;
+            document.getElementById('settingsFeishuAppSecretInput').value = feishuAppSecret;
+            document.getElementById('settingsFeishuReceiveIdInput').value = feishuReceiveId;
+            document.getElementById('settingsFeishuReceiveTypeInput').value = feishuReceiveType;
             document.getElementById('settingsDoneTokenInput').value = doneToken;
             document.getElementById('settingsBellBeepDurationInput').value = bellBeepDurationMs;
 
@@ -610,14 +623,18 @@
         }
 
         function applySettingsFeishu() {
-            const webhook = document.getElementById('settingsFeishuWebhookInput').value.trim();
-            const secret = document.getElementById('settingsFeishuSecretInput').value;
-            if (!webhook) {
-                flashHint('hint-feishu', 'webhook 必填');
+            const appId = document.getElementById('settingsFeishuAppIdInput').value.trim();
+            const appSecret = document.getElementById('settingsFeishuAppSecretInput').value;
+            const receiveId = document.getElementById('settingsFeishuReceiveIdInput').value.trim();
+            const receiveType = document.getElementById('settingsFeishuReceiveTypeInput').value;
+            if (!appId || !appSecret || !receiveId) {
+                flashHint('hint-feishu', 'app_id / secret / 接收ID 必填');
                 return;
             }
-            wsSend({ type: 'feishu_webhook', data: webhook });
-            wsSend({ type: 'feishu_secret', data: secret });
+            wsSend({ type: 'feishu_app_id', data: appId });
+            wsSend({ type: 'feishu_app_secret', data: appSecret });
+            wsSend({ type: 'feishu_receive_id', data: receiveId });
+            wsSend({ type: 'feishu_receive_type', data: receiveType });
             flashHint('hint-feishu');
         }
 
@@ -913,12 +930,18 @@
                     } else if (msg.type === 'ntfy_topic') {
                         ntfyTopic = msg.data;
                         addFrontendLog('ntfy topic synced: ' + ntfyTopic, 'in');
-                    } else if (msg.type === 'feishu_webhook') {
-                        feishuWebhook = msg.data;
-                        addFrontendLog('feishu webhook synced', 'in');
-                    } else if (msg.type === 'feishu_secret') {
-                        feishuSecret = msg.data;
-                        addFrontendLog('feishu secret synced', 'in');
+                    } else if (msg.type === 'feishu_app_id') {
+                        feishuAppId = msg.data;
+                        addFrontendLog('feishu app_id synced', 'in');
+                    } else if (msg.type === 'feishu_app_secret') {
+                        feishuAppSecret = msg.data;
+                        addFrontendLog('feishu app_secret synced', 'in');
+                    } else if (msg.type === 'feishu_receive_id') {
+                        feishuReceiveId = msg.data;
+                        addFrontendLog('feishu receive_id synced', 'in');
+                    } else if (msg.type === 'feishu_receive_type') {
+                        feishuReceiveType = msg.data;
+                        addFrontendLog('feishu receive_type synced', 'in');
                     } else if (msg.type === 'bell_beep_duration_ms') {
                         bellBeepDurationMs = msg.data;
                         addFrontendLog('蜂鸣声音长度同步为 ' + bellBeepDurationMs + ' ms', 'in');

@@ -7,7 +7,7 @@ const pty = require('node-pty');
 const { Terminal: HeadlessTerminal } = require('@xterm/headless');
 const { SerializeAddon } = require('@xterm/addon-serialize');
 const { Unicode11Addon: HeadlessUnicode11Addon } = require('@xterm/addon-unicode11');
-const crypto = require('crypto');
+
 
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 function loadConfig() {
@@ -30,8 +30,10 @@ function loadConfig() {
             bellBeepDurationMs: 300,
             ntfyEnabled: false, // 推送通知到手机 (ntfy) 开关
             ntfyTopic: '', // ntfy 话题名（即密码，需随机不可猜）
-            feishuWebhook: '', // 飞书机器人 webhook 地址（完成标记命中后推送到飞书群）
-            feishuSecret: '', // 飞书 webhook 签名密钥（机器人开启签名校验才需填，否则留空）
+            feishuAppId: '', // 飞书自建应用 app_id（完成标记命中后通过应用 API 发消息）
+            feishuAppSecret: '', // 飞书自建应用 app_secret（仅服务端使用，换 tenant_access_token）
+            feishuReceiveId: '', // 接收消息的 ID：邮箱/群 chat_id/open_id/user_id（依 receive_type）
+            feishuReceiveType: 'email', // 接收 ID 类型：email / chat_id / open_id / user_id
             inputBarButtonAction: 'newline',
             inputBarEnterAction: 'send',
             inputBarCloseAfterSend: false,
@@ -75,8 +77,10 @@ function loadConfig() {
     if (typeof cfg.bellBeepDurationMs !== 'number' || cfg.bellBeepDurationMs < 50 || cfg.bellBeepDurationMs > 2000) cfg.bellBeepDurationMs = 300;
     if (typeof cfg.ntfyEnabled !== 'boolean') cfg.ntfyEnabled = false;
     if (typeof cfg.ntfyTopic !== 'string') cfg.ntfyTopic = '';
-            if (typeof cfg.feishuWebhook !== 'string') cfg.feishuWebhook = '';
-            if (typeof cfg.feishuSecret !== 'string') cfg.feishuSecret = '';
+            if (typeof cfg.feishuAppId !== 'string') cfg.feishuAppId = '';
+            if (typeof cfg.feishuAppSecret !== 'string') cfg.feishuAppSecret = '';
+            if (typeof cfg.feishuReceiveId !== 'string') cfg.feishuReceiveId = '';
+            if (typeof cfg.feishuReceiveType !== 'string' || ['email','chat_id','open_id','user_id'].indexOf(cfg.feishuReceiveType) === -1) cfg.feishuReceiveType = 'email';
     if (cfg.inputBarButtonAction !== 'newline' && cfg.inputBarButtonAction !== 'send') cfg.inputBarButtonAction = 'newline';
     if (cfg.inputBarEnterAction !== 'newline' && cfg.inputBarEnterAction !== 'send') cfg.inputBarEnterAction = 'send';
     if (typeof cfg.inputBarCloseAfterSend !== 'boolean') cfg.inputBarCloseAfterSend = false;
@@ -153,14 +157,39 @@ function serializeScreen(sess) {
 function broadcast(msg) {
     wss.clients.forEach(c => c.readyState === 1 && c.send(JSON.stringify(msg)));
 }
-function buildFeishuBody(text, secret) {
-    if (secret) {
-        const timestamp = Math.floor(Date.now() / 1000);
-        const stringToSign = timestamp + String.fromCharCode(10) + secret;
-        const sign = crypto.createHmac('sha256', secret).update(stringToSign).digest('base64');
-        return { timestamp: String(timestamp), sign: sign, msg_type: 'text', content: { text: text } };
-    }
-    return { msg_type: 'text', content: { text: text } };
+// 飞书自建应用：缓存 tenant_access_token（提前 60s 刷新，避免每次发消息都换 token）
+let _feishuToken = null;
+let _feishuTokenExpire = 0;
+function getFeishuTenantToken() {
+    const now = Date.now();
+    if (_feishuToken && now < _feishuTokenExpire) return Promise.resolve(_feishuToken);
+    return fetch('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ app_id: config.feishuAppId, app_secret: config.feishuAppSecret })
+    }).then(r => r.json()).then(j => {
+        if (j.code !== 0) throw new Error('feishu token failed: ' + j.code + ' ' + j.msg);
+        _feishuToken = j.tenant_access_token;
+        _feishuTokenExpire = now + (j.expire - 60) * 1000;
+        return _feishuToken;
+    });
+}
+// 通过飞书自建应用 API 发送一条文本消息（fire-and-forget，调用方自行 .catch）
+function sendFeishuMessage(text) {
+    return getFeishuTenantToken().then(token => {
+        const body = {
+            receive_id: config.feishuReceiveId,
+            msg_type: 'text',
+            content: JSON.stringify({ text: text })
+        };
+        return fetch('https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=' + encodeURIComponent(config.feishuReceiveType), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify(body)
+        }).then(r => r.json()).then(j => {
+            if (j.code !== 0) throw new Error('feishu send failed: ' + j.code + ' ' + j.msg);
+        });
+    });
 }
 
 // 记录一条最近路径：去重 + 置顶 + 截断到 10 + 写盘 + 广播
@@ -318,15 +347,11 @@ function createSession() {
                         headers: { 'Title': 'RemoteCMD 通知', 'Tag': 'bell' },
                         body: `终端「${name}」任务完成`
                     }).catch(() => {});
-                }                // 飞书机器人推送出口：完成标记命中后向飞书群机器人 webhook POST（fire-and-forget，支持签名校验）
-                if (config.feishuWebhook) {
+                }                // 飞书自建应用推送出口：完成标记命中后通过应用 API 发消息（fire-and-forget）
+                if (config.feishuAppId && config.feishuAppSecret && config.feishuReceiveId) {
                     const name = sessions[newId] ? sessions[newId].name : '终端';
                     const feishuText = '终端「' + name + '」任务完成';
-                    fetch(config.feishuWebhook, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(buildFeishuBody(feishuText, config.feishuSecret))
-                    }).catch(() => {});
+                    sendFeishuMessage(feishuText).catch(() => {});
                 }
 
             } else {
@@ -385,8 +410,10 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'bell_os_enabled', data: config.bellOsEnabled }));
     ws.send(JSON.stringify({ type: 'ntfy_enabled', data: config.ntfyEnabled }));
     ws.send(JSON.stringify({ type: 'ntfy_topic', data: config.ntfyTopic }));
-    ws.send(JSON.stringify({ type: 'feishu_webhook', data: config.feishuWebhook }));
-    ws.send(JSON.stringify({ type: 'feishu_secret', data: config.feishuSecret }));
+    ws.send(JSON.stringify({ type: 'feishu_app_id', data: config.feishuAppId }));
+    ws.send(JSON.stringify({ type: 'feishu_app_secret', data: config.feishuAppSecret }));
+    ws.send(JSON.stringify({ type: 'feishu_receive_id', data: config.feishuReceiveId }));
+    ws.send(JSON.stringify({ type: 'feishu_receive_type', data: config.feishuReceiveType }));
     ws.send(JSON.stringify({ type: 'bell_beep_duration_ms', data: config.bellBeepDurationMs }));
     ws.send(JSON.stringify({ type: 'recent_paths', data: config.recentPaths }));
     ws.on('message', (msg) => {
@@ -575,16 +602,28 @@ wss.on('connection', (ws) => {
             broadcast({ type: 'ntfy_topic', data: config.ntfyTopic });
             saveConfig(config);
         }
-        else if (type === 'feishu_webhook') {
+        else if (type === 'feishu_app_id') {
             if (typeof data !== 'string') return;
-            config.feishuWebhook = data;
-            broadcast({ type: 'feishu_webhook', data: config.feishuWebhook });
+            config.feishuAppId = data;
+            broadcast({ type: 'feishu_app_id', data: config.feishuAppId });
             saveConfig(config);
         }
-        else if (type === 'feishu_secret') {
+        else if (type === 'feishu_app_secret') {
             if (typeof data !== 'string') return;
-            config.feishuSecret = data;
-            broadcast({ type: 'feishu_secret', data: config.feishuSecret });
+            config.feishuAppSecret = data;
+            broadcast({ type: 'feishu_app_secret', data: config.feishuAppSecret });
+            saveConfig(config);
+        }
+        else if (type === 'feishu_receive_id') {
+            if (typeof data !== 'string') return;
+            config.feishuReceiveId = data;
+            broadcast({ type: 'feishu_receive_id', data: config.feishuReceiveId });
+            saveConfig(config);
+        }
+        else if (type === 'feishu_receive_type') {
+            if (typeof data !== 'string') return;
+            config.feishuReceiveType = data;
+            broadcast({ type: 'feishu_receive_type', data: config.feishuReceiveType });
             saveConfig(config);
         }
         else if (type === 'bell_beep_duration_ms') {
