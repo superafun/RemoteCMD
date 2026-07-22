@@ -889,7 +889,7 @@
                     } else if (msg.type === 'ntfy_topic') {
                         ntfyTopic = msg.data;
                         addFrontendLog('ntfy topic synced: ' + ntfyTopic, 'in');
-                    } else if (msg.type === 'bell_beep_duration_ms') {                    } else if (msg.type === 'bell_beep_duration_ms') {
+                    } else if (msg.type === 'bell_beep_duration_ms') {
                         bellBeepDurationMs = msg.data;
                         addFrontendLog('蜂鸣声音长度同步为 ' + bellBeepDurationMs + ' ms', 'in');
                     } else if (msg.type === 'swipe_threshold') {
