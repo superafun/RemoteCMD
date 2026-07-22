@@ -914,7 +914,7 @@
                     } else if (msg.type === 'feishu_receive_type') {
                         feishuReceiveType = msg.data;
                         addFrontendLog('feishu receive_type synced', 'in');
-                    } else if (msg.type === 'server_log') {
+                            } else if (msg.type === 'server_log') {
                         const _t = (msg.text || '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
                         addFrontendLog(_t, msg.level === 'error' ? 'err' : (msg.level === 'warn' ? 'warn' : 'in'));
                         if (msg.level === 'error') showToast((msg.text || '').split('\n')[0], 'error');
@@ -1209,7 +1209,22 @@
 
         // 显示短暂 Toast 提示（1.5s 自动消失，允许堆叠）
         let toastCount = 0;
-        function showToast(message, type = 'success') {
+    // Frontend global error forwarding: any in-browser JS exception or unhandled promise rejection is written to the frontend log and triggers an error toast (same behavior as server_log).
+
+    window.addEventListener('error', function (e) {
+        var msg = 'Frontend JS error: ' + (e.message || 'unknown error');
+        if (e.filename) msg += ' (' + e.filename + ':' + (e.lineno || '?') + ':' + (e.colno || '?') + ')';
+        var reason = (e.error && e.error.stack) ? e.error.stack : msg;
+        addFrontendLog(reason, 'err');
+        showToast(msg.split('\n')[0], 'error');
+    });
+    window.addEventListener('unhandledrejection', function (e) {
+        var r = e.reason;
+        var txt = (r && r.stack) ? r.stack : (typeof r === 'string' ? r : JSON.stringify(r));
+        addFrontendLog('Unhandled promise rejection: ' + txt, 'err');
+        showToast(('Unhandled promise rejection: ' + txt).split('\n')[0], 'error');
+    });
+function showToast(message, type = 'success') {
             const div = document.createElement('div');
             div.textContent = message;
             div.className = 'toast toast-' + type;
