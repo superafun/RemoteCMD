@@ -12,6 +12,7 @@
 </head>
 
 <body>
+    <div id="info-tip-portal"></div>
     <div id="page">
         <div class="toolbar">
             <button id="sessionSelectBtn"></button>
@@ -1236,12 +1237,50 @@
     });
     // 设置项 ℹ 图标：手机 tap 切换说明气泡（桌面用 CSS :hover。）
     // 必须在顶层只注册一次，不能放进 ws 消息分支内（否则每次收消息重复注册。）
+        // info-tip portal: render to body top layer to escape scroll clipping
+        var infoPortal = document.getElementById('info-tip-portal');
+        function showInfoTip(iconEl) {
+            var tip = iconEl.querySelector('.info-tip');
+            if (!tip || !infoPortal) return;
+            infoPortal.textContent = tip.textContent;
+            var rect = iconEl.getBoundingClientRect();
+            infoPortal.style.left = rect.left + 'px';
+            infoPortal.style.top = (rect.bottom + 6) + 'px';
+            infoPortal.style.display = 'block';
+            var ph = infoPortal.offsetHeight || 80;
+            if (rect.bottom + 6 + ph > window.innerHeight) {
+                infoPortal.style.top = (rect.top - ph - 6) + 'px';
+            }
+        }
+        function hideInfoTip() {
+            if (infoPortal) infoPortal.style.display = 'none';
+        }
+        document.addEventListener('mouseover', function (e) {
+            var ic = (e.target && e.target.closest) ? e.target.closest('.info') : null;
+            if (ic) showInfoTip(ic);
+        });
+        document.addEventListener('mouseout', function (e) {
+            var ic = (e.target && e.target.closest) ? e.target.closest('.info') : null;
+            if (ic) {
+                var to = e.relatedTarget;
+                if (!to || !(to.closest && to.closest('.info') === ic)) hideInfoTip();
+            }
+        });
+        var infoScrollEl = document.querySelector('.modal-content');
+        if (infoScrollEl) infoScrollEl.addEventListener('scroll', hideInfoTip);
+        window.addEventListener('scroll', hideInfoTip, true);
     document.addEventListener('click', function (e) {
         var t = (e.target && e.target.closest) ? e.target.closest('.info') : null;
         document.querySelectorAll('.info.active').forEach(function (el) {
             if (el !== t) el.classList.remove('active');
         });
-        if (t) t.classList.toggle('active');
+        if (t) {
+            t.classList.toggle('active');
+            if (t.classList.contains('active')) showInfoTip(t);
+            else hideInfoTip();
+        } else {
+            hideInfoTip();
+        }
     });
 function showToast(message, type = 'success') {
             const div = document.createElement('div');

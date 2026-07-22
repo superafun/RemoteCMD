@@ -181,15 +181,22 @@
             pointer-events: none;
             box-shadow: 0 4px 12px rgba(0,0,0,0.4);
         }
-        .info:hover .info-tip,
-        .info.active .info-tip {
-            opacity: 1;
-            visibility: visible;
-        }
-        /* last group tooltips open upward to avoid bottom clipping */
-        .modal-group:last-child .info-tip {
-            top: auto;
-            bottom: 140%;
+        #info-tip-portal {
+            position: fixed;
+            background: #1b1b1b;
+            color: #e6e6e6;
+            border: 1px solid #444;
+            padding: 6px 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            line-height: 1.4;
+            max-width: 240px;
+            white-space: normal;
+            text-align: left;
+            z-index: 9999;
+            display: none;
+            pointer-events: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
         }
 
         /* 修饰键勾选高亮（发按键面板，方案A） */
