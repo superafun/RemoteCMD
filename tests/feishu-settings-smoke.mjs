@@ -75,7 +75,20 @@ try {
   console.log('tap 切换 active:', tapWorks);
   console.log('页面错误:', errors.length ? errors : '无');
 
-  const ok = !!groupTitle && infoCount >= 5 && idsOk && tapWorks && errors.length === 0;
+  // strengthened: info-tip bubbles and new modal-content scroll wrapper
+  const firstTipNonEmpty = await page.evaluate(() => {
+    const t = document.querySelector('.info .info-tip');
+    return !!t && t.textContent.trim().length > 0;
+  });
+  const hasAppIdTip = await page.evaluate(() => {
+    return [...document.querySelectorAll('.info-tip')].some(e => e.textContent.includes('app_id'));
+  });
+  const hasModalContent = await page.evaluate(() => !!document.querySelector('.modal-content'));
+  console.log('first info-tip non-empty:', firstTipNonEmpty);
+  console.log('info-tip contains app_id:', hasAppIdTip);
+  console.log('modal-content wrapper present:', hasModalContent);
+
+  const ok = !!groupTitle && infoCount >= 5 && idsOk && tapWorks && firstTipNonEmpty && hasAppIdTip && hasModalContent && errors.length === 0;
   console.log(ok ? 'SMOKE PASS' : 'SMOKE FAIL');
   await browser.close();
   process.exit(ok ? 0 : 1);

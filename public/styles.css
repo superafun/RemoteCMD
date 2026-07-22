@@ -38,11 +38,14 @@
             box-shadow: 0 8px 32px rgba(0,0,0,0.5);
             min-width: 360px;
             max-width: 520px;
-            max-height: 80vh;
-            overflow-y: auto;
+            overflow: visible;
             font-family: 'Segoe UI', system-ui, sans-serif;
             font-size: 13px;
             line-height: 1.5;
+        }
+        .modal-content {
+            max-height: 80vh;
+            overflow-y: auto;
         }
         .modal-box h3 {
             margin: 0 0 14px;
@@ -182,6 +185,11 @@
         .info.active .info-tip {
             opacity: 1;
             visibility: visible;
+        }
+        /* last group tooltips open upward to avoid bottom clipping */
+        .modal-group:last-child .info-tip {
+            top: auto;
+            bottom: 140%;
         }
 
         /* 修饰键勾选高亮（发按键面板，方案A） */
