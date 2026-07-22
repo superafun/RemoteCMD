@@ -1235,6 +1235,15 @@
         addFrontendLog('Unhandled promise rejection: ' + txt, 'err');
         showToast(('Unhandled promise rejection: ' + txt).split('\n')[0], 'error');
     });
+    // 设置项 ℹ 图标：手机 tap 切换说明气泡（桌面用 CSS :hover。）
+    // 必须在顶层只注册一次，不能放进 ws 消息分支内（否则每次收消息重复注册。）
+    document.addEventListener('click', function (e) {
+        var t = (e.target && e.target.closest) ? e.target.closest('.info') : null;
+        document.querySelectorAll('.info.active').forEach(function (el) {
+            if (el !== t) el.classList.remove('active');
+        });
+        if (t) t.classList.toggle('active');
+    });
 function showToast(message, type = 'success') {
             const div = document.createElement('div');
             div.textContent = message;
