@@ -66,7 +66,7 @@ server.js
 | `enter_delay_ms` | 回车停顿时长（单位：ms），连接建立时下发 + 设置变更时广播 |
 | `restart_server` | 服务端重启确认（data: 'ok'） |
 | `feishu_app_id` | 飞书应用 app_id（连接建立时下发 + 设置变更广播） |
-| `feishu_app_secret` | 飞书应用 app_secret（仅服务端使用） |
+| `feishu_app_secret` | 飞书应用 app_secret（仅服务端使用）（不向客户端下发/师播） |
 | `feishu_receive_id` | 飞书消息接收 ID（邮箱/chat_id/open_id/user_id，依 receive_type） |
 | `feishu_receive_type` | 飞书接收 ID 类型（email/chat_id/open_id/user_id） |
 

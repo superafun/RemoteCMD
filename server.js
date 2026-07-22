@@ -75,10 +75,10 @@ function loadConfig() {
     if (typeof cfg.bellOsEnabled !== 'boolean') cfg.bellOsEnabled = true;
     if (typeof cfg.bellBeepDurationMs !== 'number' || cfg.bellBeepDurationMs < 50 || cfg.bellBeepDurationMs > 2000) cfg.bellBeepDurationMs = 300;
 
-            if (typeof cfg.feishuAppId !== 'string') cfg.feishuAppId = '';
-            if (typeof cfg.feishuAppSecret !== 'string') cfg.feishuAppSecret = '';
-            if (typeof cfg.feishuReceiveId !== 'string') cfg.feishuReceiveId = '';
-            if (typeof cfg.feishuReceiveType !== 'string' || ['email','chat_id','open_id','user_id'].indexOf(cfg.feishuReceiveType) === -1) cfg.feishuReceiveType = 'email';
+        if (typeof cfg.feishuAppId !== 'string') cfg.feishuAppId = '';
+        if (typeof cfg.feishuAppSecret !== 'string') cfg.feishuAppSecret = '';
+        if (typeof cfg.feishuReceiveId !== 'string') cfg.feishuReceiveId = '';
+        if (typeof cfg.feishuReceiveType !== 'string' || ['email','chat_id','open_id','user_id'].indexOf(cfg.feishuReceiveType) === -1) cfg.feishuReceiveType = 'email';
     if (cfg.inputBarButtonAction !== 'newline' && cfg.inputBarButtonAction !== 'send') cfg.inputBarButtonAction = 'newline';
     if (cfg.inputBarEnterAction !== 'newline' && cfg.inputBarEnterAction !== 'send') cfg.inputBarEnterAction = 'send';
     if (typeof cfg.inputBarCloseAfterSend !== 'boolean') cfg.inputBarCloseAfterSend = false;
@@ -158,6 +158,11 @@ function broadcast(msg) {
 // 飞书自建应用：缓存 tenant_access_token（提前 60s 刷新，避免每次发消息都换 token）
 let _feishuToken = null;
 let _feishuTokenExpire = 0;
+// 凭证变更后必须使缓存失效，否则会拿着旧 app 的 token 静默失败
+function invalidateFeishuToken() {
+    _feishuToken = null;
+    _feishuTokenExpire = 0;
+}
 function getFeishuTenantToken() {
     const now = Date.now();
     if (_feishuToken && now < _feishuTokenExpire) return Promise.resolve(_feishuToken);
@@ -168,7 +173,7 @@ function getFeishuTenantToken() {
     }).then(r => r.json()).then(j => {
         if (j.code !== 0) throw new Error('feishu token failed: ' + j.code + ' ' + j.msg);
         _feishuToken = j.tenant_access_token;
-        _feishuTokenExpire = now + (j.expire - 60) * 1000;
+        _feishuTokenExpire = now + ((j.expire || 7200) - 60) * 1000;
         return _feishuToken;
     });
 }
@@ -341,7 +346,7 @@ function createSession() {
                 if (config.feishuAppId && config.feishuAppSecret && config.feishuReceiveId) {
                     const name = sessions[newId] ? sessions[newId].name : '终端';
                     const feishuText = '终端「' + name + '」任务完成';
-                    sendFeishuMessage(feishuText).catch(() => {});
+                    sendFeishuMessage(feishuText).catch(e => console.error('[feishu] 推送失败:', e.message));
                 }
 
             } else {
@@ -400,7 +405,7 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'bell_os_enabled', data: config.bellOsEnabled }));
 
     ws.send(JSON.stringify({ type: 'feishu_app_id', data: config.feishuAppId }));
-    ws.send(JSON.stringify({ type: 'feishu_app_secret', data: config.feishuAppSecret }));
+    // 注意：feishu_app_secret 不下发给客户端，仅由客户端→服务端单向提交，避免明文 secret 经 ws 泄露
     ws.send(JSON.stringify({ type: 'feishu_receive_id', data: config.feishuReceiveId }));
     ws.send(JSON.stringify({ type: 'feishu_receive_type', data: config.feishuReceiveType }));
     ws.send(JSON.stringify({ type: 'bell_beep_duration_ms', data: config.bellBeepDurationMs }));
@@ -583,13 +588,14 @@ wss.on('connection', (ws) => {
         else if (type === 'feishu_app_id') {
             if (typeof data !== 'string') return;
             config.feishuAppId = data;
+            invalidateFeishuToken();
             broadcast({ type: 'feishu_app_id', data: config.feishuAppId });
             saveConfig(config);
         }
         else if (type === 'feishu_app_secret') {
-            if (typeof data !== 'string') return;
+            if (typeof data !== 'string' || !data) return; // 空值不覆盖已存 secret（前端仅在有改动时才发送）
             config.feishuAppSecret = data;
-            broadcast({ type: 'feishu_app_secret', data: config.feishuAppSecret });
+            invalidateFeishuToken();
             saveConfig(config);
         }
         else if (type === 'feishu_receive_id') {
@@ -599,7 +605,7 @@ wss.on('connection', (ws) => {
             saveConfig(config);
         }
         else if (type === 'feishu_receive_type') {
-            if (typeof data !== 'string') return;
+            if (typeof data !== 'string' || ['email','chat_id','open_id','user_id'].indexOf(data) === -1) return;
             config.feishuReceiveType = data;
             broadcast({ type: 'feishu_receive_type', data: config.feishuReceiveType });
             saveConfig(config);

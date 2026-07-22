@@ -294,7 +294,7 @@
             html += '<div class="modal-row">';
             html += '<span class="modal-label">飞书应用 (Feishu App)</span>';
             html += '<input type="text" id="settingsFeishuAppIdInput" placeholder="app_id（飞书开放平台应用凭证）" style="flex:1;min-width:160px;">';
-            html += '<input type="password" id="settingsFeishuAppSecretInput" placeholder="app_secret（仅服务端用）" style="flex:1;min-width:160px;">';
+            html += '<input type="password" id="settingsFeishuAppSecretInput" placeholder="app_secret（仅服务端用，留空表示不改）" style="flex:1;min-width:160px;">';
             html += '</div>';
             html += '<div class="modal-row">';
             html += '<input type="text" id="settingsFeishuReceiveIdInput" placeholder="接收 ID：你的邮箱 / 群 chat_id / open_id" style="flex:1;min-width:160px;">';
@@ -360,7 +360,7 @@
             document.getElementById('settingsBellOsEnabledInput').checked = bellOsEnabled;
 
             document.getElementById('settingsFeishuAppIdInput').value = feishuAppId;
-            document.getElementById('settingsFeishuAppSecretInput').value = feishuAppSecret;
+            // do not echo secret: password field stays blank, only sent when user types it
             document.getElementById('settingsFeishuReceiveIdInput').value = feishuReceiveId;
             document.getElementById('settingsFeishuReceiveTypeInput').value = feishuReceiveType;
             document.getElementById('settingsDoneTokenInput').value = doneToken;
@@ -603,12 +603,13 @@
             const appSecret = document.getElementById('settingsFeishuAppSecretInput').value;
             const receiveId = document.getElementById('settingsFeishuReceiveIdInput').value.trim();
             const receiveType = document.getElementById('settingsFeishuReceiveTypeInput').value;
-            if (!appId || !appSecret || !receiveId) {
-                flashHint('hint-feishu', 'app_id / secret / 接收ID 必填');
+            if (!appId || !receiveId) {
+                flashHint('hint-feishu', 'app_id / 接收ID 必填');
                 return;
             }
             wsSend({ type: 'feishu_app_id', data: appId });
-            wsSend({ type: 'feishu_app_secret', data: appSecret });
+            // secret only sent when typed; blank keeps server secret
+            if (appSecret) wsSend({ type: 'feishu_app_secret', data: appSecret });
             wsSend({ type: 'feishu_receive_id', data: receiveId });
             wsSend({ type: 'feishu_receive_type', data: receiveType });
             flashHint('hint-feishu');
