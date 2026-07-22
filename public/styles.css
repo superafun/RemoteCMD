@@ -136,6 +136,53 @@
             color: #c0c0c0;
             text-align: left;
         }
+        /* 设置项 ℹ 信息图标 + 气泡说明（桌面 hover / 手机 tap 统一一套） */
+        .info {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 14px;
+            height: 14px;
+            margin-left: 6px;
+            border-radius: 50%;
+            background: #6fb3e0;
+            color: #111;
+            font-size: 10px;
+            font-weight: 700;
+            font-style: normal;
+            line-height: 1;
+            cursor: help;
+            vertical-align: middle;
+            position: relative;
+        }
+        .info-tip {
+            position: absolute;
+            left: 50%;
+            top: 140%;
+            transform: translateX(-50%);
+            background: #1b1b1b;
+            color: #e6e6e6;
+            border: 1px solid #444;
+            padding: 6px 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            line-height: 1.4;
+            width: max-content;
+            max-width: 240px;
+            white-space: normal;
+            text-align: left;
+            z-index: 50;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.12s;
+            pointer-events: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        }
+        .info:hover .info-tip,
+        .info.active .info-tip {
+            opacity: 1;
+            visibility: visible;
+        }
 
         /* 修饰键勾选高亮（发按键面板，方案A） */
         .mod-active,
