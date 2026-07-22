@@ -155,6 +155,23 @@ function serializeScreen(sess) {
 function broadcast(msg) {
     wss.clients.forEach(c => c.readyState === 1 && c.send(JSON.stringify(msg)));
 }
+
+// 服务端日志转发到前端：前端看不到 console，所有 error/warn 必须进前端日志（error 额外触发 toast）
+function serverLog(level, text) {
+    try { broadcast({ type: 'server_log', level: level, text: String(text) }); } catch (e) {}
+}
+const _origErr = console.error.bind(console);
+console.error = function (...args) {
+    _origErr(...args);
+    serverLog('error', args.map(a => (a && a.stack) ? a.stack : (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' '));
+};
+const _origWarn = console.warn.bind(console);
+console.warn = function (...args) {
+    _origWarn(...args);
+    serverLog('warn', args.map(a => (a && a.stack) ? a.stack : (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' '));
+};
+process.on('uncaughtException', (e) => { console.error('uncaughtException:', e && e.stack ? e.stack : e); });
+process.on('unhandledRejection', (e) => { console.error('unhandledRejection:', e && e.stack ? e.stack : e); });
 // 飞书自建应用：缓存 tenant_access_token（提前 60s 刷新，避免每次发消息都换 token）
 let _feishuToken = null;
 let _feishuTokenExpire = 0;
@@ -404,8 +421,8 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'bell_toast_enabled', data: config.bellToastEnabled }));
     ws.send(JSON.stringify({ type: 'bell_os_enabled', data: config.bellOsEnabled }));
 
-    ws.send(JSON.stringify({ type: 'feishu_app_id', data: config.feishuAppId }));
-    // 注意：feishu_app_secret 不下发给客户端，仅由客户端→服务端单向提交，避免明文 secret 经 ws 泄露
+        ws.send(JSON.stringify({ type: 'feishu_app_id', data: config.feishuAppId }));
+    ws.send(JSON.stringify({ type: 'feishu_app_secret', data: config.feishuAppSecret }));
     ws.send(JSON.stringify({ type: 'feishu_receive_id', data: config.feishuReceiveId }));
     ws.send(JSON.stringify({ type: 'feishu_receive_type', data: config.feishuReceiveType }));
     ws.send(JSON.stringify({ type: 'bell_beep_duration_ms', data: config.bellBeepDurationMs }));
@@ -593,8 +610,9 @@ wss.on('connection', (ws) => {
             saveConfig(config);
         }
         else if (type === 'feishu_app_secret') {
-            if (typeof data !== 'string' || !data) return; // 空值不覆盖已存 secret（前端仅在有改动时才发送）
+            if (typeof data !== 'string') return;
             config.feishuAppSecret = data;
+            broadcast({ type: 'feishu_app_secret', data: config.feishuAppSecret });
             invalidateFeishuToken();
             saveConfig(config);
         }
