@@ -7,6 +7,7 @@ const pty = require('node-pty');
 const { Terminal: HeadlessTerminal } = require('@xterm/headless');
 const { SerializeAddon } = require('@xterm/addon-serialize');
 const { Unicode11Addon: HeadlessUnicode11Addon } = require('@xterm/addon-unicode11');
+const crypto = require('crypto');
 
 const CONFIG_PATH = path.join(__dirname, 'config.json');
 function loadConfig() {
@@ -29,6 +30,8 @@ function loadConfig() {
             bellBeepDurationMs: 300,
             ntfyEnabled: false, // 推送通知到手机 (ntfy) 开关
             ntfyTopic: '', // ntfy 话题名（即密码，需随机不可猜）
+            feishuWebhook: '', // 飞书机器人 webhook 地址（完成标记命中后推送到飞书群）
+            feishuSecret: '', // 飞书 webhook 签名密钥（机器人开启签名校验才需填，否则留空）
             inputBarButtonAction: 'newline',
             inputBarEnterAction: 'send',
             inputBarCloseAfterSend: false,
@@ -72,6 +75,8 @@ function loadConfig() {
     if (typeof cfg.bellBeepDurationMs !== 'number' || cfg.bellBeepDurationMs < 50 || cfg.bellBeepDurationMs > 2000) cfg.bellBeepDurationMs = 300;
     if (typeof cfg.ntfyEnabled !== 'boolean') cfg.ntfyEnabled = false;
     if (typeof cfg.ntfyTopic !== 'string') cfg.ntfyTopic = '';
+            if (typeof cfg.feishuWebhook !== 'string') cfg.feishuWebhook = '';
+            if (typeof cfg.feishuSecret !== 'string') cfg.feishuSecret = '';
     if (cfg.inputBarButtonAction !== 'newline' && cfg.inputBarButtonAction !== 'send') cfg.inputBarButtonAction = 'newline';
     if (cfg.inputBarEnterAction !== 'newline' && cfg.inputBarEnterAction !== 'send') cfg.inputBarEnterAction = 'send';
     if (typeof cfg.inputBarCloseAfterSend !== 'boolean') cfg.inputBarCloseAfterSend = false;
@@ -147,6 +152,15 @@ function serializeScreen(sess) {
 
 function broadcast(msg) {
     wss.clients.forEach(c => c.readyState === 1 && c.send(JSON.stringify(msg)));
+}
+function buildFeishuBody(text, secret) {
+    if (secret) {
+        const timestamp = Math.floor(Date.now() / 1000);
+        const stringToSign = timestamp + String.fromCharCode(10) + secret;
+        const sign = crypto.createHmac('sha256', secret).update(stringToSign).digest('base64');
+        return { timestamp: String(timestamp), sign: sign, msg_type: 'text', content: { text: text } };
+    }
+    return { msg_type: 'text', content: { text: text } };
 }
 
 // 记录一条最近路径：去重 + 置顶 + 截断到 10 + 写盘 + 广播
@@ -304,7 +318,17 @@ function createSession() {
                         headers: { 'Title': 'RemoteCMD 通知', 'Tag': 'bell' },
                         body: `终端「${name}」任务完成`
                     }).catch(() => {});
+                }                // 飞书机器人推送出口：完成标记命中后向飞书群机器人 webhook POST（fire-and-forget，支持签名校验）
+                if (config.feishuWebhook) {
+                    const name = sessions[newId] ? sessions[newId].name : '终端';
+                    const feishuText = '终端「' + name + '」任务完成';
+                    fetch(config.feishuWebhook, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(buildFeishuBody(feishuText, config.feishuSecret))
+                    }).catch(() => {});
                 }
+
             } else {
                 // 未命中：只保留末尾最多 tok.length 字节，避免缓冲无限增长
                 sessions[newId].doneCarry = buf.length > tok.length ? buf.slice(buf.length - tok.length) : buf;
@@ -361,6 +385,8 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'bell_os_enabled', data: config.bellOsEnabled }));
     ws.send(JSON.stringify({ type: 'ntfy_enabled', data: config.ntfyEnabled }));
     ws.send(JSON.stringify({ type: 'ntfy_topic', data: config.ntfyTopic }));
+    ws.send(JSON.stringify({ type: 'feishu_webhook', data: config.feishuWebhook }));
+    ws.send(JSON.stringify({ type: 'feishu_secret', data: config.feishuSecret }));
     ws.send(JSON.stringify({ type: 'bell_beep_duration_ms', data: config.bellBeepDurationMs }));
     ws.send(JSON.stringify({ type: 'recent_paths', data: config.recentPaths }));
     ws.on('message', (msg) => {
@@ -547,6 +573,18 @@ wss.on('connection', (ws) => {
             if (typeof data !== 'string') return;
             config.ntfyTopic = data;
             broadcast({ type: 'ntfy_topic', data: config.ntfyTopic });
+            saveConfig(config);
+        }
+        else if (type === 'feishu_webhook') {
+            if (typeof data !== 'string') return;
+            config.feishuWebhook = data;
+            broadcast({ type: 'feishu_webhook', data: config.feishuWebhook });
+            saveConfig(config);
+        }
+        else if (type === 'feishu_secret') {
+            if (typeof data !== 'string') return;
+            config.feishuSecret = data;
+            broadcast({ type: 'feishu_secret', data: config.feishuSecret });
             saveConfig(config);
         }
         else if (type === 'bell_beep_duration_ms') {

@@ -83,6 +83,8 @@
         let bellOsEnabled = true;    // 系统通知（OS 弹窗）开关
         let ntfyEnabled = false;   // ntfy push to phone switch
         let ntfyTopic = '';        // ntfy topic (password; random & unguessable)
+        let feishuWebhook = '';   // 飞书机器人 webhook 地址（完成标记命中后推送）
+        let feishuSecret = '';    // 飞书 webhook 签名密钥（开启签名校验才填）
         let doneToken = 'REMOTECMD_DONE'; // completion marker (replaces BEL)
         let bellBeepDurationMs = 300; // 蜂鸣单声时长（ms）
         // 保留 hotkeyList 内固定尾部元素（编辑按钮 + 滚动按钮组）的引用
@@ -293,6 +295,14 @@
             html += '<button class="btn-primary" id="btn-apply-ntfyTopic" onclick="applySettingsNtfyTopic()">Apply</button>';
             html += '<span id="hint-ntfy" class="apply-hint"></span>';
             html += '</div>';
+            // 飞书机器人推送（国内可达、走飞书系统推送，省电不依赖谷歌）
+            html += '<div class="modal-row">';
+            html += '<span class="modal-label">飞书通知 (Feishu)</span>';
+            html += '<input type="text" id="settingsFeishuWebhookInput" placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/xxxx" style="flex:1;min-width:160px;">';
+            html += '<input type="text" id="settingsFeishuSecretInput" placeholder="签名密钥（开启签名校验才填）" style="flex:1;min-width:160px;">';
+            html += '<button class="btn-primary" id="btn-apply-feishu" onclick="applySettingsFeishu()">应用</button>';
+            html += '<span id="hint-feishu" class="apply-hint"></span>';
+            html += '</div>';
             html += '</div>';
             // 完成标记（替换 BEL）：脚本末尾打印该串即触发通知
             html += '<div class="modal-row">';
@@ -346,6 +356,8 @@
             document.getElementById('settingsBellOsEnabledInput').checked = bellOsEnabled;
             document.getElementById('settingsNtfyEnabledInput').checked = ntfyEnabled;
             document.getElementById('settingsNtfyTopicInput').value = ntfyTopic;
+            document.getElementById('settingsFeishuWebhookInput').value = feishuWebhook;
+            document.getElementById('settingsFeishuSecretInput').value = feishuSecret;
             document.getElementById('settingsDoneTokenInput').value = doneToken;
             document.getElementById('settingsBellBeepDurationInput').value = bellBeepDurationMs;
 
@@ -595,6 +607,18 @@
             }
             wsSend({ type: 'ntfy_topic', data: v });
             flashHint('hint-ntfy');
+        }
+
+        function applySettingsFeishu() {
+            const webhook = document.getElementById('settingsFeishuWebhookInput').value.trim();
+            const secret = document.getElementById('settingsFeishuSecretInput').value;
+            if (!webhook) {
+                flashHint('hint-feishu', 'webhook 必填');
+                return;
+            }
+            wsSend({ type: 'feishu_webhook', data: webhook });
+            wsSend({ type: 'feishu_secret', data: secret });
+            flashHint('hint-feishu');
         }
 
         function applySettingsBellBeepDuration() {
@@ -889,6 +913,12 @@
                     } else if (msg.type === 'ntfy_topic') {
                         ntfyTopic = msg.data;
                         addFrontendLog('ntfy topic synced: ' + ntfyTopic, 'in');
+                    } else if (msg.type === 'feishu_webhook') {
+                        feishuWebhook = msg.data;
+                        addFrontendLog('feishu webhook synced', 'in');
+                    } else if (msg.type === 'feishu_secret') {
+                        feishuSecret = msg.data;
+                        addFrontendLog('feishu secret synced', 'in');
                     } else if (msg.type === 'bell_beep_duration_ms') {
                         bellBeepDurationMs = msg.data;
                         addFrontendLog('蜂鸣声音长度同步为 ' + bellBeepDurationMs + ' ms', 'in');
