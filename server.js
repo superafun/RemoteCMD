@@ -22,7 +22,7 @@ function loadConfig() {
             swipeThreshold: 24,
             swipeClassify: 10,
             showScrollButtons: true,
-            bellDebounceMs: 1000,
+            doneToken: 'REMOTECMD_DONE', // 完成标记：PTY 输出流精确匹配该串才触发通知（替换 BEL）
             bellSoundEnabled: true,
             bellToastEnabled: true,
             bellOsEnabled: true, // 系统通知（OS 弹窗）开关
@@ -65,7 +65,7 @@ function loadConfig() {
     if (typeof cfg.swipeThreshold !== 'number' || cfg.swipeThreshold < 1 || cfg.swipeThreshold > 200) cfg.swipeThreshold = 24;
     if (typeof cfg.swipeClassify !== 'number' || cfg.swipeClassify < 1 || cfg.swipeClassify > 100) cfg.swipeClassify = 10;
     if (typeof cfg.showScrollButtons !== 'boolean') cfg.showScrollButtons = true;
-    if (typeof cfg.bellDebounceMs !== 'number' || cfg.bellDebounceMs < 100 || cfg.bellDebounceMs > 10000) cfg.bellDebounceMs = 1000;
+    if (typeof cfg.doneToken !== 'string') cfg.doneToken = 'REMOTECMD_DONE';
     if (typeof cfg.bellSoundEnabled !== 'boolean') cfg.bellSoundEnabled = true;
     if (typeof cfg.bellToastEnabled !== 'boolean') cfg.bellToastEnabled = true;
     if (typeof cfg.bellOsEnabled !== 'boolean') cfg.bellOsEnabled = true;
@@ -257,11 +257,9 @@ function createSession() {
         rows: slot.rows,
         cwd: process.env.USERPROFILE
     });
-    // bellTimer: 去抖定时器；bellArmed: 是否处于"待响铃"状态（仅当本次会话已出现过 \x07 时为 true）。
-    // 任何后续输出（含 \x07 本身和任何其他字节）都会 clearTimeout 重置 timer；只有"输出静止 N ms"且 bellArmed 才广播。
-    // TUI 持续输出 → timer 不断重置，bellArmed=true 但永远不会到点 → 0 次通知。
-    // TUI 停下 1 秒 → timer 到点 → 1 次通知。
-    sessions[newId] = { pty: ptyProcess, inputLine: '', name: computeSmartName(), bellTimer: null, bellArmed: false };
+    // doneCarry: 完成标记跨 chunk 拼接缓冲。标记串可能被拆成多次 onData 到达，
+    // 把未匹配完的尾部暂存于此，下次来的 chunk 拼上继续匹配，保证精确命中一次。
+    sessions[newId] = { pty: ptyProcess, inputLine: '', name: computeSmartName(), doneCarry: '' };
     // === 重连同步：headless 终端维护"当前可见屏幕 + 有界真实滚屏历史" ===
     // scrollback 用有界行数（config.screenHistoryLines，绝不为 0，否则重连无法上滚看历史）。
     // 加载 Unicode11Addon 与客户端一致，保证字符宽度/换行对齐；SerializeAddon 用于重连时序列化整屏。
@@ -288,18 +286,17 @@ function createSession() {
                 try { scr.write(d, res); } catch (e) { res(); }
             })).catch(() => {});
         }
-        // === BEL 去抖：任何输出都重置 timer，含 \x07 时把 bellArmed 置 true ===
-        if (sessions[newId].bellTimer) {
-            clearTimeout(sessions[newId].bellTimer);
-            sessions[newId].bellTimer = null;
-        }
-        if (d.includes('\x07')) sessions[newId].bellArmed = true;
-        if (sessions[newId].bellArmed) {
-            sessions[newId].bellTimer = setTimeout(() => {
-                sessions[newId].bellTimer = null;
-                sessions[newId].bellArmed = false;
+        // === 完成标记扫描：精确匹配可配置标记串（默认 REMOTECMD_DONE）即触发通知（替换 BEL 去抖）===
+        // 标记跨 chunk 到达时用 doneCarry 拼接尾部；命中后只消费到标记处、保留其后未读内容。
+        // 标记原样随 data 透传（可见、可验证），不滤除。
+        const tok = config.doneToken || '';
+        if (tok) {
+            const buf = (sessions[newId].doneCarry || '') + d;
+            const idx = buf.indexOf(tok);
+            if (idx >= 0) {
+                sessions[newId].doneCarry = buf.slice(idx + tok.length);
                 broadcast({ type: 'bell', id: newId });
-                // ntfy 安卓推送出口：BEL 去抖触发后，向话题 POST 一行消息（fire-and-forget）
+                // ntfy 安卓推送出口：完成标记命中后，向话题 POST 一行消息（fire-and-forget）
                 if (config.ntfyEnabled && config.ntfyTopic) {
                     const name = sessions[newId] ? sessions[newId].name : '终端';
                     fetch('https://ntfy.sh/' + encodeURIComponent(config.ntfyTopic), {
@@ -308,16 +305,16 @@ function createSession() {
                         body: `终端「${name}」任务完成`
                     }).catch(() => {});
                 }
-            }, config.bellDebounceMs);
+            } else {
+                // 未命中：只保留末尾最多 tok.length 字节，避免缓冲无限增长
+                sessions[newId].doneCarry = buf.length > tok.length ? buf.slice(buf.length - tok.length) : buf;
+            }
         }
-        // data 消息：原样透传（含 \x07）。
-        // xterm 收到 \x07 是不可见控制字符，不会破坏渲染；前端 buffer 始终与后端 buffer 一致，重连回放无差异。
+        // data 消息：原样透传（完成标记也照发，终端可见可验证）。
+        // 前端 buffer 始终与后端一致，重连回放无差异。
         broadcast({ type: 'data', id: newId, data: d });
     });
     ptyProcess.onExit(() => {
-        if (sessions[newId] && sessions[newId].bellTimer) {
-            clearTimeout(sessions[newId].bellTimer);
-        }
         if (sessions[newId] && sessions[newId].screen) {
             try { sessions[newId].screen.dispose(); } catch (e) {}
         }
@@ -358,7 +355,7 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'input_bar_hide_on_blur', data: config.inputBarHideOnBlur }));
     ws.send(JSON.stringify({ type: 'enter_delay_ms', data: config.enterDelayMs }));
     ws.send(JSON.stringify({ type: 'max_frontend_logs', data: config.maxFrontendLogs }));
-    ws.send(JSON.stringify({ type: 'bell_debounce_ms', data: config.bellDebounceMs }));
+    ws.send(JSON.stringify({ type: 'done_token', data: config.doneToken }));
     ws.send(JSON.stringify({ type: 'bell_sound_enabled', data: config.bellSoundEnabled }));
     ws.send(JSON.stringify({ type: 'bell_toast_enabled', data: config.bellToastEnabled }));
     ws.send(JSON.stringify({ type: 'bell_os_enabled', data: config.bellOsEnabled }));
@@ -516,11 +513,10 @@ wss.on('connection', (ws) => {
             broadcast({ type: 'max_frontend_logs', data: config.maxFrontendLogs });
             saveConfig(config);
         }
-        else if (type === 'bell_debounce_ms') {
-            const v = parseInt(data);
-            if (!Number.isInteger(v) || v < 100 || v > 10000) return;
-            config.bellDebounceMs = v;
-            broadcast({ type: 'bell_debounce_ms', data: config.bellDebounceMs });
+        else if (type === 'done_token') {
+            if (typeof data !== 'string') return;
+            config.doneToken = data;
+            broadcast({ type: 'done_token', data: config.doneToken });
             saveConfig(config);
         }
         else if (type === 'bell_sound_enabled') {
