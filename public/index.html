@@ -291,22 +291,7 @@
             html += '<span id="hint-bellOsEnabled" class="apply-hint"></span>';
 
             // 飞书自建应用（国内可达、走飞书系统推送，省电不依赖谷歌）
-            html += '<div class="modal-row">';
-            html += '<span class="modal-label">飞书应用 (Feishu App)</span>';
-            html += '<input type="text" id="settingsFeishuAppIdInput" placeholder="app_id（飞书开放平台应用凭证）" style="flex:1;min-width:160px;">';
-            html += '<input type="password" id="settingsFeishuAppSecretInput" placeholder="app_secret（仅服务端用）" style="flex:1;min-width:160px;">';
-            html += '</div>';
-            html += '<div class="modal-row">';
-            html += '<input type="text" id="settingsFeishuReceiveIdInput" placeholder="接收 ID：你的邮箱 / 群 chat_id / open_id" style="flex:1;min-width:160px;">';
-            html += '<select id="settingsFeishuReceiveTypeInput" onchange="applySettingsFeishu()" style="flex:0 0 auto;">';
-            html += '<option value="email">邮箱(email)</option>';
-            html += '<option value="chat_id">群(chat_id)</option>';
-            html += '<option value="open_id">open_id</option>';
-            html += '<option value="user_id">user_id</option>';
-            html += '</select>';
-            html += '<button class="btn-primary" id="btn-apply-feishu" onclick="applySettingsFeishu()">应用</button>';
-            html += '<span id="hint-feishu" class="apply-hint"></span>';
-            html += '</div>';
+            
             html += '</div>';
             // 完成标记（替换 BEL）：脚本末尾打印该串即触发通知
             html += '<div class="modal-row">';
@@ -323,6 +308,33 @@
             html += '<button class="btn-primary" id="btn-apply-bellBeepDuration" onclick="applySettingsBellBeepDuration()">应用</button>';
             html += '</div>';
             html += '</div>'; // end 通知
+            html += '<div class="modal-group">'
+            html += '<div class="modal-group-title">飞书通知（任务完成推送）<span class="info">i<span class="info-tip">任务完成时，飞书会向这里配置的账号或群发一条消息通知你。</span></span></div>'
+            html += '<div class="modal-row">'
+            html += '<label class="modal-label">App ID<span class="info">i<span class="info-tip">飞书开放平台创建应用后得到的 app_id。</span></span></label>'
+            html += '<input type="text" id="settingsFeishuAppIdInput" placeholder="app_id" style="flex:1;min-width:160px;">'
+            html += '</div>'
+            html += '<div class="modal-row">'
+            html += '<label class="modal-label">App Secret<span class="info">i<span class="info-tip">应用密钥，仅服务端使用，用于换取访问令牌。</span></span></label>'
+            html += '<input type="password" id="settingsFeishuAppSecretInput" placeholder="app_secret" style="flex:1;min-width:160px;">'
+            html += '</div>'
+            html += '<div class="modal-row">'
+            html += '<label class="modal-label">接收 ID<span class="info">i<span class="info-tip">消息发给谁：邮箱、群 chat_id，或柙人 open_id / user_id。</span></span></label>'
+            html += '<input type="text" id="settingsFeishuReceiveIdInput" placeholder="你的邮箱 / 群 chat_id / open_id" style="flex:1;min-width:160px;">'
+            html += '</div>'
+            html += '<div class="modal-row">'
+            html += '<label class="modal-label">接收类型<span class="info">i<span class="info-tip">接收 ID 的类型。推荐 chat_id：把机器人加进群即可。</span></span></label>'
+            html += '<select id="settingsFeishuReceiveTypeInput" onchange="applySettingsFeishu()" style="flex:0 0 auto;">'
+            html += '<option value="email">邮箱(email)</option>'
+            html += '<option value="chat_id">群(chat_id)</option>'
+            html += '<option value="open_id">open_id</option>'
+            html += '<option value="user_id">user_id</option>'
+            html += '</select>'
+            html += '<button class="btn-primary" id="btn-apply-feishu" onclick="applySettingsFeishu()">应用</button>'
+            html += '<span id="hint-feishu" class="apply-hint"></span>'
+            html += '</div>'
+            html += '</div>'; // end feishu modal-group
+
 
             html += '<div class="modal-actions">';
             html += '<button class="btn-danger" onclick="restartServer()">重启服务器</button>';
