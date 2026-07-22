@@ -290,7 +290,6 @@
             html += '<label class="modal-label"><input type="checkbox" id="settingsBellOsEnabledInput" onchange="applySettingsBellOsEnabled()"> 系统通知（OS 弹窗）</label>';
             html += '<span id="hint-bellOsEnabled" class="apply-hint"></span>';
 
-            // 飞书自建应用（国内可达、走飞书系统推送，省电不依赖谷歌）
             
             html += '</div>';
             // 完成标记（替换 BEL）：脚本末尾打印该串即触发通知
@@ -319,7 +318,7 @@
             html += '<input type="password" id="settingsFeishuAppSecretInput" placeholder="app_secret" style="flex:1;min-width:160px;">'
             html += '</div>'
             html += '<div class="modal-row">'
-            html += '<label class="modal-label">接收 ID<span class="info">i<span class="info-tip">消息发给谁：邮箱、群 chat_id，或柙人 open_id / user_id。</span></span></label>'
+            html += '<label class="modal-label">接收 ID<span class="info">i<span class="info-tip">消息发给谁：邮箱、群 chat_id，或某人 open_id / user_id。</span></span></label>'
             html += '<input type="text" id="settingsFeishuReceiveIdInput" placeholder="你的邮箱 / 群 chat_id / open_id" style="flex:1;min-width:160px;">'
             html += '</div>'
             html += '<div class="modal-row">'
