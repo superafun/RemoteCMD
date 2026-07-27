@@ -46,6 +46,11 @@
         .modal-content {
             max-height: 80vh;
             overflow-y: auto;
+            scrollbar-width: none;     /* Firefox: 隐藏滚动条 */
+            -ms-overflow-style: none;  /* 旧 Edge: 隐藏滚动条 */
+        }
+        .modal-content::-webkit-scrollbar {
+            display: none;             /* Chrome/Edge/Safari: 隐藏滚动条 */
         }
         .modal-box h3 {
             margin: 0 0 14px;

@@ -142,7 +142,10 @@ function verifyToken(token) {
     const sig = token.slice(dot + 1);
     const exp = Number(expStr);
     if (!Number.isFinite(exp)) return false;
-    if (crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(hmacOf(exp)))) return false;
+    const a = Buffer.from(sig);
+    const b = Buffer.from(hmacOf(exp));
+    if (a.length !== b.length) return false;
+    if (!crypto.timingSafeEqual(a, b)) return false;
     if (Date.now() > exp) return false;
     return true;
 }
