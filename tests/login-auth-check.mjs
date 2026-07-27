@@ -7,7 +7,7 @@ const BASE = process.env.RC_BASE || 'http://localhost:65433';
 const USER = process.env.RC_USER || '';
 const PASS = process.env.RC_PASS || '';
 
-const HTML_ACCEPT = { headers: { Accept: 'text/html' } };
+const HTML_ACCEPT = { headers: { Accept: 'text/html' }, redirect: 'manual' };
 let pass = 0, fail = 0;
 function ok(name, cond, extra = '') {
   if (cond) { pass++; console.log('PASS', name); }
