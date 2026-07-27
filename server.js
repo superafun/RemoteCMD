@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const http = require('http');
 const fs = require('fs');
+const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
 const pty = require('node-pty');
 const { Terminal: HeadlessTerminal } = require('@xterm/headless');
@@ -28,7 +29,9 @@ function loadConfig() {
             inputBarCloseAfterSend: false,
             enterDelayMs: 300,
             inputBarHideOnBlur: true,
-            recentPaths: []
+            recentPaths: [],
+            sessionDurationMin: 1440,
+            htpasswdPath: 'C:\\Users\\fmy3\\OneDrive\\project\\pythonProjectiQuant2\\nginx-1.28.2\\conf\\htpasswd'
         };
         fs.writeFileSync(CONFIG_PATH, JSON.stringify(def, null, 2));
         return def;
@@ -64,6 +67,12 @@ function loadConfig() {
     if (typeof cfg.inputBarCloseAfterSend !== 'boolean') cfg.inputBarCloseAfterSend = false;
     if (typeof cfg.inputBarHideOnBlur !== 'boolean') cfg.inputBarHideOnBlur = true;
     if (typeof cfg.enterDelayMs !== 'number' || cfg.enterDelayMs < 50 || cfg.enterDelayMs > 3000) cfg.enterDelayMs = 300;
+    if (typeof cfg.sessionDurationMin !== 'number' || cfg.sessionDurationMin < 1 || cfg.sessionDurationMin > 20160) cfg.sessionDurationMin = 1440;
+    if (typeof cfg.htpasswdPath !== 'string' || !cfg.htpasswdPath) cfg.htpasswdPath = 'C:\\Users\\fmy3\\OneDrive\\project\\pythonProjectiQuant2\\nginx-1.28.2\\conf\\htpasswd';
+    if (typeof cfg.sessionSecret !== 'string' || cfg.sessionSecret.length < 16) {
+        cfg.sessionSecret = crypto.randomBytes(32).toString('hex');
+        saveConfig(cfg);
+    }
     return cfg;
 }
 function saveConfig(cfg) {
