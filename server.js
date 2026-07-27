@@ -79,6 +79,129 @@ function saveConfig(cfg) {
     fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2));
 }
 let config = loadConfig();
+// === 登录认证辅助（无状态签名 cookie） ===
+const SESSION_COOKIE = 'rc_session';
+function parseCookies(req) {
+    const out = {};
+    const h = req.headers && req.headers.cookie;
+    if (!h) return out;
+    h.split(';').forEach(c => {
+        const idx = c.indexOf('=');
+        if (idx < 0) return;
+        const k = c.slice(0, idx).trim();
+        const v = c.slice(idx + 1).trim();
+        out[k] = decodeURIComponent(v);
+    });
+    return out;
+}
+function hmacOf(expiryMs) {
+    return crypto.createHmac('sha256', config.sessionSecret).update(String(expiryMs)).digest('base64');
+}
+function signToken(expiryMs) {
+    return expiryMs + '.' + hmacOf(expiryMs);
+}
+function verifyToken(token) {
+    if (typeof token !== 'string' || !token.includes('.')) return false;
+    const dot = token.indexOf('.');
+    const expStr = token.slice(0, dot);
+    const sig = token.slice(dot + 1);
+    const exp = Number(expStr);
+    if (!Number.isFinite(exp)) return false;
+    if (crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(hmacOf(exp)))) return false;
+    if (Date.now() > exp) return false;
+    return true;
+}
+function isAuthed(req) {
+    const cookies = parseCookies(req);
+    return verifyToken(cookies[SESSION_COOKIE]);
+}
+// === htpasswd 校验（复用 nginx 文件，零新依赖） ===
+function readHtpasswd() {
+    try {
+        const txt = fs.readFileSync(config.htpasswdPath, 'utf8');
+        const map = {};
+        txt.split(/\r?\n/).forEach(line => {
+            const t = line.trim();
+            if (!t || t.startsWith('#')) return;
+            const i = t.indexOf(':');
+            if (i < 0) return;
+            map[t.slice(0, i)] = t.slice(i + 1);
+        });
+        return map;
+    } catch (e) {
+        console.error('[htpasswd] read failed:', e && e.message);
+        return {};
+    }
+}
+function verifyCredentials(username, password) {
+    if (typeof username !== 'string' || typeof password !== 'string') return false;
+    const map = readHtpasswd();
+    const hash = map[username];
+    if (!hash) return false;
+    if (hash.startsWith('{SHA}')) {
+        const want = hash.slice(5);
+        const got = crypto.createHash('sha1').update(password).digest('base64');
+        return crypto.timingSafeEqual(Buffer.from(want), Buffer.from(got));
+    }
+    if (hash.startsWith('{PLAIN}')) {
+        const want = hash.slice(7);
+        return crypto.timingSafeEqual(Buffer.from(want), Buffer.from(password));
+    }
+    if (hash.startsWith('$apr1$')) {
+        // Apache MD5（apr1）校验，纯 JS 实现
+        const parts = hash.split('$');
+        // 格式: $apr1$salt$hash
+        const salt = parts[2];
+        const real = parts[3];
+        const computed = apr1Md5(password, salt);
+        return crypto.timingSafeEqual(Buffer.from(real), Buffer.from(computed));
+    }
+    // 明文（无花括号）
+    if (!hash.includes('{') && !hash.includes('$')) {
+        return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(password));
+    }
+    console.error('[htpasswd] 不支持的哈希格式:', hash.slice(0, 8));
+    return false;
+}
+// Apache apr1 MD5（与 `htpasswd -m` 兼容）
+function apr1Md5(password, salt) {
+    function md5(b) { return crypto.createHash('md5').update(b).digest(); }
+    function to64(buf, n) {
+        const itoa64 = './0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+        let str = '';
+        for (let i = 0; i < n; i++) {
+            let v = buf[i] & 0xff;
+            str += itoa64[v & 0x3f];
+            if (i + 1 < n) { v |= (buf[i + 1] & 0xff) << 8; str += itoa64[(v >> 6) & 0x3f]; }
+            if (i + 2 < n) { v |= (buf[i + 2] & 0xff) << 16; str += itoa64[(v >> 12) & 0x3f]; }
+        }
+        return str;
+    }
+    let ctx = md5(password + '$apr1$' + salt);
+    ctx = Buffer.concat([ctx, md5(salt + '$apr1$' + password)]);
+    let l = password.length;
+    while (l > 16) { ctx = Buffer.concat([ctx, md5(password.slice(0, 16))]); l -= 16; }
+    if (l > 0) ctx = Buffer.concat([ctx, md5(password.slice(0, l))]);
+    const magic = Buffer.from([0, 0, 0]);
+    for (let i = password.length; i > 0; i >>= 1) {
+        ctx = Buffer.concat([ctx, (i & 1) ? magic : md5(password)]);
+    }
+    let fin = md5(ctx);
+    for (let i = 0; i < 1000; i++) {
+        const c = Buffer.concat([md5((i & 1) ? password : fin), (i % 3) ? md5(salt) : magic, (i % 7) ? md5(password) : magic]);
+        fin = md5(Buffer.concat([c, (i & 1) ? md5(fin) : fin]));
+    }
+    const out = Buffer.from([
+        fin[0], fin[6], fin[12],
+        fin[1], fin[7], fin[13],
+        fin[2], fin[8], fin[14],
+        fin[3], fin[9], fin[15],
+        fin[4], fin[10],
+        fin[5], fin[11]
+    ]);
+    return to64(out, 16);
+}
+
 
 const app = express();
 const server = http.createServer(app);
