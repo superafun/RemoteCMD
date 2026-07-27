@@ -457,7 +457,9 @@
 .recent-path-label {
     flex: 1 1 auto;
     overflow: hidden;
+    white-space: nowrap;
     text-overflow: ellipsis;
+    direction: rtl;
 }
 #recentPathsDropdown .recent-path-expand {
     flex: 0 0 auto;
@@ -483,6 +485,7 @@
     word-break: break-all;
     overflow: visible;
     text-overflow: clip;
+    direction: ltr;
 }
 #recentPathsDropdown .recent-path-del {
     flex: 0 0 auto;
