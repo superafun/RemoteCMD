@@ -533,7 +533,7 @@ wss.on('connection', (ws) => {
         else if (type === 'input' && sessions[id]) {
             sessions[id].pty.write(data);
             const line = feedInputLine(sessions[id], data);
-            if (line) {
+            if (line && /^\s*(cd|chdir)\b/i.test(line)) {
                 const m = line.match(/\b[A-Za-z]:\\[^\s"'`]+/);
                 if (m) {
                     resolveFolderToRecord(m[0]).then(folder => {
