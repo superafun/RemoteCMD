@@ -64,7 +64,7 @@
         let inputBarCloseAfterSend = false;
         let enterDelayMs = 300;   // 输入条回车停顿(ms)，设置可改、多端同步
         let inputBarHideOnBlur = true;
-        let sessionDurationMin = 1440;
+        let sessionDurationHours = 24;
         // sizeSlots / currentSize 替代原 rows/cols（2026-07-01 改用 size_slots/current_size 协议）
         // 初始 null：服务端消息到达前不调用 term.resize，也不渲染弹窗默认值
         let sizeSlots = { large: null, small: null };
@@ -259,10 +259,10 @@
             html += '<button class="btn-primary" id="btn-apply-maxFrontendLogs" onclick="applySettingsMaxFrontendLogs()">应用</button>';
             html += '</div>';
 
-            // session keep-login duration (minutes)
+            // session keep-login duration (hours)
             html += '<div class="modal-row">';
-            html += '<span class="modal-label">保持登录时长 (分钟)</span>';
-            html += '<input type="number" id="settingsSessionDurationInput" min="1" max="20160" step="1" style="width:80px;">';
+            html += '<span class="modal-label">保持登录时长 (小时)</span>';
+            html += '<input type="number" id="settingsSessionDurationInput" min="0.5" step="0.5" style="width:80px;">';
             html += '<button class="btn-primary" id="btn-apply-sessionDuration" onclick="applySettingsSessionDuration()">应用</button>';
             html += '</div>';
 
@@ -302,7 +302,7 @@
             document.getElementById('settingsEnterDelayInput').value = enterDelayMs;
             document.getElementById('settingsScreenHistoryLinesInput').value = screenHistoryLines;
             document.getElementById('settingsMaxFrontendLogsInput').value = maxFrontendLogs;
-            document.getElementById('settingsSessionDurationInput').value = sessionDurationMin;
+            document.getElementById('settingsSessionDurationInput').value = sessionDurationHours;
 
         }
 
@@ -465,9 +465,9 @@
         }
 
         function applySettingsSessionDuration() {
-            const v = parseInt(document.getElementById('settingsSessionDurationInput').value);
-            if (Number.isInteger(v) && v >= 1 && v <= 20160) {
-                wsSend({ type: 'session_duration_min', data: v });
+            const v = parseFloat(document.getElementById('settingsSessionDurationInput').value);
+            if (Number.isFinite(v) && v > 0) {
+                wsSend({ type: 'session_duration_hours', data: v });
                 fbBtn('btn-apply-sessionDuration', true);
             } else {
                 fbBtn('btn-apply-sessionDuration', false);
@@ -780,9 +780,9 @@
                     } else if (msg.type === 'enter_delay_ms') {
                         enterDelayMs = msg.data;
                         addFrontendLog('回车停顿同步为 ' + enterDelayMs + ' ms', 'in');
-                    } else if (msg.type === 'session_duration_min') {
-                        sessionDurationMin = msg.data;
-                        addFrontendLog('保持登录时长同步为 ' + sessionDurationMin + ' 分钟', 'in');
+                    } else if (msg.type === 'session_duration_hours') {
+                        sessionDurationHours = msg.data;
+                        addFrontendLog('保持登录时长同步为 ' + sessionDurationHours + ' 小时', 'in');
                     } else if (msg.type === 'restart_server') {
                         addFrontendLog('服务端确认重启', 'in');
                     } else if (msg.type === 'recent_paths') {

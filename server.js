@@ -30,7 +30,7 @@ function loadConfig() {
             enterDelayMs: 300,
             inputBarHideOnBlur: true,
             recentPaths: [],
-            sessionDurationMin: 1440,
+            sessionDurationHours: 24,
             htpasswdPath: 'C:\\Users\\fmy3\\OneDrive\\project\\pythonProjectiQuant2\\nginx-1.28.2\\conf\\htpasswd'
         };
         fs.writeFileSync(CONFIG_PATH, JSON.stringify(def, null, 2));
@@ -67,7 +67,7 @@ function loadConfig() {
     if (typeof cfg.inputBarCloseAfterSend !== 'boolean') cfg.inputBarCloseAfterSend = false;
     if (typeof cfg.inputBarHideOnBlur !== 'boolean') cfg.inputBarHideOnBlur = true;
     if (typeof cfg.enterDelayMs !== 'number' || cfg.enterDelayMs < 50 || cfg.enterDelayMs > 3000) cfg.enterDelayMs = 300;
-    if (typeof cfg.sessionDurationMin !== 'number' || cfg.sessionDurationMin < 1 || cfg.sessionDurationMin > 20160) cfg.sessionDurationMin = 1440;
+    if (typeof cfg.sessionDurationHours !== 'number' || !isFinite(cfg.sessionDurationHours) || cfg.sessionDurationHours <= 0) cfg.sessionDurationHours = 24;
     if (typeof cfg.htpasswdPath !== 'string' || !cfg.htpasswdPath) cfg.htpasswdPath = 'C:\\Users\\fmy3\\OneDrive\\project\\pythonProjectiQuant2\\nginx-1.28.2\\conf\\htpasswd';
     if (typeof cfg.sessionSecret !== 'string' || cfg.sessionSecret.length < 16) {
         cfg.sessionSecret = crypto.randomBytes(32).toString('hex');
@@ -215,7 +215,7 @@ const server = http.createServer(app);
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body || {};
     if (verifyCredentials(username, password)) {
-        const maxAgeMs = config.sessionDurationMin * 60000;
+        const maxAgeMs = config.sessionDurationHours * 3600000;
         const cookieOpts = {
             httpOnly: true,
             sameSite: 'lax',
@@ -524,7 +524,7 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'input_bar_hide_on_blur', data: config.inputBarHideOnBlur }));
     ws.send(JSON.stringify({ type: 'enter_delay_ms', data: config.enterDelayMs }));
     ws.send(JSON.stringify({ type: 'max_frontend_logs', data: config.maxFrontendLogs }));
-    ws.send(JSON.stringify({ type: 'session_duration_min', data: config.sessionDurationMin }));
+    ws.send(JSON.stringify({ type: 'session_duration_hours', data: config.sessionDurationHours }));
     ws.send(JSON.stringify({ type: 'recent_paths', data: config.recentPaths }));
     ws.on('message', (msg) => {
         const p = JSON.parse(msg.toString());
@@ -677,11 +677,11 @@ wss.on('connection', (ws) => {
             saveConfig(config);
         }
 
-        else if (type === 'session_duration_min') {
-            const v = parseInt(data);
-            if (!Number.isInteger(v) || v < 1 || v > 20160) return;
-            config.sessionDurationMin = v;
-            broadcast({ type: 'session_duration_min', data: config.sessionDurationMin });
+        else if (type === 'session_duration_hours') {
+            const v = parseFloat(data);
+            if (!Number.isFinite(v) || v <= 0) return;
+            config.sessionDurationHours = v;
+            broadcast({ type: 'session_duration_hours', data: config.sessionDurationHours });
             saveConfig(config);
         }
 
