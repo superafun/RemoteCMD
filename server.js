@@ -207,8 +207,60 @@ function apr1Md5(password, salt) {
 
 
 const app = express();
+app.set('trust proxy', true);
+app.use(express.json());
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
+
+// === 登录相关路由（不经鉴权网关） ===
+app.post('/api/login', (req, res) => {
+    const { username, password } = req.body || {};
+    if (verifyCredentials(username, password)) {
+        const maxAgeMs = config.sessionDurationMin * 60000;
+        const cookieOpts = {
+            httpOnly: true,
+            sameSite: 'lax',
+            secure: 'auto',
+            maxAge: maxAgeMs,
+            path: '/'
+        };
+        res.cookie(SESSION_COOKIE, signToken(Date.now() + maxAgeMs), cookieOpts);
+        const prefix = req.headers['x-forwarded-prefix'] || '';
+        res.redirect(prefix + '/');
+    } else {
+        res.status(401).json({ ok: false, error: '用户名或密码错误' });
+    }
+});
+app.post('/api/logout', (req, res) => {
+    res.clearCookie(SESSION_COOKIE, { path: '/' });
+    res.json({ ok: true });
+});
+app.get('/api/auth-check', (req, res) => {
+    if (isAuthed(req)) return res.json({ ok: true });
+    res.status(401).json({ ok: false });
+});
+
+// === 鉴权网关：保护静态资源与除白名单外的所有请求 ===
+const AUTH_WHITELIST = ['/login', '/api/login', '/api/logout', '/api/auth-check'];
+app.use((req, res, next) => {
+    if (AUTH_WHITELIST.includes(req.path)) return next();
+    if (isAuthed(req)) return next();
+    const accept = req.headers.accept || '';
+    if (accept.includes('text/html')) {
+        const prefix = req.headers['x-forwarded-prefix'] || '';
+        return res.redirect(prefix + '/login');
+    }
+    return res.status(401).end();
+});
+
+// === 登录页 ===
+app.get('/login', (req, res) => {
+    if (isAuthed(req)) {
+        const prefix = req.headers['x-forwarded-prefix'] || '';
+        return res.redirect(prefix + '/');
+    }
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
 
 app.use(express.static(path.join(__dirname, 'public'), {
     setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache')
