@@ -94,6 +94,7 @@
    - `applySettingsSessionDuration()`：仅 `wsSend({type:'session_duration_min', data})`，**不本地改状态**
      （服务端权威）。
    - 接收侧 `session_duration_min` handler：更新全局变量 + 前端日志 `'保持登录时长同步为 X 分钟'`。
+   - 服务端校验范围：**正整数 1–20160（14 天）**，越界拒收（不修改 config、不广播）。
    - `openSettingsModal()` 打开时回填当前值。
 4. **URL 策略**：前端所有 fetch / 跳转一律用**相对 URL**（不写死 `/cmd/`），以兼容 nginx 前缀与直连两种访问。
    WS 连接路径维持现有 `/cmd/`（直连时 server.js 不按路径过滤升级，同样接受）。
