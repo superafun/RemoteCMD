@@ -23,6 +23,7 @@
             <button id="sizeToggleBtn" onclick="toggleSize()">大</button>
             <button id="selectModeBtn" onclick="toggleSelectMode()">选区模式</button>
             <button id="openSettingsBtn" onclick="openSettingsModal()">设置</button>
+            <button id="logoutBtn" onclick="logout()">退出</button>设置</button>
             <div id="recentPathsDropdown" class="dropdown-menu"></div>
             <span id="wsStatus"></span>
         </div>
@@ -63,6 +64,7 @@
         let inputBarCloseAfterSend = false;
         let enterDelayMs = 300;   // 输入条回车停顿(ms)，设置可改、多端同步
         let inputBarHideOnBlur = true;
+        let sessionDurationMin = 1440;
         // sizeSlots / currentSize 替代原 rows/cols（2026-07-01 改用 size_slots/current_size 协议）
         // 初始 null：服务端消息到达前不调用 term.resize，也不渲染弹窗默认值
         let sizeSlots = { large: null, small: null };
@@ -257,6 +259,13 @@
             html += '<button class="btn-primary" id="btn-apply-maxFrontendLogs" onclick="applySettingsMaxFrontendLogs()">应用</button>';
             html += '</div>';
 
+            // session keep-login duration (minutes)
+            html += '<div class="modal-row">';
+            html += '<span class="modal-label">保持登录时长 (分钟)</span>';
+            html += '<input type="number" id="settingsSessionDurationInput" min="1" max="20160" step="1" style="width:80px;">';
+            html += '<button class="btn-primary" id="btn-apply-sessionDuration" onclick="applySettingsSessionDuration()">应用</button>';
+            html += '</div>';
+
 
             html += '</div>'; // end 缓冲区
 
@@ -293,6 +302,7 @@
             document.getElementById('settingsEnterDelayInput').value = enterDelayMs;
             document.getElementById('settingsScreenHistoryLinesInput').value = screenHistoryLines;
             document.getElementById('settingsMaxFrontendLogsInput').value = maxFrontendLogs;
+            document.getElementById('settingsSessionDurationInput').value = sessionDurationMin;
 
         }
 
@@ -454,6 +464,16 @@
             }
         }
 
+        function applySettingsSessionDuration() {
+            const v = parseInt(document.getElementById('settingsSessionDurationInput').value);
+            if (Number.isInteger(v) && v >= 1 && v <= 20160) {
+                wsSend({ type: 'session_duration_min', data: v });
+                fbBtn('btn-apply-sessionDuration', true);
+            } else {
+                fbBtn('btn-apply-sessionDuration', false);
+            }
+        }
+
 
 
         // === 大/小尺寸槽位应用（2026-07-01 引入） ===
@@ -563,12 +583,27 @@
                     addFrontendLog('连接已断开');
                     pendingCreate = false;
                     updateWsStatus();
-                    if (navigator.onLine) {
-                        addFrontendLog('0.01 秒后重连');
-                        reconnectTimer = setTimeout(connect, 10);
-                    } else {
-                        addFrontendLog('网络已断开，等待网络恢复后自动重连');
-                    }
+                    // pre-reconnect auth check: 401 -> login page
+                    fetch('api/auth-check').then(r => {
+                        if (r.status === 401) {
+                            addFrontendLog('登录已过期，跳转登录页', 'warn');
+                            location.href = 'login';
+                            return;
+                        }
+                        if (navigator.onLine) {
+                            addFrontendLog('0.01 秒后重连');
+                            reconnectTimer = setTimeout(connect, 10);
+                        } else {
+                            addFrontendLog('网络已断开，等待网络恢复后自动重连');
+                        }
+                    }).catch(() => {
+                        if (navigator.onLine) {
+                            addFrontendLog('0.01 秒后重连');
+                            reconnectTimer = setTimeout(connect, 10);
+                        } else {
+                            addFrontendLog('网络已断开，等待网络恢复后自动重连');
+                        }
+                    });
                 };
                 ws.onmessage = (event) => {
                     const msg = JSON.parse(event.data);
@@ -745,6 +780,9 @@
                     } else if (msg.type === 'enter_delay_ms') {
                         enterDelayMs = msg.data;
                         addFrontendLog('回车停顿同步为 ' + enterDelayMs + ' ms', 'in');
+                    } else if (msg.type === 'session_duration_min') {
+                        sessionDurationMin = msg.data;
+                        addFrontendLog('保持登录时长同步为 ' + sessionDurationMin + ' 分钟', 'in');
                     } else if (msg.type === 'restart_server') {
                         addFrontendLog('服务端确认重启', 'in');
                     } else if (msg.type === 'recent_paths') {
@@ -795,6 +833,12 @@
 
         // 初始渲染会话选择按钮文本
         renderSessionSelect();
+        function logout() {
+            fetch('api/logout', { method: 'POST' })
+                .then(() => { location.href = 'login'; })
+                .catch(() => { location.href = 'login'; });
+        }
+
         connect();
         document.getElementById('editBtn').onclick = openHotkeyEditor;
         // editBtn 引用已保留为 editBtnEl（被 renderHotkeys 重新附加），上行的 getElementById 在首次
