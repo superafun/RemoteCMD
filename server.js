@@ -323,6 +323,11 @@ function broadcast(msg) {
     wss.clients.forEach(c => c.readyState === 1 && c.send(JSON.stringify(msg)));
 }
 
+const wss = new WebSocketServer({ server, verifyClient: (info, done) => {
+    if (isAuthed(info.req)) return done(true);
+    return done(false, 401, 'Unauthorized');
+} });
+
 // 服务端日志转发到前端：前端看不到 console，所有 error/warn 必须进前端日志（error 额外触发 toast）
 function serverLog(level, text) {
     try { broadcast({ type: 'server_log', level: level, text: String(text) }); } catch (e) {}
@@ -519,6 +524,7 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'input_bar_hide_on_blur', data: config.inputBarHideOnBlur }));
     ws.send(JSON.stringify({ type: 'enter_delay_ms', data: config.enterDelayMs }));
     ws.send(JSON.stringify({ type: 'max_frontend_logs', data: config.maxFrontendLogs }));
+    ws.send(JSON.stringify({ type: 'session_duration_min', data: config.sessionDurationMin }));
     ws.send(JSON.stringify({ type: 'recent_paths', data: config.recentPaths }));
     ws.on('message', (msg) => {
         const p = JSON.parse(msg.toString());
@@ -668,6 +674,14 @@ wss.on('connection', (ws) => {
         else if (type === 'max_frontend_logs') {
             config.maxFrontendLogs = data;
             broadcast({ type: 'max_frontend_logs', data: config.maxFrontendLogs });
+            saveConfig(config);
+        }
+
+        else if (type === 'session_duration_min') {
+            const v = parseInt(data);
+            if (!Number.isInteger(v) || v < 1 || v > 20160) return;
+            config.sessionDurationMin = v;
+            broadcast({ type: 'session_duration_min', data: config.sessionDurationMin });
             saveConfig(config);
         }
 
