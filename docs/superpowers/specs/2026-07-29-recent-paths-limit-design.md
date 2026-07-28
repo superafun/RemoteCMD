@@ -61,9 +61,14 @@
 
 ### 前端 `public/index.html`
 
-1. **弹窗输入框**（`openSettingsModal` 的 HTML 拼接，紧挨 `maxFrontendLogs` 那一块之后）：
+1. **弹窗输入框**（`openSettingsModal` 的 HTML 拼接，紧挨 `maxFrontendLogs` 那一块之后，沿用 `modal-row` / `modal-label` / 应用按钮结构）：
    ```js
-   html += '<label class="modal-label">最近路径保存条数 <input type="number" id="settingsRecentPathsLimitInput" min="1" max="100" style="width:80px;"></label>';
+   // 最近路径保存条数 (1–100)
+   html += '<div class="modal-row">';
+   html += '<span class="modal-label">最近路径保存条数</span>';
+   html += '<input type="number" id="settingsRecentPathsLimitInput" min="1" max="100" style="width:80px;">';
+   html += '<button class="btn-primary" id="btn-apply-recentPathsLimit" onclick="applySettingsRecentPathsLimit()">应用</button>';
+   html += '</div>';
    ```
 
 2. **回填**（`openSettingsModal` 内现有 `.value = ...` 序列之后）：
@@ -71,7 +76,7 @@
    document.getElementById('settingsRecentPathsLimitInput').value = recentPathsLimit;
    ```
 
-3. **应用函数**（与 `applySettingsMaxFrontendLogs` 同款结构）：
+3. **应用函数**（与 `applySettingsMaxFrontendLogs` 同款结构：各自独立"应用"按钮 + `fbBtn` 反馈；对应按钮 id 为 `btn-apply-recentPathsLimit`）：
    ```js
    function applySettingsRecentPathsLimit() {
        const v = parseInt(document.getElementById('settingsRecentPathsLimitInput').value);
@@ -83,7 +88,6 @@
        }
    }
    ```
-   （如需"应用"按钮反馈，`fbBtn` 的 id 与上面一致即可；若沿用弹窗内即时 `onchange` 风格也可，但本设计保持与 `maxFrontendLogs` 一致的按钮式反馈。）
 
 4. **接收分支**（`ws.onmessage` 现有 `else if` 链里加）：
    ```js
