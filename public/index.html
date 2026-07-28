@@ -52,6 +52,7 @@
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
         let recentPaths = [];
+        let recentPathsLimit = 10;
         const wsProtocol = location.protocol === 'https:' ? 'wss' : 'ws';
         let hotkeys = {};
         let scrollIntervalTerminal = 100;
@@ -259,6 +260,13 @@
             html += '<button class="btn-primary" id="btn-apply-maxFrontendLogs" onclick="applySettingsMaxFrontendLogs()">应用</button>';
             html += '</div>';
 
+            // 最近路径保存条数 (1-100)
+            html += '<div class="modal-row">';
+            html += '<span class="modal-label">最近路径保存条数</span>';
+            html += '<input type="number" id="settingsRecentPathsLimitInput" min="1" max="100" style="width:80px;">';
+            html += '<button class="btn-primary" id="btn-apply-recentPathsLimit" onclick="applySettingsRecentPathsLimit()">应用</button>';
+            html += '</div>';
+
             // session keep-login duration (hours)
             html += '<div class="modal-row">';
             html += '<span class="modal-label">保持登录时长 (小时)</span>';
@@ -303,6 +311,7 @@
             document.getElementById('settingsScreenHistoryLinesInput').value = screenHistoryLines;
             document.getElementById('settingsMaxFrontendLogsInput').value = maxFrontendLogs;
             document.getElementById('settingsSessionDurationInput').value = sessionDurationHours;
+            document.getElementById('settingsRecentPathsLimitInput').value = recentPathsLimit;
 
         }
 
@@ -471,6 +480,18 @@
                 fbBtn('btn-apply-sessionDuration', true);
             } else {
                 fbBtn('btn-apply-sessionDuration', false);
+            }
+        }
+
+
+
+        function applySettingsRecentPathsLimit() {
+            const v = parseInt(document.getElementById('settingsRecentPathsLimitInput').value);
+            if (Number.isInteger(v) && v >= 1 && v <= 100) {
+                wsSend({ type: 'recent_paths_limit', data: v });
+                fbBtn('btn-apply-recentPathsLimit', true);
+            } else {
+                fbBtn('btn-apply-recentPathsLimit', false);
             }
         }
 
@@ -783,6 +804,9 @@
                     } else if (msg.type === 'session_duration_hours') {
                         sessionDurationHours = msg.data;
                         addFrontendLog('保持登录时长同步为 ' + sessionDurationHours + ' 小时', 'in');
+                    } else if (msg.type === 'recent_paths_limit') {
+                        recentPathsLimit = msg.data;
+                        addFrontendLog('最近路径保存条数同步为 ' + recentPathsLimit + ' 条', 'in');
                     } else if (msg.type === 'restart_server') {
                         addFrontendLog('服务端确认重启', 'in');
                     } else if (msg.type === 'recent_paths') {
