@@ -43,7 +43,7 @@ server.js
 |--------|------|-------|---------------|
 | 后端 | `server.js` | 100 | Express 静态服务器 + WebSocket 处理器 + node-pty 会话生命周期 + PM2 重启 |
 | 前端 | `public/index.html` | 320 | 单页应用：xterm.js v6 终端、会话切换器、快捷键编辑器、滚动控制、自动重连、重启服务器 |
-| 配置 | `config.json` | ~21 | 持久化配置：`rows`、`cols`、`hotkeys`（名称→转义序列）、`scrollIntervalTerminal`、`scrollIntervalPage`、`screenHistoryLines`（重连滚屏历史行数，默认 1000）、`maxFrontendLogs` |
+| 配置 | `config.json` | ~21 | 持久化配置：`rows`、`cols`、`hotkeys`（名称→转义序列）、`scrollIntervalTerminal`、`scrollIntervalPage`、`screenHistoryLines`（重连滚屏历史行数，默认 1000）、「recentPathsLimit`（最近路径保存条数，默认 10，范围 1–100）、`maxFrontendLogs` |
 
 ### WebSocket 协议（JSON，type 字段）
 
@@ -71,6 +71,7 @@ server.js
 | `scroll_interval_page` | 页面按住滚动间隔（单位：ms） |
 | `max_frontend_logs` | 前端日志上限值（单位：条） |
 | `session_duration_hours` | 保持登录时长（单位：小时，无上限，正数即可） |
+| `recent_paths_limit` | 最近路径保存条数上限（data，单位：条，范围 1–100，默认 10），连接建立时下发 + 设置变更时广播 |
 | `input_bar_button_action` | 输入条右侧按钮动作（data: 'newline' \| 'send'），连接建立时下发 + 设置变更时广播 |
 | `input_bar_enter_action` | 输入条 Enter 键动作（data: 'newline' \| 'send'），连接建立时下发 + 设置变更时广播 |
 | `input_bar_close_after_send` | 发送后关闭输入条（data: boolean），连接建立时下发 + 设置变更时广播 |
@@ -92,6 +93,7 @@ server.js
 | `scroll_interval_page` | 更新页面按住滚动间隔（data，单位：ms） |
 | `max_frontend_logs` | 更新前端日志上限（单位：条） |
 | `session_duration_hours` | 更新保持登录时长（data，单位：小时，无上限） |
+| `recent_paths_limit` | 更新最近路径保存条数上限（data，单位：条，1–100） |
 | `input_bar_button_action` | 更新输入条右侧按钮动作（data: 'newline' \| 'send'） |
 | `input_bar_enter_action` | 更新输入条 Enter 键动作（data: 'newline' \| 'send'） |
 | `input_bar_close_after_send` | 更新发送后关闭输入条（data: boolean） |
