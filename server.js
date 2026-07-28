@@ -30,6 +30,7 @@ function loadConfig() {
             enterDelayMs: 300,
             inputBarHideOnBlur: true,
             recentPaths: [],
+            recentPathsLimit: 10,
             sessionDurationHours: 24,
             htpasswdPath: 'C:\\Users\\fmy3\\OneDrive\\project\\pythonProjectiQuant2\\nginx-1.28.2\\conf\\htpasswd'
         };
@@ -68,6 +69,7 @@ function loadConfig() {
     if (typeof cfg.inputBarHideOnBlur !== 'boolean') cfg.inputBarHideOnBlur = true;
     if (typeof cfg.enterDelayMs !== 'number' || cfg.enterDelayMs < 50 || cfg.enterDelayMs > 3000) cfg.enterDelayMs = 300;
     if (typeof cfg.sessionDurationHours !== 'number' || !isFinite(cfg.sessionDurationHours) || cfg.sessionDurationHours <= 0) cfg.sessionDurationHours = 24;
+    if (!Number.isInteger(cfg.recentPathsLimit) || cfg.recentPathsLimit < 1 || cfg.recentPathsLimit > 100) cfg.recentPathsLimit = 10;
     if (typeof cfg.htpasswdPath !== 'string' || !cfg.htpasswdPath) cfg.htpasswdPath = 'C:\\Users\\fmy3\\OneDrive\\project\\pythonProjectiQuant2\\nginx-1.28.2\\conf\\htpasswd';
     if (typeof cfg.sessionSecret !== 'string' || cfg.sessionSecret.length < 16) {
         cfg.sessionSecret = crypto.randomBytes(32).toString('hex');
@@ -348,7 +350,7 @@ process.on('unhandledRejection', (e) => { console.error('unhandledRejection:', e
 function addRecentPath(raw) {
     const p = (raw || '').trim();
     if (!p) return;
-    config.recentPaths = [p, ...config.recentPaths.filter(x => x !== p)].slice(0, 10);
+    config.recentPaths = [p, ...config.recentPaths.filter(x => x !== p)].slice(0, config.recentPathsLimit);
     saveConfig(config);
     broadcast({ type: 'recent_paths', data: config.recentPaths, added: p });
 }
@@ -526,6 +528,7 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'max_frontend_logs', data: config.maxFrontendLogs }));
     ws.send(JSON.stringify({ type: 'session_duration_hours', data: config.sessionDurationHours }));
     ws.send(JSON.stringify({ type: 'recent_paths', data: config.recentPaths }));
+    ws.send(JSON.stringify({ type: 'recent_paths_limit', data: config.recentPathsLimit }));
     ws.on('message', (msg) => {
         const p = JSON.parse(msg.toString());
         const { type, id, data } = p;
@@ -682,6 +685,18 @@ wss.on('connection', (ws) => {
             if (!Number.isFinite(v) || v <= 0) return;
             config.sessionDurationHours = v;
             broadcast({ type: 'session_duration_hours', data: config.sessionDurationHours });
+            saveConfig(config);
+        }
+
+        else if (type === 'recent_paths_limit') {
+            const v = parseInt(data);
+            if (!Number.isInteger(v) || v < 1 || v > 100) return;
+            config.recentPathsLimit = v;
+            if (config.recentPaths.length > v) {
+                config.recentPaths = config.recentPaths.slice(0, v);
+                broadcast({ type: 'recent_paths', data: config.recentPaths });
+            }
+            broadcast({ type: 'recent_paths_limit', data: config.recentPathsLimit });
             saveConfig(config);
         }
 
