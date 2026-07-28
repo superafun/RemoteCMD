@@ -43,7 +43,7 @@ server.js
 |--------|------|-------|---------------|
 | 后端 | `server.js` | 100 | Express 静态服务器 + WebSocket 处理器 + node-pty 会话生命周期 + PM2 重启 |
 | 前端 | `public/index.html` | 320 | 单页应用：xterm.js v6 终端、会话切换器、快捷键编辑器、滚动控制、自动重连、重启服务器 |
-| 配置 | `config.json` | ~21 | 持久化配置：`rows`、`cols`、`hotkeys`（名称→转义序列）、`scrollIntervalTerminal`、`scrollIntervalPage`、`screenHistoryLines`（重连滚屏历史行数，默认 1000）、「recentPathsLimit`（最近路径保存条数，默认 10，范围 1–100）、`maxFrontendLogs` |
+| 配置 | `config.json` | ~21 | 持久化配置：`rows`、`cols`、`hotkeys`（名称→转义序列）、`scrollIntervalTerminal`、`scrollIntervalPage`、`screenHistoryLines`（重连滚屏历史行数，默认 1000）、`recentPathsLimit`（最近路径保存条数，默认 10，范围 1–100）、`maxFrontendLogs` |
 
 ### WebSocket 协议（JSON，type 字段）
 
