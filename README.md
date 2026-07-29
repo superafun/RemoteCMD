@@ -39,8 +39,8 @@
 ## 📸 截图
 
 <p align="center">
-  <img src="docs/screenshots/windows.png" width="49%" alt="Windows 桌面浏览器" />
-  <img src="docs/screenshots/android.jpg" width="49%" alt="Android 手机" />
+  <img src="screenshots/windows.png" width="49%" alt="Windows 桌面浏览器" />
+  <img src="screenshots/android.jpg" width="49%" alt="Android 手机" />
 </p>
 
 <p align="center">同一套界面，桌面与手机一致的远程终端体验。</p>

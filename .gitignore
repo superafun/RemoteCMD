@@ -38,6 +38,12 @@ yarn-error.log*
 # === Subagent-Driven Development scratch ===
 .superpowers/
 
+# === 规划/设计中间产物（superpowers 生成的 spec/plan，非项目源码）===
+docs/
+
+# === 测试脚本（非发布产物）===
+tests/
+
 # === 临时测试脚本（WebSocket 等一次性验证用，非项目源码）===
 _wstest.js
 
