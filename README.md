@@ -32,7 +32,11 @@ RemoteCMD 不是那种「把 SSH 套个 Web 壳就完事」的项目。每一处
 
 绝大多数 Web 终端是 `Web → SSH网关 → 目标机器`。RemoteCMD 没走这条路——它直接在服务器上通过 `node-pty` 派生真实的 PowerShell 进程，通过 WebSocket 把 stdin/stdout 双向透传给浏览器。
 
-为什么？Windows 上跑 SSH 服务端很别扭，而且多一层网关就多一层延迟。直连 PowerShell 进程 = 零中间跳跃，每条命令的响应时间就是你敲下回车到看到输出的真实时间。
+核心理由只有一条：**让终端变成一个纯粹的网页应用，从而在任何设备上无缝运行。**
+
+如果依赖 SSH 网关，客户端就必须装 SSH 客户端（或浏览器端 JS 实现的 SSH，慢且功能残缺）。这会把手机、平板、Chromebook——以及一切没有原生 SSH 客户端的设备——排除在外。而一个浏览器谁都有，不管你在 Windows、macOS、iOS、Android 还是 ChromeOS 上，打开同一个 URL，得到同一个终端。
+
+`node-pty` 是关键：服务端派生真实的 PowerShell 子进程，WebSocket 把字节流双向透传。浏览器只是一个薄薄的渲染层，不关心底层是什么操作系统、什么 shell。没有 SSH 握手开销、没有网关瓶颈，每条命令的响应时间就是你按下回车到看到输出的真实时间。
 
 ### 断线重连：从 tail 追逐到画面冻结
 
@@ -187,7 +191,7 @@ just open a browser and get a full PowerShell session, with deep mobile optimiza
 
 RemoteCMD isn't yet another "SSH in a web wrapper." Every feature was born from real-world pain.
 
-**No SSH gateway.** Direct `node-pty` spawning of real PowerShell processes. No middleman, no extra latency. Your commands reach the shell at wire speed.
+**No SSH gateway.** Pure web from the start — `node-pty` spawns real PowerShell processes, WebSocket streams the bytes to the browser. No SSH client required on the client side. This means **any browser-capable device works**: phone, tablet, Chromebook, whatever — they all have a browser, they all open the same URL and get the same terminal.
 
 **Reconnect that actually works.** Early versions used byte-offset diffing. It broke when multiple terminals interleaved output. The fix: a headless xterm running on the server, always in sync with the real display. Reconnect = freeze the frame → serialize as ANSI → push whole frame. No math, no mismatches.
 
