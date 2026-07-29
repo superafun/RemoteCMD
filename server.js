@@ -8,6 +8,7 @@ const pty = require('node-pty');
 const { Terminal: HeadlessTerminal } = require('@xterm/headless');
 const { SerializeAddon } = require('@xterm/addon-serialize');
 const { Unicode11Addon: HeadlessUnicode11Addon } = require('@xterm/addon-unicode11');
+const rateLimit = require('express-rate-limit');
 
 
 const CONFIG_PATH = path.join(__dirname, 'config.json');
@@ -209,14 +210,61 @@ function apr1Md5(password, salt) {
 
 
 const app = express();
-app.set('trust proxy', true);
+// 只信任本机回环（nginx 在同一台机器反代到 127.0.0.1:65433），
+// 既正确取到 nginx 注入的真实客户端 IP，又避免外部伪造 X-Forwarded-For 绕过限流
+app.set('trust proxy', 'loopback');
 app.use(express.json());
 const server = http.createServer(app);
 
+// === 登录暴力破解防护 ===
+// 1) 速率限制：每 IP 15 分钟内最多 10 次登录请求
+const loginRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { ok: false, error: '尝试过于频繁，请稍后再试' }
+});
+// 2) 连续失败锁定（内存态，进程重启即清零；与无状态 cookie 设计一致）
+const loginLock = new Map(); // ip -> { fails, lockedUntil }
+const MAX_FAILS = 5;
+const LOCK_MS = 15 * 60 * 1000;
+function loginLockedUntil(ip) {
+    const e = loginLock.get(ip);
+    if (e && e.lockedUntil && e.lockedUntil > Date.now()) return e.lockedUntil;
+    return 0;
+}
+function onLoginFail(ip) {
+    const e = loginLock.get(ip) || { fails: 0, lockedUntil: 0 };
+    e.fails += 1;
+    if (e.fails >= MAX_FAILS) e.lockedUntil = Date.now() + LOCK_MS;
+    loginLock.set(ip, e);
+}
+function onLoginSuccess(ip) {
+    loginLock.delete(ip);
+}
+// 净化反向代理前缀：仅允许以单个 "/" 开头的纯路径前缀，杜绝 //host 或 scheme:// 形式的开放重定向
+function safePrefix(headerVal) {
+    if (typeof headerVal === 'string') {
+        const v = headerVal.trim();
+        const hasScheme = /^[a-zA-Z][a-zA-Z0-9+.\-]*:/.test(v);
+        if (v.startsWith('/') && !v.startsWith('//') && !hasScheme) {
+            return v;
+        }
+    }
+    return '';
+}
+
 // === 登录相关路由（不经鉴权网关） ===
-app.post('/api/login', (req, res) => {
+app.post('/api/login', loginRateLimiter, (req, res) => {
+    const ip = req.ip;
+    const lockedUntil = loginLockedUntil(ip);
+    if (lockedUntil) {
+        return res.status(429).json({ ok: false, error: '账号已临时锁定，请稍后再试' });
+    }
     const { username, password } = req.body || {};
     if (verifyCredentials(username, password)) {
+        onLoginSuccess(ip);
         const maxAgeMs = config.sessionDurationHours * 3600000;
         const cookieOpts = {
             httpOnly: true,
@@ -226,9 +274,10 @@ app.post('/api/login', (req, res) => {
             path: '/'
         };
         res.cookie(SESSION_COOKIE, signToken(Date.now() + maxAgeMs), cookieOpts);
-        const prefix = req.headers['x-forwarded-prefix'] || '';
+        const prefix = safePrefix(req.headers['x-forwarded-prefix']);
         res.redirect(prefix + '/');
     } else {
+        onLoginFail(ip);
         res.status(401).json({ ok: false, error: '用户名或密码错误' });
     }
 });
@@ -248,7 +297,7 @@ app.use((req, res, next) => {
     if (isAuthed(req)) return next();
     const accept = req.headers.accept || '';
     if (accept.includes('text/html')) {
-        const prefix = req.headers['x-forwarded-prefix'] || '';
+        const prefix = safePrefix(req.headers['x-forwarded-prefix']);
         return res.redirect(prefix + '/login');
     }
     return res.status(401).end();
@@ -257,7 +306,7 @@ app.use((req, res, next) => {
 // === 登录页 ===
 app.get('/login', (req, res) => {
     if (isAuthed(req)) {
-        const prefix = req.headers['x-forwarded-prefix'] || '';
+        const prefix = safePrefix(req.headers['x-forwarded-prefix']);
         return res.redirect(prefix + '/');
     }
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
@@ -721,6 +770,6 @@ wss.on('connection', (ws) => {
     });
 });
 
-server.listen(65433, () => {
-    console.log('服务器已启动: http://localhost:65433');
+server.listen(65433, '127.0.0.1', () => {
+    console.log('服务器已启动: http://127.0.0.1:65433 (仅本机，由 nginx 反代)');
 });
