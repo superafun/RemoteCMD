@@ -17,7 +17,8 @@ npm start
 
 - **无测试框架**、**无 linter**、**无 formatter** 配置。
 - `package.json` 中的 `test` 脚本是占位符（`echo "Error: no test specified" && exit 1`）。
-- **不是 git 仓库** —— 无版本控制。
+- **已发布为公开 GitHub 仓库**：`https://github.com/superafun/RemoteCMD`（main 分支，MIT 协议，中英双语 README）。
+- `config.json`（含 `sessionSecret` / 飞书凭证）在 `.gitignore` 中，**绝不提交**；对外只用 `config.example.json` 模板。
 - `@xterm/addon-fit` 在 `package.json` 中但**前端并未实际使用**（未使用的依赖）。
 
 ## 架构
