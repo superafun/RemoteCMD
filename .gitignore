@@ -40,3 +40,6 @@ yarn-error.log*
 
 # === 临时测试脚本（WebSocket 等一次性验证用，非项目源码）===
 _wstest.js
+
+# === subagent 临时报告（非项目源码，不纳入版本控制）===
+docs/superpowers/task*-report.md
