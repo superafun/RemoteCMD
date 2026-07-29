@@ -13,29 +13,6 @@
 
 ---
 
-## ✨ 功能亮点
-
-| 🌐 零安装 | 📱 移动端优化 | 🔌 多会话 | ⌨️ 自定义快捷键 |
-|----------|--------------|----------|----------------|
-| 打开浏览器即用，无需客户端 | 软键盘快捷键栏 + e.code 匹配 + 底部固定 | 同时管理多个会话，一键切换 | 为常用命令绑定快捷键 |
-| 🔄 断线重连 | 🔐 登录鉴权 | 📐 双尺寸槽 | 🛠️ 一键部署 |
-| 整屏 ANSI 序列化同步 | 签名 cookie + htpasswd 验证 | 大/小尺寸快速切换 | PM2 守护 + nginx 反代 |
-
-- **🌐 纯网页零安装**：任何支持浏览器的设备都能用，不依赖 SSH/VPN。
-- **📱 移动端深度优化**：软键盘上方自定义快捷键栏（Esc / Tab / 方向键 / Ctrl+C / 刷新Path 等），
-  通过 `e.code` 精确匹配按键，输入框底部固定，手机上也能流畅操作 agent CLI 与 TUI 程序
-  （如 vim、htop、交互式安装器等）。
-- **🔌 多会话切换**：同时维护多个 PowerShell 会话，工具栏一键切换，互不干扰。
-- **⌨️ 自定义快捷键**：在设置中为常用命令或转义序列绑定名称，移动端一键发送。
-- **🔄 断线自动重连**：重连时服务端以整屏 ANSI 序列化推回（含可见视口 + 有界滚动历史），
-  不再有 tail 比对导致的画面缺失。
-- **🔐 登录鉴权**：无状态签名 cookie（`rc_session`）+ 复用 nginx htpasswd 密码文件，
-  可设"保持登录时长"，多端同步。
-- **📐 大/小双尺寸槽**：预设两组终端尺寸，适配桌面大屏与手机窄屏，一键切换。
-- **🛠️ PM2 守护 + nginx 部署**：`npm start` 即由 PM2 守护进程，`nginx` 反代并终结 TLS。
-
----
-
 ## 📸 截图
 
 <p align="center">
@@ -44,6 +21,63 @@
 </p>
 
 <p align="center">同一套界面，桌面与手机一致的远程终端体验。</p>
+
+---
+
+## 🎯 设计背后的故事
+
+RemoteCMD 不是那种「把 SSH 套个 Web 壳就完事」的项目。每一处设计，背后都有一个真实的痛点。
+
+### 为什么不走 SSH 网关？
+
+绝大多数 Web 终端是 `Web → SSH网关 → 目标机器`。RemoteCMD 没走这条路——它直接在服务器上通过 `node-pty` 派生真实的 PowerShell 进程，通过 WebSocket 把 stdin/stdout 双向透传给浏览器。
+
+为什么？Windows 上跑 SSH 服务端很别扭，而且多一层网关就多一层延迟。直连 PowerShell 进程 = 零中间跳跃，每条命令的响应时间就是你敲下回车到看到输出的真实时间。
+
+### 断线重连：从 tail 追逐到画面冻结
+
+早期版本的重连策略是「客户端缓存尾字节、服务端发差额」，类似 `tail -c+N`。这套方案在多终端写并发时出了问题：终端 A 输出一段、终端 B 输出一段、重连时只看某个字节偏移，拿到的数据可能跨越两条终端的内容，画面拼接后是乱的。
+
+解决方式很彻底：**在服务端跑一个无头 xterm 实例**。服务端的 headless xterm 一直在后台渲染所有终端输出，维护着和客户端完全相同的画面状态。重连时，服务端把整屏画面序列化为 ANSI 转义序列，一次性推回——`term.reset()` + `term.write(ansi)`。不再斤斤计较字节差分，直接画面冻结、整帧传输。
+
+### 手机是第一等公民，不是凑合能用
+
+很多 Web 终端在手机上能用，但体验属于「能忍受」。RemoteCMD 的移动端优化是逐像素打磨的。
+
+最大的坑是 Android Chrome 的键盘事件。物理键盘快捷键按下时，`e.key` 返回 `Unidentified`——如果你用 `e.key === 'c'` 去匹配 Ctrl+C，一定失效。修复是改用 `e.code`（不受键盘布局影响），配合 `ctrlKey`/`metaKey` 修饰键检测。
+
+然后在软键盘上方，我们放了一排自定义快捷键按钮：Esc、Tab、方向键、Ctrl+C、刷新环境变量路径。为什么是这些？因为手机上没有真的键盘，每次切数字符号键盘去打 `Tab` 或 `↑` 都令人崩溃。一个专为手机设计的快捷键栏，让常用按键触手可及。
+
+输入框固定在屏幕底部、软键盘上方——用 `interactive-widget: resizes-content` 让浏览器原生支持，而不是靠 JS 算 `visualViewport` 高度。滚屏则是触摸滑动手势（Swipe to Scroll），因为手机没有滚轮。
+
+### 为什么是两个尺寸槽，而不是自动缩放？
+
+自动缩放终端听起来美好，实际上很尴尬：你在一台 27 寸显示器上设了 80×40 的终端，换到手机时自动缩成 40×20——不是所有 TUI 程序都懂响应式布局。
+
+所以我们做了两套固定尺寸槽：一套「大」给桌面（例如 50×182，充分利用宽屏），一套「小」给手机（例如 40×110，适配窄屏）。一键切换，服务端实时调整 PTY 尺寸。就这么简单，但也足够高效。
+
+### 无状态登录：一枚 cookie 搞定一切
+
+不依赖服务端 Session 存储（没有 Redis、没有内存表），登录态全靠签名 cookie `rc_session = 时间戳.HMAC-SHA256(secret, 时间戳)`。无状态 = 无内存泄露风险、无 Session 过期竞态、可水平扩展。`HttpOnly` + `SameSite=Lax` + HTTPS 下自动加 `Secure`，标准的 Web 安全三件套。
+
+密码文件直接复用 nginx 的 htpasswd——不引入第二套密码体系。支持 `{SHA}` / `{PLAIN}` / `$apr1$` 格式。`sessionSecret` 由服务端首次启动时自动生成，**无需手动配置**。
+
+### 快捷键：不是绑键盘事件，是发转义序列
+
+浏览器键盘事件跨平台差异极大。我们没去踩这个坑——快捷键被命名为「Tab」「Ctrl+C」「↑」，映射为对应的转义字符（`\t`、`\x03`、`\x1b[A`），通过 WebSocket 逐字符发送到终端。
+
+这意味着：
+- 快捷键**不依赖任何键盘事件**——手机端也可以配置和使用
+- 一个「发送命令」按钮可以绑定任意长度的命令字符串
+- 移动端的快捷键栏按钮和桌面端实体键盘共享同一套映射
+
+### 输入条的「回车停顿」是什么鬼？
+
+当你一次性粘贴多行代码发送到终端时，每行末尾带一个 `\r`。如果这堆 `\r` 像暴雨一样砸向 PTY，子进程可能来不及消化就丢失部分输入。`enterDelayMs`（默认 300ms）在每次发送 `\r` 后微停一下，让 PTY 喘口气。这个值你可以从 50ms 调到 3000ms——越快越爽，越慢越稳。
+
+### 跟踪最近路径：你到过哪里
+
+终端里最频繁的操作就是 `cd`。我们自动捕获 `cd` / `chdir` 操作，把去过的地方记录下来。路径长到溢出时，采用**右对齐截断**——保留最右侧的区分段落，因为"项目名/分支名"在末尾，比前面的盘符和用户目录更重要。
 
 ---
 
@@ -149,16 +183,25 @@ server {
 RemoteCMD is a web-based remote PowerShell terminal. No client to install, no SSH/VPN —
 just open a browser and get a full PowerShell session, with deep mobile optimizations.
 
-### Features
-- **🌐 Zero-install, web-only** — any browser-capable device works; no SSH/VPN.
-- **📱 Mobile-optimized** — on-screen shortcut bar (Esc / Tab / arrows / Ctrl+C / refresh Path),
-  `e.code`-based key matching, bottom-pinned input; smooth agent CLI & TUI on phones.
-- **🔌 Multi-session** — manage several PowerShell sessions, switch with one tap.
-- **⌨️ Custom hotkeys** — bind names to commands/escape sequences, send them in one tap.
-- **🔄 Auto-reconnect** — full-screen ANSI serialization sync on reconnect (viewport + bounded scrollback).
-- **🔐 Auth** — stateless signed cookie (`rc_session`) reusing your nginx htpasswd, with configurable session duration.
-- **📐 Size slots** — preset large/small terminal sizes, one-click switch.
-- **🛠️ Deploy** — `npm start` runs under PM2; nginx reverse-proxy + TLS reference included.
+### Design Philosophy
+
+RemoteCMD isn't yet another "SSH in a web wrapper." Every feature was born from real-world pain.
+
+**No SSH gateway.** Direct `node-pty` spawning of real PowerShell processes. No middleman, no extra latency. Your commands reach the shell at wire speed.
+
+**Reconnect that actually works.** Early versions used byte-offset diffing. It broke when multiple terminals interleaved output. The fix: a headless xterm running on the server, always in sync with the real display. Reconnect = freeze the frame → serialize as ANSI → push whole frame. No math, no mismatches.
+
+**Mobile is a first-class citizen.** Android Chrome's `e.key` returns `Unidentified` for physical keyboard shortcuts, so we match by `e.code`. Soft keyboard gets a custom shortcut bar. Scroll by swipe, not by wheel. Input bar pinned above the keyboard via `interactive-widget: resizes-content` — zero JS overhead.
+
+**Two size slots, not auto-resize.** Terminal programs don't do responsive design. A 27" monitor wants different dimensions than a 6" phone. Two presets (large / small), one tap to switch. The terminal stays crisp at every size.
+
+**Stateless auth.** HMAC-signed cookies, no server-side sessions. No Redis, no memory leaks, no expiry races. Reuses your existing nginx htpasswd — one password file to rule them all.
+
+**Hotkeys = escape sequences, not key events.** Browser keyboard handling is inconsistent. RemoteCMD maps named shortcuts to literal escape sequences and sends them character-by-character over WebSocket. Works identically on every browser — and on mobile, where there's no physical keyboard at all.
+
+**Enter delay protects pastes.** Pasting many lines at once floods the PTY with `\r` characters. A configurable `enterDelayMs` inserts a tiny pause between lines — just enough to keep the terminal from choking, fast enough to feel instant.
+
+**Recent paths track your breadcrumbs.** `cd` is the most frequent terminal command. RemoteCMD auto-captures it, builds a history, and right-aligns long paths so you see the important part: the project and branch at the end.
 
 ### Quick Start
 ```bash
