@@ -26,62 +26,59 @@
 
 ## 🎯 设计背后的故事
 
-RemoteCMD 不是那种「把 SSH 套个 Web 壳就完事」的项目。每一处设计，背后都有一个真实的痛点。
+RemoteCMD 不是那种「把 SSH 套个 Web 壳」就完事的项目。这堆设计都是从真实使用里熬出来的。
 
-### 为什么不走 SSH 网关？
+### 为什么不走 SSH 网关
 
-绝大多数 Web 终端是 `Web → SSH网关 → 目标机器`。RemoteCMD 没走这条路——它直接在服务器上通过 `node-pty` 派生真实的 PowerShell 进程，通过 WebSocket 把 stdin/stdout 双向透传给浏览器。
+最常见做法是 `Web → SSH网关 → 目标机器`。RemoteCMD 没这么干——`node-pty` 直接在服务器上派生 PowerShell 进程，WebSocket 纯字节流双向透传。
 
-核心理由只有一条：**让终端变成一个纯粹的网页应用，从而在任何设备上无缝运行。**
+核心理由就一条：**让终端变成一个纯粹的网页，在任何设备上无缝跑。**
 
-如果依赖 SSH 网关，客户端就必须装 SSH 客户端（或浏览器端 JS 实现的 SSH，慢且功能残缺）。这会把手机、平板、Chromebook——以及一切没有原生 SSH 客户端的设备——排除在外。而一个浏览器谁都有，不管你在 Windows、macOS、iOS、Android 还是 ChromeOS 上，打开同一个 URL，得到同一个终端。
+网页不需要装客户端。不依赖 SSH。不依赖 VPN。手机、平板、Chromebook、公司电脑、别人的电脑——有浏览器就能用，打开同一个 URL 看到同一个终端。速度上也有好处：没有 SSH 握手开销，每条命令的响应时间就是你敲回车到看到输出的真实时间。
 
-`node-pty` 是关键：服务端派生真实的 PowerShell 子进程，WebSocket 把字节流双向透传。浏览器只是一个薄薄的渲染层，不关心底层是什么操作系统、什么 shell。没有 SSH 握手开销、没有网关瓶颈，每条命令的响应时间就是你按下回车到看到输出的真实时间。
+### 断线重连那段弯路
 
-### 断线重连：从 tail 追逐到画面冻结
+最早的重连方案是「客户端记尾字节偏移 + 服务端补差额」，类似 `tail -c+N`。听着合理对吧？实际一跑就炸——多终端写并发时，A 终端的输出和 B 终端的输出在字节流里是交错的，重连只看偏移量抓到的数据可能横跨两条终端，拼出来画面是花的。
 
-早期版本的重连策略是「客户端缓存尾字节、服务端发差额」，类似 `tail -c+N`。这套方案在多终端写并发时出了问题：终端 A 输出一段、终端 B 输出一段、重连时只看某个字节偏移，拿到的数据可能跨越两条终端的内容，画面拼接后是乱的。
+最后被一个简单的办法解决：**在服务端跑一个无头 xterm**。headless xterm 一直在后台渲染所有输出，维护和客户端完全一致的画面。重连时直接把整屏序列化成 ANSI 转义序列，一次性推回来——`term.reset()` + `term.write(ansi)`，零数学计算，零拼图错误。
 
-解决方式很彻底：**在服务端跑一个无头 xterm 实例**。服务端的 headless xterm 一直在后台渲染所有终端输出，维护着和客户端完全相同的画面状态。重连时，服务端把整屏画面序列化为 ANSI 转义序列，一次性推回——`term.reset()` + `term.write(ansi)`。不再斤斤计较字节差分，直接画面冻结、整帧传输。
+### 移动端的坑，一个一个摸过来的
 
-### 手机是第一等公民，不是凑合能用
+好多 Web 终端在手机上"能用"但体验是「忍一下吧」。RemoteCMD 的移动端优化是踩坑踩出来的。
 
-很多 Web 终端在手机上能用，但体验属于「能忍受」。RemoteCMD 的移动端优化是逐像素打磨的。
+第一个坑：Android Chrome 接物理键盘时，`e.key` 返回 `Unidentified`。如果你用 `e.key === 'c'` 去匹配 Ctrl+C，绝对翻车。解决方案是改用 `e.code`，它不受键盘布局和输入法影响。
 
-最大的坑是 Android Chrome 的键盘事件。物理键盘快捷键按下时，`e.key` 返回 `Unidentified`——如果你用 `e.key === 'c'` 去匹配 Ctrl+C，一定失效。修复是改用 `e.code`（不受键盘布局影响），配合 `ctrlKey`/`metaKey` 修饰键检测。
+第二个坑：手机没有真正的键盘，打个 `Tab` 或 `↑` 要切到符号键盘，来回倒腾你想砸手机。所以在软键盘上方加了一排自定义快捷键按钮——Esc、Tab、方向键、Ctrl+C、刷新环境变量。直接点、直接发，不用再切键盘了。
 
-然后在软键盘上方，我们放了一排自定义快捷键按钮：Esc、Tab、方向键、Ctrl+C、刷新环境变量路径。为什么是这些？因为手机上没有真的键盘，每次切数字符号键盘去打 `Tab` 或 `↑` 都令人崩溃。一个专为手机设计的快捷键栏，让常用按键触手可及。
+第三个坑：输入条不能跟着键盘弹起。试过用 JS 算 `visualViewport` 高度来定位，不稳定。最后靠 `interactive-widget: resizes-content` 让浏览器原生搞定，干净利落。
 
-输入框固定在屏幕底部、软键盘上方——用 `interactive-widget: resizes-content` 让浏览器原生支持，而不是靠 JS 算 `visualViewport` 高度。滚屏则是触摸滑动手势（Swipe to Scroll），因为手机没有滚轮。
+第四个坑：手机上没滚轮怎么回看终端输出？加了触摸滑动手势，两根手指上下划就能滚动。
 
-### 为什么是两个尺寸槽，而不是自动缩放？
+### 为什么两套尺寸槽，不自动缩放
 
-自动缩放终端听起来美好，实际上很尴尬：你在一台 27 寸显示器上设了 80×40 的终端，换到手机时自动缩成 40×20——不是所有 TUI 程序都懂响应式布局。
+自动缩放听起来很美——换设备自动适配尺寸。但问题是 TUI 程序不懂什么叫响应式。你在 27 寸显示器上开 80×40 的终端，切到手机时它自动缩成 40×20，里面的表格、菜单全崩了。
 
-所以我们做了两套固定尺寸槽：一套「大」给桌面（例如 50×182，充分利用宽屏），一套「小」给手机（例如 40×110，适配窄屏）。一键切换，服务端实时调整 PTY 尺寸。就这么简单，但也足够高效。
+解决方案朴素但管用：两套固定尺寸。一套「大」给桌面（充分利用宽屏），一套「小」给手机（适配窄屏）。一键切换，服务端实时调整 PTY 尺寸。不讲 VC 故事，管用就行。
 
-### 无状态登录：一枚 cookie 搞定一切
+### 登录：一枚 cookie，不存 session
 
-不依赖服务端 Session 存储（没有 Redis、没有内存表），登录态全靠签名 cookie `rc_session = 时间戳.HMAC-SHA256(secret, 时间戳)`。无状态 = 无内存泄露风险、无 Session 过期竞态、可水平扩展。`HttpOnly` + `SameSite=Lax` + HTTPS 下自动加 `Secure`，标准的 Web 安全三件套。
+没上 Redis，没搞 Session 表。登录态就一枚签名 cookie `rc_session = 时间戳.HMAC-SHA256(secret, 时间戳)`。无状态意味着无内存泄露、无过期竞态、可水平扩展——虽然单机部署也用不上水平扩展，但少维护一个 Session 存储总是好的。
 
-密码文件直接复用 nginx 的 htpasswd——不引入第二套密码体系。支持 `{SHA}` / `{PLAIN}` / `$apr1$` 格式。`sessionSecret` 由服务端首次启动时自动生成，**无需手动配置**。
+密码文件直接复用 nginx 的 htpasswd，不搞第二套认证体系。`sessionSecret` 首次启动自动生成，不用操这个心。
 
-### 快捷键：不是绑键盘事件，是发转义序列
+### 快捷键的本质是发字符串
 
-浏览器键盘事件跨平台差异极大。我们没去踩这个坑——快捷键被命名为「Tab」「Ctrl+C」「↑」，映射为对应的转义字符（`\t`、`\x03`、`\x1b[A`），通过 WebSocket 逐字符发送到终端。
+浏览器键盘事件跨平台差异太大，去适配每个浏览器的 key mapping 就是个无底洞。
 
-这意味着：
-- 快捷键**不依赖任何键盘事件**——手机端也可以配置和使用
-- 一个「发送命令」按钮可以绑定任意长度的命令字符串
-- 移动端的快捷键栏按钮和桌面端实体键盘共享同一套映射
+所以 RemoteCMD 的快捷键不走键盘事件——你定义 "Tab" → `\t`、"Ctrl+C" → `\x03`、"↑" → `\x1b[A`，然后逐字符往 WebSocket 里塞。不依赖浏览器能正确识别哪个键被按了。手机端的快捷键栏按钮和桌面端实体键盘共享同一套映射，行为完全一致。
 
-### 输入条的「回车停顿」是什么鬼？
+### 回车停顿是什么鬼
 
-当你一次性粘贴多行代码发送到终端时，每行末尾带一个 `\r`。如果这堆 `\r` 像暴雨一样砸向 PTY，子进程可能来不及消化就丢失部分输入。`enterDelayMs`（默认 300ms）在每次发送 `\r` 后微停一下，让 PTY 喘口气。这个值你可以从 50ms 调到 3000ms——越快越爽，越慢越稳。
+粘贴多行代码时，每行末尾带一个 `\r`。如果上百个 `\r` 同时砸向 PTY，子进程来不及消化就会丢输入。`enterDelayMs` 在每次发 `\r` 后停一小下（默认 300ms），让 PTY 缓口气。你可以从 50ms 调到 3000ms——越快越爽，越慢越稳。
 
-### 跟踪最近路径：你到过哪里
+### 最近路径
 
-终端里最频繁的操作就是 `cd`。我们自动捕获 `cd` / `chdir` 操作，把去过的地方记录下来。路径长到溢出时，采用**右对齐截断**——保留最右侧的区分段落，因为"项目名/分支名"在末尾，比前面的盘符和用户目录更重要。
+终端里最频繁的操作就是 `cd`。RemoteCMD 自动捕获 `cd` / `chdir`，把去过的地方记下来。路径太长时**右对齐截断**——保留尾巴上的区分段落，因为"项目名/分支名"在末尾，前面的盘符和用户目录反而不那么重要。
 
 ---
 
@@ -189,23 +186,23 @@ just open a browser and get a full PowerShell session, with deep mobile optimiza
 
 ### Design Philosophy
 
-RemoteCMD isn't yet another "SSH in a web wrapper." Every feature was born from real-world pain.
+RemoteCMD isn't yet another "SSH in a web wrapper." The design came from real usage, not from a whiteboard.
 
-**No SSH gateway.** Pure web from the start — `node-pty` spawns real PowerShell processes, WebSocket streams the bytes to the browser. No SSH client required on the client side. This means **any browser-capable device works**: phone, tablet, Chromebook, whatever — they all have a browser, they all open the same URL and get the same terminal.
+**No SSH gateway** — deliberate. `node-pty` spawns real PowerShell processes on the server, WebSocket streams bytes to the browser. No SSH client needed on the client side. Why? Because **a browser runs on anything**: phone, tablet, Chromebook, whatever. Same URL, same terminal.
 
-**Reconnect that actually works.** Early versions used byte-offset diffing. It broke when multiple terminals interleaved output. The fix: a headless xterm running on the server, always in sync with the real display. Reconnect = freeze the frame → serialize as ANSI → push whole frame. No math, no mismatches.
+**Reconnect was a hard lesson.** First attempt: byte-offset diffing. Worked until two terminals interleaved their output — then reconnects produced garbage. The fix that stuck: a headless xterm on the server that renders everything in sync with the real display. Reconnect = freeze frame → serialize to ANSI → push whole frame. Zero math, zero mismatches.
 
-**Mobile is a first-class citizen.** Android Chrome's `e.key` returns `Unidentified` for physical keyboard shortcuts, so we match by `e.code`. Soft keyboard gets a custom shortcut bar. Scroll by swipe, not by wheel. Input bar pinned above the keyboard via `interactive-widget: resizes-content` — zero JS overhead.
+**Mobile is full of traps.** Android Chrome returns `Unidentified` for `e.key` on physical keyboard shortcuts — `e.code` saves the day. No real keyboard on a phone? Put a shortcut bar (Esc, Tab, arrows, Ctrl+C, refresh Path) above the soft keyboard. Input bar pinned to the bottom via `interactive-widget: resizes-content` (native CSS, zero JS). Swipe to scroll because phones don't have wheels.
 
-**Two size slots, not auto-resize.** Terminal programs don't do responsive design. A 27" monitor wants different dimensions than a 6" phone. Two presets (large / small), one tap to switch. The terminal stays crisp at every size.
+**Two size slots, not auto-resize.** TUI programs don't do responsive. A 27" monitor and a 6" phone want different terminal dimensions. Two presets, one tap, crisp at every size.
 
-**Stateless auth.** HMAC-signed cookies, no server-side sessions. No Redis, no memory leaks, no expiry races. Reuses your existing nginx htpasswd — one password file to rule them all.
+**Stateless auth = no session store.** One signed cookie (`rc_session = timestamp.HMAC-SHA256(secret, timestamp)`). No Redis, no memory table, no expiry races. Password file reuses nginx's htpasswd — one source of truth.
 
-**Hotkeys = escape sequences, not key events.** Browser keyboard handling is inconsistent. RemoteCMD maps named shortcuts to literal escape sequences and sends them character-by-character over WebSocket. Works identically on every browser — and on mobile, where there's no physical keyboard at all.
+**Hotkeys are escape sequences, not key events.** Browser key handling is a mess. RemoteCMD maps named shortcuts to literal escape sequences (`Tab → \t`, `Ctrl+C → \x03`) and sends them char-by-char over WebSocket. Works identically on every browser. Works on mobile where there's no keyboard at all.
 
-**Enter delay protects pastes.** Pasting many lines at once floods the PTY with `\r` characters. A configurable `enterDelayMs` inserts a tiny pause between lines — just enough to keep the terminal from choking, fast enough to feel instant.
+**Enter delay is a throttle.** Paste 100 lines and 100 `\r` chars hit the PTY in a burst. `enterDelayMs` (default 300ms) inserts a pause between lines — just enough to keep the terminal from choking.
 
-**Recent paths track your breadcrumbs.** `cd` is the most frequent terminal command. RemoteCMD auto-captures it, builds a history, and right-aligns long paths so you see the important part: the project and branch at the end.
+**Recent paths track your breadcrumbs.** `cd` is the most typed command. RemoteCMD captures it automatically and right-aligns long paths — the project folder name at the end is what you actually care about.
 
 ### Quick Start
 ```bash
