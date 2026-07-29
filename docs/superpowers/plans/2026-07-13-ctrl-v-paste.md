@@ -167,7 +167,7 @@ Commit 后**必须**告知用户：AGENTS.md 已新增第 38 条 Ctrl+V 粘贴�
 - [ ] **Step 1: 确认后端在跑**
 
 ```powershell
-Get-NetTCPConnection -LocalPort 65433
+Get-NetTCPConnection -LocalPort <端口>
 ```
 
 期望：有监听记录（若未在跑，按项目纪律用 `npm start` 而非 taskkill 重启）。

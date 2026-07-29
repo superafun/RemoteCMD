@@ -88,7 +88,7 @@ cd "c:/Users/fmy3/OneDrive/project/pythonProjectRemoteCMD" && npm run restart
 ```bash
 node -e "
 const WebSocket = require('ws');
-const ws = new WebSocket('ws://localhost:65433/cmd/');
+const ws = new WebSocket('ws://localhost:<端口>/cmd/');
 const seen = [];
 ws.on('message', m => { const p = JSON.parse(m); if (['swipe_threshold','swipe_classify','show_scroll_buttons'].includes(p.type)) seen.push(p.type+'='+JSON.stringify(p.data)); });
 setTimeout(() => { console.log('RECEIVED:', seen.join('  ')); ws.close(); }, 1500);

@@ -120,13 +120,13 @@ git commit -m "feat: 发按键/快捷键编辑/可用按键弹窗支持点空白
 - 无改动，仅验证。
 
 **Interfaces:**
-- 浏览器连接 `http://localhost:65433`（若后端已在跑，直接刷新即可；若未跑先 `npm start`）。
+- 浏览器连接 `http://localhost:<端口>`（若后端已在跑，直接刷新即可；若未跑先 `npm start`）。
 - 可用 Playwright（项目已配 `playwright-cli` 技能）或手动在浏览器逐项验证。
 
 - [ ] **Step1: 启动/确认后端并打开页面**
 
 ```powershell
-Get-NetTCPConnection -LocalPort 65433
+Get-NetTCPConnection -LocalPort <端口>
 ```
 确认端口有监听（未跑则 `npm start`）。浏览器打开页面并刷新加载新静态文件。
 

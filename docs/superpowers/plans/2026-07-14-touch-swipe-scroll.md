@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- **纯前端**：只改 `public/index.html` 与 `public/styles.css`，**不**动 `server.js` / WebSocket 协议 / `config.json`。刷新网页即生效，无需重启服务器（改前端前先 `Get-NetTCPConnection -LocalPort 65433` 确认后端在跑，连现成服务测即可）。
+- **纯前端**：只改 `public/index.html` 与 `public/styles.css`，**不**动 `server.js` / WebSocket 协议 / `config.json`。刷新网页即生效，无需重启服务器（改前端前先 `Get-NetTCPConnection -LocalPort <端口>` 确认后端在跑，连现成服务测即可）。
 - **每次代码改动必须立即 `git commit`**，禁止 `git add -A`；一个独立变更一个 commit。
 - **无测试框架**：本仓库无测试/linter（AGENTS.md 已注明）。触摸手势只能安卓真机验证；桌面用浏览器 DevTools 控制台手动验证函数行为。
 - **`wsSend` 唯一出口**：所有 `ws.send()` 必须走 `wsSend`（本改动不新增 WebSocket 发送，仅复用 `sendSgrWheel` 内的 `wsSend`，无需改动）。
@@ -46,7 +46,7 @@
 
 - [ ] **Step 2: 桌面浏览器手动验证（DevTools 控制台）**
 
-说明：本步只验证 `smartScroll` 逻辑正确，尚未接手势。打开网页（连现成 65433 服务），F12 控制台：
+说明：本步只验证 `smartScroll` 逻辑正确，尚未接手势。打开网页（连现成 <端口> 服务），F12 控制台：
 1. 普通 PowerShell 提示符下先输出大量内容（如 `Get-ChildItem C:\ -Recurse | Select-Object -First 500`），在控制台执行 `smartScroll(-1)` 几次 → 视口历史应向上滚动；`smartScroll(1)` → 向下。
 2. 打开 TUI（如 `vim`、`less` 某个长文件、`htop`），在控制台执行 `smartScroll(-1)`/`smartScroll(1)` → TUI 内容应跟随滚动（vim 翻页 / less 上下）。
 3. 预期：两类场景都正确响应，无 JS 报错。
@@ -151,7 +151,7 @@ git commit -m "feat: 新增 smartScroll 统一滚动函数（逻辑=真实鼠标
 
 - [ ] **Step 4: 桌面浏览器验证无报错 + 逻辑自检**
 
-1. 刷新网页（连现成 65433），打开 DevTools Console：确认加载时无 JS 报错，`setupTouchScroll` 已绑定（可用 `getEventListeners(document)` 确认有 4 个 touch 监听，capture 阶段）。
+1. 刷新网页（连现成 <端口>），打开 DevTools Console：确认加载时无 JS 报错，`setupTouchScroll` 已绑定（可用 `getEventListeners(document)` 确认有 4 个 touch 监听，capture 阶段）。
 2. 桌面无触摸设备，无法真滑；用控制台验证守卫逻辑：
    - `selectionMode = true` 状态下（点"选区模式"按钮），手势应整体禁用——可在控制台手动 `onTouchScrollStart({touches:[{identifier:1,target:document.querySelector('.xterm'),clientX:0,clientY:0}], preventDefault(){}, stopPropagation(){}})` 后查 `swipeTouchId` 仍为 `null`。
    - `selectionMode = false` 时同样构造 touchstart，再构造一个 `touchmove`（dy 超阈值、纵向占优）应触发 `smartScroll` 调用（可在 `smartScroll` 内临时 `console.log('smartScroll', dir)` 确认）。验证后移除临时 log。
@@ -176,7 +176,7 @@ git commit -m "feat: 终端区上下滑动模拟鼠标滚轮（捕获阶段 touc
 - Produces: 真机反馈（阈值 `SWIPE_THRESHOLD`/`SWIPE_CLASSIFY` 是否需要调整）；若手感 OK，后续再议"4 按钮合并为 2"
 
 - [ ] **Step 1: 真机基础滚动验证**
-  安卓浏览器打开网页（连现成 65433 服务），逐项验证：
+  安卓浏览器打开网页（连现成 <端口> 服务），逐项验证：
   1. **TUI**：打开 `vim`/`less`/`htop` 等开鼠标追踪的程序，在终端区上下滑动 → TUI 内容跟随滚动。
   2. **普通 CLI**：PowerShell 提示符下输出大量内容，上下滑动 → xterm 视口历史跟随滚动。
   3. 预期：两类场景滑动都能滚，方向与手指一致（上滑看更早、下滑看更新）。

@@ -256,7 +256,7 @@ git commit -m "feat: 新增 fireOsNotification 并接入 BELL 分支"
 - Test: `tests/os-notify-smoke.mjs`（新建，Playwright 冒烟，验证开关/函数/权限可被设置，不验证真实 OS 弹窗）
 
 **Interfaces:**
-- Consumes: 运行中的服务器（`npm run start`，默认 `http://localhost:65433`）；`playwright`（`npx playwright` 可用）。
+- Consumes: 运行中的服务器（`npm run start`，默认 `http://localhost:<端口>`）；`playwright`（`npx playwright` 可用）。
 - Produces: 验证报告（控制台输出）。
 
 - [ ] **Step 1: 写 Playwright 冒烟脚本**
@@ -266,7 +266,7 @@ git commit -m "feat: 新增 fireOsNotification 并接入 BELL 分支"
 ```js
 import { chromium } from 'playwright';
 
-const base = 'http://localhost:65433';
+const base = 'http://localhost:<端口>';
 const browser = await chromium.launch();
 // 用 granted 权限的 context，绕过系统授权弹窗，验证前端接线正确
 const ctx = await browser.newContext({ permissions: ['notifications'] });
@@ -312,7 +312,7 @@ Expected: 输出 `SMOKE PASS`（四项全 true、无页面错误）。
 - [ ] **Step 3: 手动真机验证 OS 弹窗**
 
 1. `npm run restart`（或确保服务器已带新代码运行）。
-2. 浏览器开 `http://localhost:65433`，打开设置弹窗，确认「系统通知（OS 弹窗）」已勾选；若浏览器弹出通知权限请求，点允许。
+2. 浏览器开 `http://localhost:<端口>`，打开设置弹窗，确认「系统通知（OS 弹窗）」已勾选；若浏览器弹出通知权限请求，点允许。
 3. 最小化窗口或切到别的标签页。
 4. 在终端运行：`Write-Host \`a` （或 `echo $([char]7)`）。
 5. 预期：操作系统弹出通知「终端通知 / <终端名> 触发提示」；切回页面仍有页内 Toast + 蜂鸣。

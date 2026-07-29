@@ -124,7 +124,7 @@
 
 Run: `node server.js`
 
-浏览器开 `http://localhost:65433`：
+浏览器开 `http://localhost:<端口>`：
 1. 默认显示 `Shell #1`
 2. 点「新建终端」→ 立即跳到 `Shell #2`（创建者行为不变）✓
 3. 再点一次「新建终端」→ 跳到 `Shell #3` ✓
@@ -147,7 +147,7 @@ Run: `node server.js`
 
 Run: `node server.js`（如果未运行）
 
-开两个浏览器窗口（推荐用 Chrome + Edge，或同一浏览器的 2 个无痕窗口以隔离 sessionStorage），均访问 `http://localhost:65433`。
+开两个浏览器窗口（推荐用 Chrome + Edge，或同一浏览器的 2 个无痕窗口以隔离 sessionStorage），均访问 `http://localhost:<端口>`。
 
 Expected: 两个窗口默认各显示 `Shell #1`（因为首次连接时若无会话会自动创建一个；第二个窗口连接时已存在会话，因此不新建，共享 `Shell #1`）。
 

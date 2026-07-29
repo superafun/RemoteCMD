@@ -79,7 +79,7 @@ npm install
 # 创建配置文件（从模板复制）
 cp config.example.json config.json
 
-# 启动服务（PM2 守护，默认 http://localhost:65433）
+# 启动服务（PM2 守护，默认 http://localhost:<端口>）
 npm start
 ```
 
@@ -104,7 +104,7 @@ npm start
 
 ### 2.6 部署参考（Deployment）
 简述 nginx 反代 + TLS 配置要点：
-- `/cmd/` 前缀反代到 localhost:65433
+- `/cmd/` 前缀反代到 localhost:<端口>
 - TLS 由 nginx 处理
 - htpasswd 认证（可选，项目自带登录页）
 

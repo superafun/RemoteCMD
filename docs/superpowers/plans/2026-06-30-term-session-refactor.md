@@ -16,10 +16,10 @@
 **项目约束**（来自 [AGENTS.md](../../AGENTS.md)）：
 - 无测试框架、无 linter、无 formatter
 - 单 `main` 分支（2026-06-30 起纳入 git）
-- 端口 65433 硬编码
+- 端口 <端口> 硬编码
 - 配置文件：`config.json`
 - 客户端→服务端的 hotkey type 是 `hot_keys`（下划线）
-- **前端-only 重构**：`server.js` 不动，WebSocket 协议不变；测试前用 `Get-NetTCPConnection -LocalPort 65433` 确认后端在跑，刷新页面即可
+- **前端-only 重构**：`server.js` 不动，WebSocket 协议不变；测试前用 `Get-NetTCPConnection -LocalPort <端口>` 确认后端在跑，刷新页面即可
 - 提交信息规范：`<前缀>: <一句话描述>`，Conventional Commits 风格（`feat:` / `fix:` / `refactor:` / `docs:` / `chore:`）
 - 禁止 `git add -A`；单步回退用 `git revert HEAD`，禁止 `git reset --hard` 撤销已超过 1 个 commit 的历史
 
@@ -301,12 +301,12 @@ git commit -m "refactor: 新建 public/styles.css（CSS 迁出）
 启动/确认后端在跑：
 
 ```bash
-Get-NetTCPConnection -LocalPort 65433
+Get-NetTCPConnection -LocalPort <端口>
 ```
 
 期望：看到 LISTENING 状态的连接。如果没看到，执行 `npm start`。
 
-浏览器访问 `http://localhost:65433/` ，逐项验证：
+浏览器访问 `http://localhost:<端口>/` ，逐项验证：
 
 1. 页面正常打开，PowerShell 提示符出现
 2. 输入 `Get-Date` 回车，输出回显
@@ -753,10 +753,10 @@ git grep -nE "terms\[|wrappers\[|clientTails\[|pendingBuffer|\\bterms\\b|\\bwrap
 启动/确认后端在跑：
 
 ```bash
-Get-NetTCPConnection -LocalPort 65433
+Get-NetTCPConnection -LocalPort <端口>
 ```
 
-刷新 `http://localhost:65433/`，逐项验证（详见设计文档 5.2 节）：
+刷新 `http://localhost:<端口>/`，逐项验证（详见设计文档 5.2 节）：
 
 | # | 场景 | 期望 |
 |---|------|------|

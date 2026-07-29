@@ -322,7 +322,7 @@ git commit -m "feat: 键盘 Ctrl+C 路径 await copyTermSelection 以显示 Toas
 **Files:** 无代码改动
 
 - [ ] **Step 1: 刷新页面**
-在连 65433 的浏览器中 Ctrl+Shift+R 强制刷新，加载新 `index.html` / `term-session.js`。
+在连 <端口> 的浏览器中 Ctrl+Shift+R 强制刷新，加载新 `index.html` / `term-session.js`。
 
 - [ ] **Step 2: 手动验证**
 1. 选中文本 → 键盘 Ctrl+C：页面中央显示蓝底“已复制”，选区清除，终端未中断。

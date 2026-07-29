@@ -84,7 +84,7 @@ sessions[newId] = { pty: ptyProcess, buffer: '', name: computeSmartName(newId) }
 
 Run: `node server.js`（如果已运行需 Ctrl+C 重启）
 
-浏览器开 `http://localhost:65433`：
+浏览器开 `http://localhost:<端口>`：
 1. 默认显示 `Shell #1`（首创建，name=null，前端兜底）
 2. 点「新建终端」→ 下拉框出现 `Shell #2`（最近 Shell #1 + 1）✓
 3. 再点「新建终端」→ `Shell #3` ✓
@@ -154,7 +154,7 @@ Run: `node server.js`（如果已运行需 Ctrl+C 重启）
 
 Run: `node server.js`（如果未运行）
 
-1. 浏览器开 `http://localhost:65433`，确保有 ≥1 个会话
+1. 浏览器开 `http://localhost:<端口>`，确保有 ≥1 个会话
 2. 在 `Shell #1` 上点「重命名」改为「我的终端」
 3. 新建几个终端（共 3 个左右）
 4. 点「重命名全部」（注意：工具栏还没有这个按钮，需要先用 DevTools 或临时在控制台执行 `ws.send(JSON.stringify({type:'rename_all'}))` 模拟）
@@ -234,7 +234,7 @@ Run: `node server.js`（如果未运行）
 
 Run: `node server.js`（如果未运行）
 
-1. 浏览器开 `http://localhost:65433`，刷新（确认新代码加载）
+1. 浏览器开 `http://localhost:<端口>`，刷新（确认新代码加载）
 2. 现有终端应是默认 `Shell #N` 形式
 3. 把某个终端改名为「我的终端」
 4. 点击工具栏的「重命名全部」按钮
@@ -243,7 +243,7 @@ Run: `node server.js`（如果未运行）
 
 - [ ] **Step 4: 验证多客户端联动**
 
-1. 开两个浏览器窗口（或浏览器 + 无痕窗口）均访问 `http://localhost:65433`
+1. 开两个浏览器窗口（或浏览器 + 无痕窗口）均访问 `http://localhost:<端口>`
 2. 在窗口 A 把某个终端改名为「测试A」
 3. 在窗口 A 点击「重命名全部」
 4. 观察窗口 B：下拉框同步变成 `Shell #1, Shell #2, ...`（服务端广播，list 自动更新）✓

@@ -15,7 +15,7 @@ RemoteCMD 已有一套 BELL 通知链路：PTY 输出 `\x07` → 后端去抖 �
 - 不引入 OSC 私有序列 / 显式「任务完成」哨兵。
 - 不新增独立消息类型（如 `task_done`）。
 - 不改动后端 BELL 检测逻辑。
-- 不处理局域网 HTTP 下的 HTTPS 安全上下文（当前 `localhost:65433` 已是 secure context，`Notification` 可直接用）。
+- 不处理局域网 HTTP 下的 HTTPS 安全上下文（当前 `localhost:<端口>` 已是 secure context，`Notification` 可直接用）。
 
 ## 设计
 
@@ -74,7 +74,7 @@ BELL 本身已有「输出停止 `bellDebounceMs` 后才通知一次」的去抖
 
 ## 测试
 
-1. 本地 `npm run start` 启动（或重启）后，浏览器打开 `http://localhost:65433`。
+1. 本地 `npm run start` 启动（或重启）后，浏览器打开 `http://localhost:<端口>`。
 2. 在设置弹窗勾选「系统通知（OS 弹窗）」，确认浏览器弹出权限请求并允许。
 3. 最小化窗口或切到别的标签页。
 4. 在终端运行会输出 `\x07` 的命令，例如：

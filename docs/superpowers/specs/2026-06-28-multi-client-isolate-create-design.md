@@ -126,7 +126,7 @@ ws.onclose = () => { pendingCreate = false; };
 
 无测试框架，按以下步骤手动验证：
 
-1. 两个浏览器窗口均连接到 `http://localhost:65433`
+1. 两个浏览器窗口均连接到 `http://localhost:<端口>`
 2. 默认各显示 `Shell #1`
 3. 窗口 A 点击「新建终端」→ A 跳到 `Shell #2`；B 仍显示 `Shell #1` ✓
 4. 窗口 B 的下拉框中已包含 `Shell #2` 选项

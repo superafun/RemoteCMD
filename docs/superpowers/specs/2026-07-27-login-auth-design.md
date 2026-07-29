@@ -15,7 +15,7 @@
 4. **重连/连接时检查会话是否过期**，过期则跳登录页。
 
 部署模型不变：nginx 仍作为 TLS 反代（`listen 65431` + `afun.natapp1.cc`），把 `/cmd/` 反代到
-`127.0.0.1:65433` 并剥离 `/cmd/` 前缀；`X-Forwarded-Proto` / `X-Forwarded-Prefix /cmd` 保留。
+`127.0.0.1:<端口>` 并剥离 `/cmd/` 前缀；`X-Forwarded-Proto` / `X-Forwarded-Prefix /cmd` 保留。
 
 ## 已拍板的决策
 
@@ -31,7 +31,7 @@
 - 值格式：`<到期时间戳ms>.<HMAC>`，其中 `HMAC = HMAC-SHA256(sessionSecret, 到期时间戳ms)`（base64）。
 - 属性：`HttpOnly` + `SameSite=Lax` + `secure:'auto'`
   - 走 nginx HTTPS（`X-Forwarded-Proto: https`，需 `app.set('trust proxy', true)`）→ 自动加 `Secure`。
-  - 直连 `http://localhost:65433` → 不加 `Secure`（本地 loopback 可接受）。
+  - 直连 `http://localhost:<端口>` → 不加 `Secure`（本地 loopback 可接受）。
 - `maxAge = sessionDurationMin * 60000`；cookie 自带 `maxAge` 与 token 内嵌的到期时间戳双重约束。
 - 校验（每次 HTTP 请求 + 每次 WS 升级）：解析 cookie → 验 HMAC → 验 `到期时间戳 > Date.now()`，
   任一不满足即视为未登录。
@@ -157,5 +157,5 @@ WebSocket Upgrade 头、`proxy_read_timeout` 等）原样保留。用户执行 `
 3. 等待超过 `sessionDurationMin` 分钟后触发一次重连（或刷新页面）→ 跳登录页要求重登。
 4. 设置弹窗改「保持登录时长」并应用 → 多端同步；新登录按新值生效。
 5. 点「退出」→ 清 cookie 并跳登录页。
-6. 直连 `http://localhost:65433` 也能登录/鉴权（相对 URL 兼容）。
+6. 直连 `http://localhost:<端口>` 也能登录/鉴权（相对 URL 兼容）。
 7. `config.json` 改动不破坏既有字段；`git status` 确认 config.json 不进提交。

@@ -16,12 +16,12 @@
 **项目约束**（来自 [AGENTS.md](../../AGENTS.md)）：
 - 无测试框架、无 linter、无 formatter
 - 单 `main` 分支（2026-06-30 起纳入 git）
-- 端口 65433 硬编码
+- 端口 <端口> 硬编码
 - 配置文件：`config.json`
 - **每次代码修改完成后必须立即 git commit**
 - 禁止 `git add -A`；单步回退用 `git revert HEAD`，禁止 `git reset --hard` 撤销已超过 1 个 commit 的历史
 - 每次修改 AGENTS.md 后必须同步更新
-- 修改 server.js 时需要重启服务；只改前端时刷新页面即可（用 `Get-NetTCPConnection -LocalPort 65433` 检查后端是否在跑）
+- 修改 server.js 时需要重启服务；只改前端时刷新页面即可（用 `Get-NetTCPConnection -LocalPort <端口>` 检查后端是否在跑）
 - 重启服务必须走 PM2（`npm run restart` 或前端设置弹窗的「重启服务器」按钮），禁止直接 taskkill
 - 每次代码改动必须附带性能影响分析
 
@@ -118,7 +118,7 @@ node -c server.js && echo "OK"
 node -e "const cfg = require('./server.js')" 2>&1 | head -20
 ```
 
-> 注：这会真正启动 server.js（listen 65433）。Ctrl+C 退出。或用 `node -e "process.exit(0)"` 不行因为 server.js 没暴露函数。
+> 注：这会真正启动 server.js（listen <端口>）。Ctrl+C 退出。或用 `node -e "process.exit(0)"` 不行因为 server.js 没暴露函数。
 
 替代方案：临时插入一个 console.log 看 cfg 初始化。
 
@@ -266,7 +266,7 @@ node -c server.js && echo "OK"
 
 - [ ] **Step 3.4: 手动验证后端协议**
 
-浏览器打开 `http://localhost:65433/`，DevTools console：
+浏览器打开 `http://localhost:<端口>/`，DevTools console：
 
 ```javascript
 // 应该看到下行（如果可以拦截 ws 消息）
@@ -290,7 +290,7 @@ node -c server.js && echo "OK"
 
 - [ ] **Step 4.1: 用设置弹窗重启服务器（验证 PM2 兼容）**
 
-浏览器打开 `http://localhost:65433/`，点「设置」→「重启服务器」→ 确认。后端应在 200ms 后退出，PM2 拉起新实例，前端 1 秒后重连。
+浏览器打开 `http://localhost:<端口>/`，点「设置」→「重启服务器」→ 确认。后端应在 200ms 后退出，PM2 拉起新实例，前端 1 秒后重连。
 
 - [ ] **Step 4.2: 验证 config.json 已写新结构**
 

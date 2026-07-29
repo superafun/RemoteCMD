@@ -513,7 +513,7 @@ queryBufferSize()
 
 ### 测试 1：布局 - 页面宽度由 xterm 决定
 
-1. 启动 `node server.js`，打开 `http://localhost:65433`
+1. 启动 `node server.js`，打开 `http://localhost:<端口>`
 2. 把浏览器窗口缩窄到 ~400px
 3. **预期**：
    - body 宽度 = xterm 宽度
@@ -563,7 +563,7 @@ queryBufferSize()
 4. **预期**：
    - 服务端内存增长有限（应 < 100 MB 包含 V8 + buffer）
    - 单个会话的 `sessions[id].buffer.length` 不会持续超过 2,000,000
-5. 在客户端开新 tab 连 `http://localhost:65433`，触发 buffer 回放
+5. 在客户端开新 tab 连 `http://localhost:<端口>`，触发 buffer 回放
 6. **预期**：重放数据最多 1 MB（Network 面板看下行 WebSocket 帧大小）
 
 ### 测试 6：UTF-8 边界（中文输出）

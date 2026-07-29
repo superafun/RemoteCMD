@@ -271,7 +271,7 @@ grep -n "pendingCreate" public/index.html
 按 AGENTS.md §开发工作流 规则，先检查后端：
 
 ```bash
-powershell -Command "Get-NetTCPConnection -LocalPort 65433 -ErrorAction SilentlyContinue | Select-Object State, OwningProcess"
+powershell -Command "Get-NetTCPConnection -LocalPort <端口> -ErrorAction SilentlyContinue | Select-Object State, OwningProcess"
 ```
 
 - 如果输出非空且 `State` 为 `Listen`，则服务已在跑，**不要重启**，直接走 Step 2
@@ -281,11 +281,11 @@ powershell -Command "Get-NetTCPConnection -LocalPort 65433 -ErrorAction Silently
 cd "c:\Users\fmy3\OneDrive\project\pythonProjectRemoteCMD" && node server.js
 ```
 
-服务监听 `http://localhost:65433`。
+服务监听 `http://localhost:<端口>`。
 
 - [ ] **Step 2: 验证首次连接（场景 B：isFirstList 守卫对空交集不动作）**
 
-打开浏览器访问 `http://localhost:65433/`。
+打开浏览器访问 `http://localhost:<端口>/`。
 
 **预期**：
 - 页面加载后约 1 秒内出现 PowerShell 提示符

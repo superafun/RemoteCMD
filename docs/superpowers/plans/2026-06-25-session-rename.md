@@ -95,7 +95,7 @@ function buildListMsg() {
 - [ ] **Step 6: 启动验证服务端不报错**
 
 Run: `node server.js`
-Expected: 控制台输出 `服务器已启动: http://localhost:65433`，无异常。打开浏览器 `http://localhost:65433`，下拉框仍显示 `Shell #1`（前端此时尚未读 names，会回退默认标签——这是预期的）。在浏览器 DevTools Network/WS 面板查看收到的 `list` 消息应含有 `names: {"1": null}` 字段。
+Expected: 控制台输出 `服务器已启动: http://localhost:<端口>`，无异常。打开浏览器 `http://localhost:<端口>`，下拉框仍显示 `Shell #1`（前端此时尚未读 names，会回退默认标签——这是预期的）。在浏览器 DevTools Network/WS 面板查看收到的 `list` 消息应含有 `names: {"1": null}` 字段。
 
 - [ ] **Step 7: 手动验证后标记完成**
 
@@ -132,7 +132,7 @@ Expected: 控制台输出 `服务器已启动: http://localhost:65433`，无异�
 
 Run: `node server.js`
 
-浏览器开 `http://localhost:65433`，在 DevTools Console 执行（先确认 WebSocket 变量名 `ws`）：
+浏览器开 `http://localhost:<端口>`，在 DevTools Console 执行（先确认 WebSocket 变量名 `ws`）：
 
 ```js
 ws.send(JSON.stringify({ type: 'rename', id: 1, data: '构建服务器' }))
@@ -224,7 +224,7 @@ Expected: 无新 `list` 消息，服务端无报错。
 
 Run: `node server.js`
 
-开浏览器窗口 A 访问 `http://localhost:65433`，DevTools Console：
+开浏览器窗口 A 访问 `http://localhost:<端口>`，DevTools Console：
 
 ```js
 ws.send(JSON.stringify({ type: 'rename', id: 1, data: '构建服务器' }))
@@ -296,7 +296,7 @@ Expected: 下拉框只有当前会话一个选项，文本为字面 `</option><o
 
 Run: `node server.js`
 
-浏览器开 `http://localhost:65433`：
+浏览器开 `http://localhost:<端口>`：
 1. 点「新建终端」→ 下拉框出现 `Shell #1`（第一个会话自动建）和 `Shell #2`
 2. 选中 `Shell #1`，点「重命名」→ prompt 弹出，预填 `Shell #1`
 3. 输入"构建"→ 确定 → 下拉框选中项变为"构建"
@@ -319,7 +319,7 @@ Run: `node server.js`
 
 - [ ] **Step 1: 准备环境**
 
-Run: `node server.js`，浏览器开 A、B 两个窗口访问 `http://localhost:65433`。
+Run: `node server.js`，浏览器开 A、B 两个窗口访问 `http://localhost:<端口>`。
 
 - [ ] **Step 2: 执行 spec 测试清单**
 

@@ -441,7 +441,7 @@ npm run restart
 
 - [ ] **Step 2: 验证首连下发**
 
-浏览器打开 http://localhost:65433 ，打开 F12 console，查看 WebSocket 消息。预期看到：
+浏览器打开 http://localhost:<端口> ，打开 F12 console，查看 WebSocket 消息。预期看到：
 - `{type: 'scroll_interval_terminal', data: 100}`
 - `{type: 'scroll_interval_page', data: 100}`
 - 不应有 `scroll_interval`

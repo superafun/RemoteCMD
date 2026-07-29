@@ -177,7 +177,7 @@ git commit -m "feat: 最近路径仅在 cd/chdir 命令时记录"
 
 - [ ] **Step 3: Playwright 真实页面验证（关键，禁止简化复现 HTML）**
 
-用 Playwright（chromium，viewport 1280×720）打开**真实生产页面**（本地服务，项目在 65433 端口；若不可用起临时 serve `public/` 的小服务到非常用端口）：
+用 Playwright（chromium，viewport 1280×720）打开**真实生产页面**（本地服务，项目在 <端口> 端口；若不可用起临时 serve `public/` 的小服务到非常用端口）：
 1. 程序触发 `#recentPathsBtn` 点击展开下拉；注入一条长路径到列表并渲染：
    ```js
    recentPaths = ['C:\\Users\\fmy3\\OneDrive\\学习\\自主研发课题\\专利\\子目录ABC'];

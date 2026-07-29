@@ -90,7 +90,7 @@
 
 - [ ] **Step 2: 验证(浏览器)**
 
-打开 http://localhost:65433/(后端需在跑,只改前端无需重启),用 F12 检查 DOM 结构:
+打开 http://localhost:<端口>/(后端需在跑,只改前端无需重启),用 F12 检查 DOM 结构:
 - `#hotkeysList` 应该有「编辑」和 `#scrollGroup` 作为子元素
 - `#scrollGroup` 应该有 5 个滚动按钮作为子元素
 

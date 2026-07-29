@@ -15,6 +15,7 @@ const CONFIG_PATH = path.join(__dirname, 'config.json');
 function loadConfig() {
     if (!fs.existsSync(CONFIG_PATH)) {
         const def = {
+            port: 65433,
             sizeSlots: { large: { rows: 60, cols: 120 }, small: { rows: 24, cols: 80 } },
             currentSize: 'large',
             hotkeys: {},
@@ -52,6 +53,9 @@ function loadConfig() {
     }
     // === currentSize 兜底：非 'large'/'small' 时填 'large' ===
     if (cfg.currentSize !== 'large' && cfg.currentSize !== 'small') cfg.currentSize = 'large';
+
+    // === port 兜底：缺失/非法时填默认端口 65433 ===
+    if (!Number.isInteger(cfg.port) || cfg.port < 1 || cfg.port > 65535) cfg.port = 65433;
 
     // 清理已废弃的 legacy 重连同步字段（maxBuffer / clientTailMax / syncMode）
     delete cfg.maxBuffer;
@@ -210,7 +214,7 @@ function apr1Md5(password, salt) {
 
 
 const app = express();
-// 只信任本机回环（nginx 在同一台机器反代到 127.0.0.1:65433），
+// 只信任本机回环（nginx 在同一台机器反代到 127.0.0.1:<config.port>），
 // 既正确取到 nginx 注入的真实客户端 IP，又避免外部伪造 X-Forwarded-For 绕过限流
 app.set('trust proxy', 'loopback');
 app.use(express.json());
@@ -770,6 +774,6 @@ wss.on('connection', (ws) => {
     });
 });
 
-server.listen(65433, '127.0.0.1', () => {
-    console.log('服务器已启动: http://127.0.0.1:65433 (仅本机，由 nginx 反代)');
+server.listen(cfg.port, '127.0.0.1', () => {
+    console.log(`服务器已启动: http://127.0.0.1:${cfg.port} (仅本机，由 nginx 反代)`);
 });

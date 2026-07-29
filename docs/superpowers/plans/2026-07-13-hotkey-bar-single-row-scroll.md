@@ -15,7 +15,7 @@
 - `.toolbar`（顶栏）保持 `flex-wrap: wrap`，仅 `#hotkeys-bar` 改为单行。
 - 移动端（Android 真机）手指横滑必须能滚动，且从按钮上起滑也要生效（`touch-action: pan-x` 兜底）。
 - 每次代码改动完成后立即 `git commit`，单步回退用 `git revert HEAD`，禁止 `git reset --hard`、禁止 `git add -A`。
-- 只改前端时不要重启服务器：先 `Get-NetTCPConnection -LocalPort 65433` 确认后端在跑，直接刷新网页即可验证。
+- 只改前端时不要重启服务器：先 `Get-NetTCPConnection -LocalPort <端口>` 确认后端在跑，直接刷新网页即可验证。
 
 ---
 
@@ -61,8 +61,8 @@
 
 - [ ] **Step 2: 在浏览器验证容器行为**
 
-运行：`Get-NetTCPConnection -LocalPort 65433` 确认后端在跑（不在则 `npm start`）。
-打开 http://localhost:65433 ，用较多快捷键（或临时把窗口拉窄）让按钮超宽：
+运行：`Get-NetTCPConnection -LocalPort <端口>` 确认后端在跑（不在则 `npm start`）。
+打开 http://localhost:<端口> ，用较多快捷键（或临时把窗口拉窄）让按钮超宽：
 Expected：底部栏所有按钮处于同一行、右侧溢出屏幕外，桌面端出现横向滚动条，Shift+滚轮可左右滚动。
 
 - [ ] **Step 3: Commit**

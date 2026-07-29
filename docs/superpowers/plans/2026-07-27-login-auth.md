@@ -575,10 +575,10 @@ git commit -m "feat: 新增登录页（Stripe 风格，不预填用户名/密码
     auth_basic "Remote CMD Need Password";
     auth_basic_user_file htpasswd;  # 密码文件路径，假设放在 nginx 的 conf 目录下
 ```
-（位于 `location /cmd/ {` 之后、`proxy_pass http://127.0.0.1:65433/;` 之前）整段删除，删除后该块开头变为：
+（位于 `location /cmd/ {` 之后、`proxy_pass http://127.0.0.1:<端口>/;` 之前）整段删除，删除后该块开头变为：
 ```nginx
 location /cmd/ {
-    proxy_pass http://127.0.0.1:65433/;
+    proxy_pass http://127.0.0.1:<端口>/;
     proxy_set_header Host $host;
     ...
 ```
@@ -813,7 +813,7 @@ npm run restart
 4. 浏览器 DevTools Application 标签可见 `rc_session` cookie（HttpOnly）。
 5. 设置弹窗改「保持登录时长」为 60 并应用 → 多端（另一标签）同步日志「保持登录时长同步为 60 分钟」。
 6. 点「退出」→ 跳登录页，cookie 清除。
-7. 直连 `http://localhost:65433` 同样可登录/鉴权。
+7. 直连 `http://localhost:<端口>` 同样可登录/鉴权。
 
 - [ ] **Step 4: 确认 config.json 不进 git**
 

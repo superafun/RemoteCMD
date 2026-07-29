@@ -446,7 +446,7 @@ applySettingsSize()
 
 ### 测试 1：DOM 中无 hidden input
 
-1. 启动 `node server.js`，打开 `http://localhost:65433`
+1. 启动 `node server.js`，打开 `http://localhost:<端口>`
 2. F12 → Elements
 3. 搜索 `rowsInput` / `colsInput` / `scrollStepInput` / `maxBufferInput`
 4. **预期**：0 个结果（4 个 input 节点已删）
@@ -491,7 +491,7 @@ applySettingsSize()
 
 ### 测试 6：syncLayoutWidths 触发点只剩 2 个
 
-1. 启动 `node server.js`，打开 `http://localhost:65433`
+1. 启动 `node server.js`，打开 `http://localhost:<端口>`
 2. F12 → Elements → Event Listeners（右下角）
 3. 搜索 `window` 节点的 resize 监听器
 4. **预期**：0 个 `syncLayoutWidths` 相关监听（已删除）
@@ -511,7 +511,7 @@ applySettingsSize()
 
 ### 测试 7：updateWsStatus 改事件驱动后功能正常
 
-1. 启动 `node server.js`，打开 `http://localhost:65433`
+1. 启动 `node server.js`，打开 `http://localhost:<端口>`
 2. F12 → Console 输入 `setInterval(() => console.log('tick'), 1000)` 启动一个心跳
 3. F12 → Elements 搜 `setInterval` 关键字（或在 Source 面板设条件断点）
 4. **预期**：源码中**无** `setInterval(updateWsStatus, ...)` 调用

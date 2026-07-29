@@ -235,14 +235,14 @@ git commit -m "feat: 设置弹窗 3 个勾选框改为即时应用，去掉多�
 - [ ] **Step 1: 确认后端在跑（前端无需重启）**
 
 ```powershell
-Get-NetTCPConnection -LocalPort 65433
+Get-NetTCPConnection -LocalPort <端口>
 ```
 
 若返回监听中的连接即说明后端在跑；纯前端改动只需刷新网页。
 
 - [ ] **Step 2: 浏览器验收**
 
-打开 `http://localhost:65433/`，开设置弹窗，逐项验证：
+打开 `http://localhost:<端口>/`，开设置弹窗，逐项验证：
 
 1. 「显示滚动按钮 / 通知声音 / 通知 Toast」三行**不再有「应用」按钮**。
 2. 勾选或取消任一 checkbox：

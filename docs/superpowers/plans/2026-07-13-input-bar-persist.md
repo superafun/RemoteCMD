@@ -15,7 +15,7 @@
 - **无测试框架 / 无 linter / 无 formatter**：本计划验证方式为前端手动验证（浏览器 + Android 真机），不写单元测试。
 - **每次代码修改完成后必须立即 git commit；禁止 `git add -A`**：每个 Task 末尾 commit，只 `git add` 指定文件。
 - **改动须附带性能影响分析**：本功能零新增 DOM、零轮询、零网络，新增 1 个 `blur` 监听器，性能无影响（已在 spec 论证）。
-- **纯前端改动刷新即生效**：未改 `server.js`，不重启服务器；改前先确认后端在跑（`Get-NetTCPConnection -LocalPort 65433`）。
+- **纯前端改动刷新即生效**：未改 `server.js`，不重启服务器；改前先确认后端在跑（`Get-NetTCPConnection -LocalPort <端口>`）。
 - **AGENTS.md 注意事项须同步更新**：本功能行为变更须更新注意事项 35 并随代码一并提交。
 - **草稿保留范围：仅当前页面会话内**，不做跨刷新持久化（不引入 `localStorage`）。
 
@@ -61,8 +61,8 @@
 
 - [ ] **Step 2: 手动验证（浏览器）**
 
-1. 确认后端在跑：`Get-NetTCPConnection -LocalPort 65433`（无输出=未跑则 `npm start`）。
-2. 浏览器开 `http://localhost:65433`，刷新页面（前端改动刷新即生效）。
+1. 确认后端在跑：`Get-NetTCPConnection -LocalPort <端口>`（无输出=未跑则 `npm start`）。
+2. 浏览器开 `http://localhost:<端口>`，刷新页面（前端改动刷新即生效）。
 3. 点「输入条」展开，输入 `hello`，点「换行」按钮（空内容路径）→ 输入条关闭。
 4. 再点「输入条」→ 预期此时输入框为**空**（因为「换行」空内容走了 `closeInputBar()` 默认清空）—— 确认改动未破坏既有清空行为。
 

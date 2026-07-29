@@ -105,7 +105,7 @@ async function sendInputBar() {
 
 ## 5. 验收
 
-1. 启动服务器（`Get-NetTCPConnection -LocalPort 65433` 确认在跑则用现成服务；只改前端不重启）。
+1. 启动服务器（`Get-NetTCPConnection -LocalPort <端口>` 确认在跑则用现成服务；只改前端不重启）。
 2. Android 真机 / 桌面浏览器连上终端，打开输入条，粘贴/输入一条**很长的命令**（之前会中途报错的那种长度）。
 3. 回车发送：正文整段进入 TUI、**停顿约 300ms 后**命令被执行，**不再出现** `windows ctrl+v may block large input...` 报错。
 4. 对比右键粘贴同一长命令：行为一致（都不报错）；回车分离的 300ms 停顿在真机手感上接近人工操作。

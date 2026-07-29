@@ -61,12 +61,12 @@ npm install
 cp config.example.json config.json
 #   编辑 config.json，至少设置 htpasswdPath 指向你的密码文件（见下方"配置"）
 
-# 4. 安装并启动（PM2 守护，默认 http://localhost:65433）
+# 4. 安装并启动（PM2 守护，端口由 config.json 的 `port` 字段决定）
 npm install -g pm2
 npm start
 ```
 
-浏览器打开 `http://localhost:65433`，用 htpasswd 中的账号密码登录即可。
+浏览器打开 `http://localhost:<端口>`（端口见 config.json 的 `port` 字段），用 htpasswd 中的账号密码登录即可。
 
 > 💡 没有 htpasswd 文件？用 nginx 自带工具生成：`htpasswd -c ./htpasswd 你的用户名`
 
@@ -78,6 +78,7 @@ npm start
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
+| `port` | number | 内置默认端口 | 监听端口（1–65535）；nginx 反代需与此一致 |
 | `rows` / `cols` | number | 34 / 110 | 终端初始行列 |
 | `hotkeys` | object | `{}` | 快捷键名 → 转义序列/命令 |
 | `sizeSlots` | object | 见模板 | 大/小尺寸槽（rows/cols） |
@@ -99,7 +100,7 @@ npm start
 
 ## 🖥️ 部署参考（nginx 反代 + TLS）
 
-`server.js` 直接托管 `public/` 并监听 WebSocket（默认 `:65433`）。生产环境建议用 nginx 反代：
+`server.js` 直接托管 `public/` 并监听 WebSocket（端口由 `config.json` 的 `port` 字段决定）。生产环境建议用 nginx 反代：
 
 ```nginx
 server {
@@ -110,7 +111,7 @@ server {
     ssl_certificate_key /path/to/privkey.pem;
 
     location /cmd/ {
-        proxy_pass http://127.0.0.1:65433/;
+        proxy_pass http://127.0.0.1:<端口>/;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -169,7 +170,7 @@ npm install
 cp config.example.json config.json   # edit htpasswdPath
 npm install -g pm2 && npm start
 ```
-Open `http://localhost:65433` and log in with your htpasswd credentials.
+Open `http://localhost:<PORT>` and log in with your htpasswd credentials (port = `config.json` `port`).
 
 ### License
 [MIT](LICENSE) © 2026 superafun

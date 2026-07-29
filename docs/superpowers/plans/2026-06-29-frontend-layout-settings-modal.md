@@ -82,7 +82,7 @@ cd C:\Users\fmy3\OneDrive\project\pythonProjectRemoteCMD
 node server.js
 ```
 
-打开 `http://localhost:65433`，终端里跑：
+打开 `http://localhost:<端口>`，终端里跑：
 
 ```powershell
 while ($true) { "x" * 1000; Start-Sleep 0.1 }
@@ -178,7 +178,7 @@ Ctrl+C 终止。
 
 - [ ] **Step 3: 手动验证 — 内存使用正常**
 
-启动后开 `http://localhost:65433`，跑持续输出：
+启动后开 `http://localhost:<端口>`，跑持续输出：
 
 ```powershell
 while ($true) { "x" * 100; Start-Sleep 0.05 }
@@ -314,7 +314,7 @@ cd C:\Users\fmy3\OneDrive\project\pythonProjectRemoteCMD
 node server.js
 ```
 
-打开 `http://localhost:65433`，F12 → Console 输入：
+打开 `http://localhost:<端口>`，F12 → Console 输入：
 
 ```javascript
 // 发送 buffer_size 请求
@@ -404,13 +404,13 @@ Ctrl+C 关服务。
 
 ```bash
 # 检查端口占用
-Get-NetTCPConnection -LocalPort 65433
+Get-NetTCPConnection -LocalPort <端口>
 # 如果未运行：
 cd C:\Users\fmy3\OneDrive\project\pythonProjectRemoteCMD
 node server.js
 ```
 
-打开 `http://localhost:65433`，F12 → Console 输入：
+打开 `http://localhost:<端口>`，F12 → Console 输入：
 
 ```javascript
 console.log('body width:', document.body.offsetWidth, 'terminal width:', document.getElementById('terminal-container').offsetWidth);
@@ -532,7 +532,7 @@ console.log('body width:', document.body.offsetWidth, 'terminal width:', documen
 
 - [ ] **Step 4: 手动验证 — 顶栏精简**
 
-刷新 `http://localhost:65433`（Ctrl+F5 强制刷新），预期：
+刷新 `http://localhost:<端口>`（Ctrl+F5 强制刷新），预期：
 - 顶栏只有 6 个按钮：会话下拉、重命名、重命名全部、新建终端、关闭终端、设置
 - 没有「确定」「缓存」按钮
 - F12 → Elements，搜索 `rowsInput`，应找到 1 个 `<input type="hidden" id="rowsInput">`
@@ -690,7 +690,7 @@ console.log('body width:', document.body.offsetWidth, 'terminal width:', documen
 
 - [ ] **Step 4: 手动验证 — 设置弹窗**
 
-刷新 `http://localhost:65433`。预期：
+刷新 `http://localhost:<端口>`。预期：
 - 顶栏多出「设置」按钮
 - 点「设置」→ 弹窗出现，含 4 块：终端大小、滚动行数、缓冲区上限(MB)、缓冲区检测
 - 4 个 input 有合理初值（rows=60, cols=118, scrollStep=10, maxBuffer=10）
@@ -763,7 +763,7 @@ cd C:\Users\fmy3\OneDrive\project\pythonProjectRemoteCMD
 node server.js
 ```
 
-打开 `http://localhost:65433`，刷新（Ctrl+F5）：
+打开 `http://localhost:<端口>`，刷新（Ctrl+F5）：
 
 1. 点顶栏「设置」→ 弹窗出现
 2. 在终端跑持续输出：`while ($true) { Get-Date; Start-Sleep 1 }`
@@ -853,13 +853,13 @@ node server.js
 - [ ] **Step 1: 全栈启动**
 
 ```bash
-Get-NetTCPConnection -LocalPort 65433
+Get-NetTCPConnection -LocalPort <端口>
 # 如果已运行则无需重启（只改前端时直接刷新即可）
 cd C:\Users\fmy3\OneDrive\project\pythonProjectRemoteCMD
 node server.js  # 仅当 server.js 改动时需要重启
 ```
 
-打开 `http://localhost:65433`，Ctrl+F5 强制刷新。
+打开 `http://localhost:<端口>`，Ctrl+F5 强制刷新。
 
 - [ ] **Step 2: 验证清单**
 
@@ -876,7 +876,7 @@ node server.js  # 仅当 server.js 改动时需要重启
 - [ ] buffer 检测：点「检测」后 1 秒内显示 `当前会话占用: X.XX MB / Y.YY MB (Z.Z%)`，数字随输出量增长
 - [ ] 检测按钮禁用：关闭当前会话后「检测」按钮 disabled；切换会话后恢复
 - [ ] 检测超时：断网后点「检测」→ 5 秒后按钮自动恢复
-- [ ] 多客户端：另一 tab 打开 `http://localhost:65433`，设置同步
+- [ ] 多客户端：另一 tab 打开 `http://localhost:<端口>`，设置同步
 - [ ] 断网重连：DevTools Offline 30 秒后取消 → 终端内容补回；弹窗仍能打开
 - [ ] UTF-8：终端跑 `while ($true) { "你好世界"; Start-Sleep 0.1 }` → 中文显示无乱码
 - [ ] 截断性能：maxBuffer=1 MB + `while ($true) { "x" * 1000 }` 高输出下，V8 内存 < 100 MB

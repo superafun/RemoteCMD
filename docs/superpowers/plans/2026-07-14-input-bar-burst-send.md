@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - 本项目**无测试框架、无 linter、无 formatter**（来源 `AGENTS.md` 构建/运行/依赖）。故本计划无自动化单测，验证以"浏览器控制台 + Android 真机"手动为准（用户偏好用安卓真机测试）。
-- 改动仅前端：测试前用 `Get-NetTCPConnection -LocalPort 65433` 确认后端在跑则用现成服务，**只改前端不重启服务器**（`AGENTS.md` 开发工作流）。
+- 改动仅前端：测试前用 `Get-NetTCPConnection -LocalPort <端口>` 确认后端在跑则用现成服务，**只改前端不重启服务器**（`AGENTS.md` 开发工作流）。
 - 每次代码修改完成后必须立即 `git commit`，禁止 `git add -A`（来源 `AGENTS.md` Git 工作流）；单步回退用 `git revert HEAD`。
 - `wsSend(obj)` 是所有 WebSocket 发送统一入口，内置 `readyState===1` 检查 + try-catch，禁止直接调 `ws.send()`（来源 `AGENTS.md` 前端关键辅助函数）。
 - 换行归一保留：`\n`→`\r`，因终端回车键产生 `\r`（0x0D）而非 `\n`，TUI raw 模式只认 `\r` 作换行/确认信号。
@@ -182,12 +182,12 @@ git commit -m "docs: 更新注意事项 35——输入条改为整段发送+回�
 - 验证对象：`public/index.html`（已部署，刷新即生效，无需重启服务器）
 
 **Interfaces:**
-- Consumes: 实现后的 `sendInputBar`（Task 1-3 产出）、现成运行中的服务器（端口 65433）。
+- Consumes: 实现后的 `sendInputBar`（Task 1-3 产出）、现成运行中的服务器（端口 <端口>）。
 - Produces: 验收结论（通过/不通过），不改动代码。
 
 - [ ] **Step 1: 确认后端在跑**
 
-运行：`Get-NetTCPConnection -LocalPort 65433`
+运行：`Get-NetTCPConnection -LocalPort <端口>`
 预期：有监听记录（TCP 状态 Listen）。若无，按 `AGENTS.md` 开发工作流用现成服务，本次只改前端不重启。
 
 - [ ] **Step 2: Android 真机/桌面浏览器连上终端，测长命令**

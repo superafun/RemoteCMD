@@ -190,12 +190,12 @@ git commit -m "feat: 键盘 Ctrl+C 有选区时复制而不发中断"
 
 - [ ] **Step 1: 确认后端在跑（只改前端不重启）**
 ```powershell
-Get-NetTCPConnection -LocalPort 65433
+Get-NetTCPConnection -LocalPort <端口>
 ```
 预期：存在 LISTENING 状态的连接。若不在跑才需要 `npm start`（本任务假定已在跑）。
 
 - [ ] **Step 2: 浏览器刷新加载新前端**
-在已连 65433 的浏览器中刷新页面（Ctrl+Shift+R 强制刷新，避免缓存旧 `index.html` / `term-session.js`）。
+在已连 <端口> 的浏览器中刷新页面（Ctrl+Shift+R 强制刷新，避免缓存旧 `index.html` / `term-session.js`）。
 
 - [ ] **Step 3: 手动验证（覆盖 spec 测试清单）**
   1. 终端内鼠标选中一段文本 → 点底部 `Ctrl+C` 按钮：选区内容进入剪贴板、选区被清除、终端**未**中断（无 `\x03` 效果）。

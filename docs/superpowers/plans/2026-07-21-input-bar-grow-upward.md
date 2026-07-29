@@ -15,7 +15,7 @@
 - 文本框上限 `max-height: 50vh`（原为 `160px`），超过后内部滚动（`overflow:auto` 已具备）。
 - 栏必须不透明背景，否则盖住终端时文字透出。
 - 安卓不走 `visualViewport` JS，`interactive-widget: resizes-content` 兜底即可。
-- 服务端口固定 `65433`，服务用 `node server.js` 启动（或 `npm start`/pm2）。
+- 服务端口固定 `<端口>`，服务用 `node server.js` 启动（或 `npm start`/pm2）。
 - Playwright 仅作验证工具，用 `npm i playwright --no-save` 临时装入 `node_modules`，**不得写入 `package.json`**。
 
 ---
@@ -36,7 +36,7 @@
 ```js
 import { chromium } from 'playwright';
 
-const URL = 'http://localhost:65433';
+const URL = 'http://localhost:<端口>';
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1024, height: 768 } });
@@ -212,13 +212,13 @@ git commit -m "style: 输入条容器 flex-end + 文本框上限提至 50vh"
 **Interfaces:**
 - 依赖 Task 1 的 `tests/input-bar-upward-check.mjs` 与 Task 2/3 的 CSS。
 
-- [ ] **Step 1: 确保服务在 65433 运行**
+- [ ] **Step 1: 确保服务在 <端口> 运行**
 
 ```bash
 node server.js
 ```
 
-（另开一个终端保持运行；或 `npm start` 经 pm2。确认 http://localhost:65433 可访问。）
+（另开一个终端保持运行；或 `npm start` 经 pm2。确认 http://localhost:<端口> 可访问。）
 
 - [ ] **Step 2: 运行验证脚本**
 
@@ -236,7 +236,7 @@ Expected: 退出码 0，打印 `PASS: 输入条向上扩展、吸底、按钮平
 
 - [ ] **Step 3: 桌面浏览器人工抽查**
 
-打开 http://localhost:65433，展开输入条逐行输入至超过半屏：确认文本框向上长盖住终端、「发按键 / 换行」贴屏幕底；关掉输入条后快捷键正常、无终端文字透出；点「大」切换终端尺寸后吸底仍正确。
+打开 http://localhost:<端口>，展开输入条逐行输入至超过半屏：确认文本框向上长盖住终端、「发按键 / 换行」贴屏幕底；关掉输入条后快捷键正常、无终端文字透出；点「大」切换终端尺寸后吸底仍正确。
 
 - [ ] **Step 4: 安卓真机（HTTPS）抽查**
 

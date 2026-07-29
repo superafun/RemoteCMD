@@ -11,7 +11,7 @@ npm install
 # 安装 PM2 进程管理器（一次性操作）
 npm install -g pm2
 
-# 启动服务器（http://localhost:65433），PM2 会自动守护进程
+# 启动服务器（端口由 config.json 的 port 字段决定），PM2 会自动守护进程
 npm start
 ```
 
@@ -27,11 +27,11 @@ npm start
 
 ```
 Browser (index.html)
-  │  WebSocket ws://host:65433/cmd/
+  │  WebSocket ws://host:<端口>/cmd/
   │  JSON 消息（见下方协议）
   ▼
 server.js
-  ├── express.static → 托管 public/, @xterm/xterm, addon-* (端口 65433)
+  ├── express.static → 托管 public/, @xterm/xterm, addon-* (端口由 config.json 的 port 字段决定)
   └── WebSocketServer → 通过 node-pty 创建/销毁 PowerShell 会话
         │
         ▼
@@ -176,7 +176,7 @@ server.js
 3. **`@xterm/addon-fit` 未使用** —— 在 package.json 中但从未在 index.html 中加载或实例化。可安全移除。
 4. **重连屏幕同步上限由 `config.json` 的 `screenHistoryLines` 控制**（默认 1000，范围 0–20000），即 headless 终端保留的真实滚屏历史行数，重连后客户端可上滚查看。设置弹窗内输入并实时同步所有客户端（`screen_history_lines` 消息）。旧 `maxBuffer`/`clientTailMax`/`syncMode` 字段已在 `loadConfig` 中删除。
 5. **客户端→服务端的 hotkey type 是 `hot_keys`**（下划线），不是 `set_hotkeys` 或 `hotkeys` —— 字符串必须精确匹配。
-6. **端口 65433 是硬编码的** —— 无环境变量或 CLI 覆盖方式。
+6. **监听端口 `port` 可在 `config.json` 配置** —— 读取 `config.json` 的 `port` 字段（1–65535，缺失/非法时回落到内置默认端口）；不再硬编码。nginx 反代需与此 `port` 保持一致。
 7. **无认证/加密** —— 用于受信任网络边界内的本地/LAN 使用。
 8. **`node-pty` 需要原生构建工具** —— 在 Windows 上可能需要 Visual Studio Build Tools 或 `windows-build-tools` npm 包。
 9. **每次变更配置都会立即持久化** —— 无防抖处理。快速连续调整大小时每次都会同步写入磁盘。
@@ -313,7 +313,7 @@ server.js
     - **按钮位置关键**：放在 `#hotkeysList` **之外**（作为 `#hotkeys-bar` 直接子元素），因为 `renderHotkeys()` 内 `bar.innerHTML=''` 会清空 `#hotkeysList` 全部子节点再重建（只重附 `editBtnEl`/`scrollGroupEl`），放外面可避开被误清。发按键本质是与预设快捷键**不同语义**的独立组合器入口，刻意不混进预设键列表。**布局修复（2026-07-12）**：曾出现发按键独占一行的 bug——`#sendKeysBtn` 与 `#hotkeysList` 是 `#hotkeys-bar` 的两个 flex 子项，`#hotkeysList` 展开宽度逼近终端宽度时 `flex-wrap` 把它挤到下一行。修复用纯 CSS：`#sendKeysBtn{flex-shrink:0;align-self:flex-start}`（永不被压缩、始终最左、多行时顶端对齐）+ `#hotkeysList{flex:1 1 0;min-width:0}`（占剩余宽、内部 `flex-wrap` 换行而非把自己顶到下一行），两者稳定同行并排。
     - **修饰键高亮坑位（2026-07-12）**：`.mod-active` 原只写 `.mod-active { background:#2d6cdf }`，但通用 `button:hover { background:#505050 }` 的 CSS 优先级 (0,1,1) 高于 `.mod-active` (0,1,0)，导致**勾选修饰键后鼠标悬停时蓝底被灰底盖掉**（点完移开才变蓝、悬停又变灰）。修复：选择器合并为 `.mod-active, .mod-active:hover`，显式让 hover 态也保持蓝底（specificity 升到 (0,2,0) 胜出）。以后新增高亮类若与 `button:hover` 共存，必须带上 `:hover` 同款选择器。
     - **性能**：弹窗打开创建约 50 个按钮节点（仅面板生命周期内，关闭即销毁），零新增网络、零协议变更，可忽略。
-    - **纯前端改动**：只改前端不重启服务器，连现有 65433 刷新即可。
+    - **纯前端改动**：只改前端不重启服务器，连现有服务（端口见 config.json 的 `port`）刷新即可。
 
 34. **Ctrl+C 选区复制 + Toast 提示（2026-07-12 引入）**：当 xterm 存在选区时，三种发送路径（键盘 / 底部快捷键按钮 / 发按键面板）的 Ctrl+C 都改为**复制选区到剪贴板并清除选区**，不再发送中断 `\x03`；无选区时 Ctrl+C 仍正常发 `\x03` 中断。复制成功时在终端右上角显示蓝底 Toast「已复制」，复制失败时显示红底 Toast「复制失败」，停留 1.5 秒后自动消失（带从右侧滑入/滑出的 CSS 过渡动画），允许堆叠（每个向上偏移 40px）。纯前端改动（`public/index.html` + `public/term-session.js`），不动 `server.js`、不加 WebSocket 消息。`copyToClipboard` / `fallbackCopy` 返回实际写入结果（`Promise<boolean>`），`copyTermSelection` 内部统一显示 Toast。键盘路径用 `term-session.js` 构造里的 `wrapper` 捕获阶段 `keydown` 监听拦截；按钮与面板改调 `sendInputMaybeCopy`。行为始终开启，无设置开关。
 
@@ -359,12 +359,12 @@ server.js
         - `#hotkeys-bar` 加不透明 `background: #1e1e1e`，吸底盖住终端时文字不透出。
         - `html` 加 `interactive-widget: resizes-content`，安卓软键盘弹起时锁底栏停在键盘上方（现代 Chrome 默认 `resizes-visual` 已如此；不引入 `visualViewport` JS）。
         - `autoGrow()`（`public/index.html`）未改，仍 `height = scrollHeight` + `max-height` 钳制渲染高度。
-    - **验证**：`tests/input-bar-upward-check.mjs` 用 Playwright 直接打开真实运行服务（`http://localhost:65433`），量 `getBoundingClientRect`/`getComputedStyle` 真实像素断言——`sticky` 且 `bottom: 0px`、两条 `flex-end`、文本框 `max-height ≈ 50vh`、栏背景不透明、文本框与终端重叠、文本框底边与「换行」按钮底边平齐、输入条底边贴视口底；基线（改前）FAIL、改后 PASS。Playwright 以 `npm i playwright --no-save` 临时装入，未写入 `package.json`。
+    - **验证**：`tests/input-bar-upward-check.mjs` 用 Playwright 直接打开真实运行服务（`http://localhost:<端口>`，端口见 config.json 的 `port`），量 `getBoundingClientRect`/`getComputedStyle` 真实像素断言——`sticky` 且 `bottom: 0px`、两条 `flex-end`、文本框 `max-height ≈ 50vh`、栏背景不透明、文本框与终端重叠、文本框底边与「换行」按钮底边平齐、输入条底边贴视口底；基线（改前）FAIL、改后 PASS。Playwright 以 `npm i playwright --no-save` 临时装入，未写入 `package.json`。
     - **范围**：纯前端 `styles.css` 改动，刷新即生效，不动 `server.js`/协议。已知小瑕疵：xterm 默认背景黑 `#000000`、栏背景 `#1e1e1e`，吸底盖住终端时顶边有一道色阶（与现有 toolbar/终端 色差一致，非新回归，可选统一）。安卓真机（HTTPS）键盘场景由用户真机验收。
 
 ## 开发工作流
 
-- **只改前端时不要重启服务器**：测试前先用 `Get-NetTCPConnection -LocalPort 65433` 检查后端服务器是否在跑。如果在跑就直接连现成的服务器测网页（静态文件刷新即可加载新前端）。只有改了 `server.js` 时才需要重启服务。
+- **只改前端时不要重启服务器**：测试前先用 `Get-NetTCPConnection -LocalPort <端口>` 检查后端服务器是否在跑。如果在跑就直接连现成的服务器测网页（静态文件刷新即可加载新前端）。只有改了 `server.js` 时才需要重启服务。
 - **PM2 重启纪律**：以后所有重启操作必须通过 PM2（`npm run restart` 或前端设置弹窗的「重启服务器」按钮），**禁止直接 taskkill / kill 进程**，否则会破坏 PM2 的进程管理状态。非 PM2 方式杀进程后，PM2 会误认为进程仍在管理下，导致 `pm2 restart` 失败。
 - **AI 禁止私自重启服务器（2026-07-14 用户明确）**：改完 `server.js` 后代码可以照常提交，但**重启动作只能通知用户、由用户自己执行**（"请运行 `npm run restart`"），AI 绝不可自己执行 `npm run restart` / `pm2 restart` 等任何重启命令。**唯一例外**：用户明确授权"你可以自己重启"时才可执行。只读检查（如连 WS 看下发消息）不算重启，可以做。
 - **每次代码改动必须附带性能影响分析**：在计划阶段或提交改动时，分析改动涉及的 DOM 操作量、事件监听器数量、布局/回流影响、内存开销、执行频率等关键指标。可忽略的影响也需明确说明理由。纯文档/注释/配置变更除外。

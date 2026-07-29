@@ -106,7 +106,7 @@ function autoGrow(ta) {
 
 ## 验证方式
 
-1. 后端在跑时（`Get-NetTCPConnection -LocalPort 65433` 检查），刷新网页。
+1. 后端在跑时（`Get-NetTCPConnection -LocalPort <端口>` 检查），刷新网页。
 2. 点「输入条」→ 出现内联输入框，预设快捷键栏隐藏。
 3. 输入单行 `echo hello` → 点发送 → xterm 执行并输出，输入条关闭、快捷键栏恢复。
 4. 再点「输入条」→ 输入多行（`cd \` 换行 `dir`）→ 点发送 → 两行依次执行。

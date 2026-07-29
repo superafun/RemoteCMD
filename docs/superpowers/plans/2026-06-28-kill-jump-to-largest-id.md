@@ -63,15 +63,15 @@ node -e "const fs = require('fs'); const html = fs.readFileSync('public/index.ht
 cd "c:\Users\fmy3\OneDrive\project\pythonProjectRemoteCMD" && node server.js
 ```
 
-服务监听 `http://localhost:65433`。
+服务监听 `http://localhost:<端口>`。
 
 **4.2 编写并执行 Playwright 验证脚本**（一次性的，验证后删除）：
 
 ```javascript
 // verify_kill_jump.js
 const { chromium } = require('playwright');
-const WS_URL = 'ws://localhost:65433/cmd/';
-const PAGE_URL = 'http://localhost:65433/';
+const WS_URL = 'ws://localhost:<端口>/cmd/';
+const PAGE_URL = 'http://localhost:<端口>/';
 
 (async () => {
     const browser = await chromium.launch();

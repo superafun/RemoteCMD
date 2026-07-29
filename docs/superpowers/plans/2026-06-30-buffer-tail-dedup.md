@@ -12,7 +12,7 @@
 - 无测试框架、无 linter、无 formatter
 - 无 git 仓库
 - `@xterm/addon-fit` 依赖未使用
-- 端口 65433 硬编码
+- 端口 <端口> 硬编码
 - 配置文件：`config.json`
 - 客户端→服务端的 hotkey type 是 `hot_keys`（下划线）
 
@@ -565,7 +565,7 @@ npm run restart
 
 - [ ] **Step 12.2: 首次连接测试**
 
-打开浏览器 `http://localhost:65433`，创建 1 个终端，确认：
+打开浏览器 `http://localhost:<端口>`，创建 1 个终端，确认：
 - 终端正常显示 PowerShell 提示符
 - 打开设置弹窗，「buffer 去重比对长度」显示 4096
 - 前端日志显示「缓冲区全量回放 N 字节 (Shell #1)」（因为是首次连接，createTermInstance 走 tail: '' → 档 3）

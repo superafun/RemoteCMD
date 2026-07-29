@@ -10,8 +10,8 @@
 
 ## Global Constraints
 
-- **后端服务**：`http://127.0.0.1:65433/`，PM2 管理；本计划只改前端静态文件，**不需要重启后端**，浏览器刷新即加载新 CSS。
-- **Playwright 会话**：实测时复用已有 `playwright-cli` 默认会话（`playwright-cli list` 应显示 default: open）。若会话已关，先 `playwright-cli open http://127.0.0.1:65433/`。
+- **后端服务**：`http://127.0.0.1:<端口>/`，PM2 管理；本计划只改前端静态文件，**不需要重启后端**，浏览器刷新即加载新 CSS。
+- **Playwright 会话**：实测时复用已有 `playwright-cli` 默认会话（`playwright-cli list` 应显示 default: open）。若会话已关，先 `playwright-cli open http://127.0.0.1:<端口>/`。
 - **git 工作流**：单 commit 完成修复。commit message 用 `fix:` 前缀。**禁止 `git add -A`**，只 add 实际改动的文件。`public/styles.css` 在本任务前已有用户自己改的未提交改动（删 padding 的 0），不属于本次 commit，**只 add 本任务改的具体行** 不可能（git add 是文件级），所以 commit 时会一并带入用户那个改动 —— 这是**可接受**的，因为用户的 padding 改动也是输入条相关、视觉对齐意图一致。commit message 不提 padding 改动，只描述滚动条修复。
 - **不要重启服务器**：本计划全程不需要重启 PM2/远程命令服务。
 

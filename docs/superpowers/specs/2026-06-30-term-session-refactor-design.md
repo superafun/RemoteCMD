@@ -341,7 +341,7 @@ function scrollXtermDown()  { sessions.get(activeId)?.scrollLines(1); }
 | 6 | **`Number.isInteger(rows) && Number.isInteger(cols)` 守卫**：构造时 `rows/cols` 还未到时跳过 resize | 保留原守卫；服务端 resize 消息到达时统一 `sessions.forEach(s => s.resize(...))` |
 | 7 | **`isFirstList` 重连分支重复 `requestBuffer`**：旧会话刚断开时的尾巴可能在服务端已过期 | 走 3 档响应逻辑（`endsWith` / `lastIndexOf` / 全量），与服务端协议无变化 |
 | 8 | **Map 查不到返回 `undefined`**：所有 `sessions.get(msg.id)` 都要加 `if (!s) return;` 守卫 | 已在 buffer / data 处理器中加；resize / client_tail_max 用 `forEach` 天然安全 |
-| 9 | **服务端协议不变**：纯前端重构 | `server.js` 不动；只需 `Get-NetTCPConnection -LocalPort 65433` 确认后端在跑，刷新页面即可测 |
+| 9 | **服务端协议不变**：纯前端重构 | `server.js` 不动；只需 `Get-NetTCPConnection -LocalPort <端口>` 确认后端在跑，刷新页面即可测 |
 
 ### 回退方案
 

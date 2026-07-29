@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- 纯前端改动，**不重启服务器**；测试连现有 `http://localhost:65433/`，刷新静态文件即可加载新前端（AGENTS.md 开发纪律）。
+- 纯前端改动，**不重启服务器**；测试连现有 `http://localhost:<端口>/`，刷新静态文件即可加载新前端（AGENTS.md 开发纪律）。
 - **禁止 `git add -A`**；每次 commit 显式指定文件（AGENTS.md git 工作流）。
 - 每个独立改动一个 commit；改完 commit 前把 diff 打给用户复核（用户铁律）。
 - 复用服务端权威链路：`sendInput`→`wsSend input`，无乐观状态、不新增协议。
@@ -47,7 +47,7 @@
 
 - [ ] **Step 2: 浏览器实测按钮出现在最左**
 
-打开 `http://localhost:65433/`（不重启），确认底部栏**最左**出现"发按键"按钮（此时点它尚无反应，因为 `openSendKeysPanel` 尚未定义——属预期，下一步才加）。
+打开 `http://localhost:<端口>/`（不重启），确认底部栏**最左**出现"发按键"按钮（此时点它尚无反应，因为 `openSendKeysPanel` 尚未定义——属预期，下一步才加）。
 
 - [ ] **Step 3: Commit**
 
@@ -86,7 +86,7 @@ git commit -m "feat: 底部栏最左新增发按键按钮（面板函数后续�
 
 - [ ] **Step 2: 浏览器实测无语法错误**
 
-打开 `http://localhost:65433/`，浏览器控制台执行 `typeof MODIFIER_KEYS !== 'undefined' && typeof PRIMARY_KEYS !== 'undefined' && activeMods instanceof Set`，应返回 `true`；页面无 JS 报错（控制台无红色 error）。
+打开 `http://localhost:<端口>/`，浏览器控制台执行 `typeof MODIFIER_KEYS !== 'undefined' && typeof PRIMARY_KEYS !== 'undefined' && activeMods instanceof Set`，应返回 `true`；页面无 JS 报错（控制台无红色 error）。
 
 - [ ] **Step 3: Commit**
 
@@ -175,7 +175,7 @@ git commit -m "feat: 新增发按键面板用的修饰键/主键常量与勾选�
 
 - [ ] **Step 2: 浏览器实测完整交互**
 
-打开 `http://localhost:65433/`，点击底部"发按键"按钮，验证：
+打开 `http://localhost:<端口>/`，点击底部"发按键"按钮，验证：
 1. 面板弹出，含修饰键区（Ctrl/Alt/Shift + 清空修饰键）与主键区（字母+功能键）。
 2. 勾 Ctrl（按钮变蓝高亮）→ 点 C → 控制台日志出现"直接发送: Ctrl+C"（方向 `→`），面板自动关闭；当前终端收到 `\x03`（可用 PowerShell 中断 `Read-Host` 验证）。
 3. 再点"发按键"→ 勾 Alt → 点 M → 收到 `\x1bm`（Escape + 小写 m，符合 AGENTS.md 注意事项 23）。
@@ -222,7 +222,7 @@ git commit -m "feat: 发按键面板核心逻辑（勾选修饰键+点主键当�
 
 - [ ] **Step 2: 浏览器实测高亮生效**
 
-打开 `http://localhost:65433/`，点"发按键"→ 勾 Ctrl/Alt/Shift，确认被勾选的按钮变蓝底白字；点"清空修饰键"或发完按键后变回普通样式。
+打开 `http://localhost:<端口>/`，点"发按键"→ 勾 Ctrl/Alt/Shift，确认被勾选的按钮变蓝底白字；点"清空修饰键"或发完按键后变回普通样式。
 
 - [ ] **Step 3: Commit**
 
@@ -245,7 +245,7 @@ git commit -m "feat: 发按键面板修饰键勾选高亮样式"
 
 - [ ] **Step 1: 边界情况浏览器实测**
 
-打开 `http://localhost:65433/`，逐项验证：
+打开 `http://localhost:<端口>/`，逐项验证：
 1. **无活动终端**（`activeId == null`）：理论上需先关掉所有终端再测；`sendInput` 内置 `if (activeId)` 守卫，静默不发，仍记日志、面板关闭。
 2. **只勾修饰键不点主键**：仅高亮，不发送。
 3. **不勾修饰键直接点主键 C**：组合名 `"C"`，`parseHotkey("C")` 末路 `return s` → 发字母 C 本身，合理。
@@ -264,7 +264,7 @@ git commit -m "feat: 发按键面板修饰键勾选高亮样式"
     - **新增状态/函数**：全局 `activeMods`（Set）、`openSendKeysPanel` / `closeSendKeysPanel` / `toggleMod` / `clearMods` / `pickAndSend`。面板 DOM 句柄 `sendKeysPanel`（类比 `editorDiv`）。
     - **按钮位置关键**：放在 `#hotkeysList` **之外**，因为 `renderHotkeys()` 内 `bar.innerHTML=''` 会清空 `#hotkeysList` 全部子节点再重建（只重附 `editBtnEl`/`scrollGroupEl`），放外面可避开被误清。
     - **性能**：弹窗打开创建约 50 个按钮节点（仅面板生命周期内，关闭即销毁），零新增网络、零协议变更，可忽略。
-    - **纯前端改动**：只改前端不重启服务器，连现有 65433 刷新即可。
+    - **纯前端改动**：只改前端不重启服务器，连现有 <端口> 刷新即可。
 ```
 
 - [ ] **Step 3: Commit**

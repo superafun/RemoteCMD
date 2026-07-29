@@ -269,13 +269,13 @@ git commit -m "feat: 飞书 ℹ 图标手机 tap 切换说明气泡（顶层监�
 - Test（可选）: `tests/feishu-settings-smoke.mjs` （新建，Playwright 冒烟）
 
 **Interfaces:**
-- Consumes: 运行中服务器（`npm run start`，默认 `http://localhost:65433`）；`playwright`（`npx playwright` 可用）。
+- Consumes: 运行中服务器（`npm run start`，默认 `http://localhost:<端口>`）；`playwright`（`npx playwright` 可用）。
 - Produces: 验证报告（控制台输出）。
 
 - [ ] **Step 1: 手动真机验证（主）**
 
 1. `npm run restart`（确保带新代码运行）。
-2. 安卓真机浏览器开 `http://<本机IP>:65433`，打开设置弹窗。
+2. 安卓真机浏览器开 `http://<本机IP>:<端口>`，打开设置弹窗。
 3. 确认「通知」分组下方出现独立分组「飞书通知（任务完成推送）」，含 App ID / App Secret / 接收 ID / 接收类型 四行，每行标签右侧有 ℹ 图标；分组标题右侧也有 ℹ。
 4. 桌面（或手机长按/hover）：点按/悬停 ℹ，应弹出对应中文说明气泡；点别处或再点收起。
 5. 在「接收 ID」填入测试值、「接收类型」选 chat_id，点「应用」：确认 `hint-feishu` 显示成功提示（功能未坏），且 `applySettingsFeishu()` 正常（与改动前一致）。
@@ -288,7 +288,7 @@ git commit -m "feat: 飞书 ℹ 图标手机 tap 切换说明气泡（顶层监�
 
 ```js
 import { chromium } from 'playwright';
-const base = 'http://localhost:65433';
+const base = 'http://localhost:<端口>';
 const browser = await chromium.launch();
 const page = await browser.newPage();
 const errors = [];

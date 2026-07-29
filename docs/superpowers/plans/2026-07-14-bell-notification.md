@@ -156,8 +156,8 @@
 
 - [ ] **Step 4: 验证 HTML 无语法错误**
 
-  由于 `public/index.html` 没有构建工具，直接打开浏览器访问 `http://localhost:65433` 查看页面是否能加载。
-  若服务器未运行，使用 `Get-NetTCPConnection -LocalPort 65433` 检查；若未运行，请用户执行 `npm run restart`（AI 不可自行重启）。
+  由于 `public/index.html` 没有构建工具，直接打开浏览器访问 `http://localhost:<端口>` 查看页面是否能加载。
+  若服务器未运行，使用 `Get-NetTCPConnection -LocalPort <端口>` 检查；若未运行，请用户执行 `npm run restart`（AI 不可自行重启）。
 
 - [ ] **Step 5: 提交前端变更**
 
@@ -177,13 +177,13 @@
 
   在 PowerShell 中运行：
   ```powershell
-  Get-NetTCPConnection -LocalPort 65433
+  Get-NetTCPConnection -LocalPort <端口>
   ```
   若无输出，通知用户运行 `npm run restart` 启动服务器。
 
 - [ ] **Step 2: 浏览器打开页面并登录终端**
 
-  访问 `http://localhost:65433`，确认已有终端或新建一个终端。
+  访问 `http://localhost:<端口>`，确认已有终端或新建一个终端。
 
 - [ ] **Step 3: 触发 BEL 通知**
 
