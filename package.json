@@ -1,17 +1,28 @@
 {
-  "name": "pythonprojectremotecmd2",
+  "name": "remotecmd",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Web-based remote PowerShell terminal — control Windows shell from any browser, mobile-optimized for agent CLI/TUI.",
+  "main": "server.js",
   "scripts": {
     "start": "cmd /c \"set NPM_CONFIG_ALLOW_SCRIPTS=&& pm2 start server.js --name remote-cmd\"",
     "restart": "pm2 restart remote-cmd",
     "stop": "pm2 stop remote-cmd",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "terminal",
+    "powershell",
+    "web-terminal",
+    "remote-shell",
+    "xterm",
+    "websocket",
+    "node-pty",
+    "cli",
+    "tui",
+    "mobile"
+  ],
+  "author": "superafun",
+  "license": "MIT",
   "type": "commonjs",
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",
