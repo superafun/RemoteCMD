@@ -38,12 +38,7 @@
   "recentPaths": [],
   "screenHistoryLines": 500,
   "bellOsEnabled": true,
-  "feishuAppId": "",
-  "feishuAppSecret": "",
-  "feishuReceiveId": "",
-  "feishuReceiveType": "chat_id",
   "sessionDurationHours": 24,
   "htpasswdPath": "./htpasswd",
-  "sessionSecret": "",
   "recentPathsLimit": 10
 }

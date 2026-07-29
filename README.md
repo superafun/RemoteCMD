@@ -89,12 +89,10 @@ npm start
 | `recentPathsLimit` | number | 10 | 最近路径保存条数(1–100) |
 | `maxFrontendLogs` | number | 30 | 前端日志上限(条) |
 | `sessionDurationHours` | number | 24 | 保持登录时长(小时) |
-| `sessionSecret` | string | 自动生成 | Cookie 签名密钥，**勿提交** |
+| `sessionSecret` | string | 服务端自动生成 | Cookie 签名密钥，**无需手动配置** |
 | `htpasswdPath` | string | `./htpasswd` | 密码文件路径（nginx htpasswd 格式） |
-| `feishuAppId` 等 | string | `""` | 飞书通知配置，留空则关闭 |
 
-> ⚠️ `config.json` 已在 `.gitignore` 中，**不会被提交**。请勿把含 `sessionSecret` /
-> 飞书凭证的真实 `config.json` 推送到公开仓库。
+> ⚠️ `config.json` 已在 `.gitignore` 中，**不会被提交**。请勿把含密码等敏感信息的 `config.json` 推送到公开仓库。
 
 ---
 
@@ -128,7 +126,7 @@ server {
 
 ## 🔒 安全说明
 
-- `config.json`（含 `sessionSecret` 与飞书凭证）已被 `.gitignore` 排除，不会进入版本库。
+- `config.json`（本地运行配置）已被 `.gitignore` 排除，不会进入版本库。
 - 登录 cookie 为 `HttpOnly` + `SameSite=Lax` + HTTPS 下自动 `Secure`。
 - 密码复用 nginx htpasswd（`{SHA}` / `{PLAIN}` / 明文 / `$apr1$` 均支持）。
 - 生产环境务必使用 HTTPS + 强密码。

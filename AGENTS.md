@@ -18,7 +18,7 @@ npm start
 - **无测试框架**、**无 linter**、**无 formatter** 配置。
 - `package.json` 中的 `test` 脚本是占位符（`echo "Error: no test specified" && exit 1`）。
 - **已发布为公开 GitHub 仓库**：`https://github.com/superafun/RemoteCMD`（main 分支，MIT 协议，中英双语 README）。
-- `config.json`（含 `sessionSecret` / 飞书凭证）在 `.gitignore` 中，**绝不提交**；对外只用 `config.example.json` 模板。
+- `config.json`（本地运行配置）在 `.gitignore` 中，**绝不提交**；对外只用 `config.example.json` 模板。
 - `@xterm/addon-fit` 在 `package.json` 中但**前端并未实际使用**（未使用的依赖）。
 
 ## 架构
@@ -52,7 +52,7 @@ server.js
 
 - 认证 authority 已归 `server.js`；nginx `/cmd/` 块仅保留 TLS 反代，不再有 `auth_basic`。
 - 会话 = 无状态签名 cookie `rc_session` = `<到期时间戳ms>.<HMAC-SHA256(sessionSecret, 时间戳)>`；`HttpOnly` + `SameSite=Lax` + `secure:'auto'`（走 nginx HTTPS 自动加 Secure，直连 localhost 不加）。
-- 密码**复用 nginx 的 htpasswd 文件**（`config.htpasswdPath`，默认 nginx conf 下 `htpasswd`），每次登录实时读取校验；支持 `{SHA}`（当前格式）/ `{PLAIN}` / 明文 / `$apr1$`。`sessionSecret` 存 `config.json`（缺失自动生成）。
+- 密码**复用 nginx 的 htpasswd 文件**（`config.htpasswdPath`，默认 nginx conf 下 `htpasswd`），每次登录实时读取校验；支持 `{SHA}`（当前格式）/ `{PLAIN}` / 明文 / `$apr1$`。`sessionSecret` 由服务端自动生成（`loadConfig` 兜底：缺失/非法时 `crypto.randomBytes(32)` 生成并自动持久化到 `config.json`；用户**无需手动配置**）。
 - 每次 HTTP 请求与每次 WebSocket 升级（含重连）都验 cookie，过期 → HTTP 401 / WS 拒绝升级 → 前端跳 `/login`。
 - 端点：`POST /api/login`、`POST /api/logout`、`GET /api/auth-check`；`GET /login` 发登录页；未登录访问任何非白名单路径 → 302 到登录页。
 - 前端全用相对 URL；`X-Forwarded-Prefix` 用于在 nginx 前缀（`/cmd/`）下生成正确跳转地址。
@@ -345,12 +345,12 @@ server.js
     - **不含写死高度**：保持 `autoGrow`（`height = scrollHeight`）+ `overflow: auto` + `max-height`（原 `160px`，2026-07-21 改为 `50vh`，见条目 43），单行内容恰好塞进框、**无滚动条**；多行照常增长。此前"强行写死 height"导致滚动条的坑不复现。
     - **范围**：纯前端 `styles.css` 一处改动，刷新即生效，不动 `server.js`/协议；如需像素级锁死对齐，备选方案为运行时读取「换行」按钮 `clientHeight` 反推 textarea 高度（未采用，当前 padding 法已满足）。
 
-- **通知子系统已于 2026-07-22 移除**：原 BEL/Toast/系统通知/飞书推送/doneToken 触发链全部删除，改由用户侧的 CodeBuddy hooks 飞书通知承担。如需恢复，见 `docs/superpowers/RECOVERY-remove-notifications.md`。
+- **通知子系统已于 2026-07-22 移除**：原 BEL/Toast/系统通知/飞书推送/doneToken 触发链全部删除，改由用户侧的 CodeBuddy hooks 飞书通知承担。仓库内无内置恢复文档。
 42. **回车停顿设置项 enterDelayMs（2026-07-15 引入）**：输入条发送文本时「整段正文发出」与「单独发 `\r` 回车」之间的停顿，原为硬编码 `ENTER_DELAY=300ms`，现改为可配置、多端同步的设置项 `enterDelayMs`（默认 300，范围 50–3000，step 50）。完整链路：`config.json` 字段 → `loadConfig` 默认(300)+兜底(越界回退 300) → 连接时 `ws.send({type:'enter_delay_ms'})` 下发 → ws handler 校验(非整数/越界拒收)+`saveConfig`+`broadcast` → 前端 `applySettingsEnterDelay()`（只 `wsSend`，服务端权威）→ 接收侧 `enterDelayMs = msg.data` + 前端日志。`sendInputBar()` 内 `await sleep(enterDelayMs)` 取代 `await sleep(ENTER_DELAY)`；`ENTER_DELAY` 常量已删除。Enter 键发送（`inputBarEnterAction==='send'`）与右侧「发送」按钮（`inputBarButtonAction==='send'`）共用 `sendInputBar()`，停顿两者同步受控。设置弹窗「输入条动作」组新增「回车停顿 (ms)」行（number input + 应用按钮，沿用 `swipe_threshold` 模式，非即时应用）。**改了 `server.js` 需 `npm run restart`**（由用户执行，AI 不擅自重启）。
 
 43. **输入条向上扩展吸底（2026-07-21 修复）**
 
-44. **登录认证归 server.js（2026-07-27）**：nginx `/cmd/` 不再做 `auth_basic`，仅 TLS 反代。`server.js` 用无状态签名 cookie `rc_session` 鉴权，每次 WS 升级（含重连）都验，过期→拒连→前端跳 `/login`。密码复用 nginx `htpasswd`（实时读取校验 `{SHA}`），零新依赖。`sessionDurationHours`（默认 24，无上限、正数即可）是普通可同步设置项，影响下次登录的 cookie 有效期。前端用相对 URL + `X-Forwarded-Prefix` 兼容 `/cmd/` 前缀与直连。改 `config.json` 的 `sessionDurationHours`/`sessionSecret`/`htpasswdPath` 前先 `cp config.json config.json.bak`（config.json 不进 git）。：输入条展开输入超过一行时，文本框原先**向下**扩展，把整个页面撑得比屏幕还高，底部「发按键 / 换行」按钮被挤到屏幕外，需下滑才能看到全部内容。改为文本框**向上**扩展、盖住终端底部一部分，且按钮始终贴屏幕底可见。
+44. **登录认证归 server.js（2026-07-27）**：nginx `/cmd/` 不再做 `auth_basic`，仅 TLS 反代。`server.js` 用无状态签名 cookie `rc_session` 鉴权，每次 WS 升级（含重连）都验，过期→拒连→前端跳 `/login`。密码复用 nginx `htpasswd`（实时读取校验 `{SHA}`），零新依赖。`sessionDurationHours`（默认 24，无上限、正数即可）是普通可同步设置项，影响下次登录的 cookie 有效期。前端用相对 URL + `X-Forwarded-Prefix` 兼容 `/cmd/` 前缀与直连。改 `config.json` 的 `sessionDurationHours`/`htpasswdPath` 等字段前先 `cp config.json config.json.bak`（config.json 不进 git）。：输入条展开输入超过一行时，文本框原先**向下**扩展，把整个页面撑得比屏幕还高，底部「发按键 / 换行」按钮被挤到屏幕外，需下滑才能看到全部内容。改为文本框**向上**扩展、盖住终端底部一部分，且按钮始终贴屏幕底可见。
     - **根因**：`#hotkeys-bar` 与 `#inputBarWrap` 为 `align-items: flex-start`（按钮贴顶、文本框向下长）；底部栏处于正常文档流，页面总高超过视口后其底边掉出屏幕底边。
     - **修复**（`public/styles.css`，纯 CSS，不动 `server.js`/协议/`autoGrow`）：
         - `#hotkeys-bar` 加 `position: sticky; bottom: 0` 锁视口底边；因 sticky 保留在 `#page` 流盒内，宽度自动等于终端宽度（**未用 `fixed`**，否则变全屏宽）。
