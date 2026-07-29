@@ -34,7 +34,7 @@ function loadConfig() {
             recentPaths: [],
             recentPathsLimit: 10,
             sessionDurationHours: 24,
-            htpasswdPath: 'C:\\Users\\fmy3\\OneDrive\\project\\pythonProjectiQuant2\\nginx-1.28.2\\conf\\htpasswd'
+            htpasswdPath: './htpasswd'
         };
         fs.writeFileSync(CONFIG_PATH, JSON.stringify(def, null, 2));
         return def;
@@ -75,7 +75,7 @@ function loadConfig() {
     if (typeof cfg.enterDelayMs !== 'number' || cfg.enterDelayMs < 50 || cfg.enterDelayMs > 3000) cfg.enterDelayMs = 300;
     if (typeof cfg.sessionDurationHours !== 'number' || !isFinite(cfg.sessionDurationHours) || cfg.sessionDurationHours <= 0) cfg.sessionDurationHours = 24;
     if (!Number.isInteger(cfg.recentPathsLimit) || cfg.recentPathsLimit < 1 || cfg.recentPathsLimit > 100) cfg.recentPathsLimit = 10;
-    if (typeof cfg.htpasswdPath !== 'string' || !cfg.htpasswdPath) cfg.htpasswdPath = 'C:\\Users\\fmy3\\OneDrive\\project\\pythonProjectiQuant2\\nginx-1.28.2\\conf\\htpasswd';
+    if (typeof cfg.htpasswdPath !== 'string' || !cfg.htpasswdPath) cfg.htpasswdPath = './htpasswd';
     if (typeof cfg.sessionSecret !== 'string' || cfg.sessionSecret.length < 16) {
         cfg.sessionSecret = crypto.randomBytes(32).toString('hex');
         saveConfig(cfg);
