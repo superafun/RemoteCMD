@@ -52,3 +52,26 @@ _wstest.js
 
 # === subagent 临时报告（非项目源码，不纳入版本控制）===
 docs/superpowers/task*-report.md
+
+# === TWA / Bubblewrap 安卓构建产物（含签名密钥，不入库）===
+android/
+*.keystore
+twa-manifest.*
+app/
+build.gradle
+settings.gradle
+gradle.properties
+gradlew
+gradlew.bat
+gradle/
+local.properties
+*.apk
+*.aab
+# 补充：Gradle 缓存 / 构建输出 / 签名产物 / 杂项临时文件（不入库）
+.gradle/
+build/
+*.idsig
+manifest-checksum.txt
+_ul
+
+

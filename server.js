@@ -295,7 +295,9 @@ app.get('/api/auth-check', (req, res) => {
 });
 
 // === 鉴权网关：保护静态资源与除白名单外的所有请求 ===
-const AUTH_WHITELIST = ['/login', '/api/login', '/api/logout', '/api/auth-check'];
+const AUTH_WHITELIST = ['/login', '/api/login', '/api/logout', '/api/auth-check',
+    // 公开静态资源：TWA/PWA 构建与安装必须匿名可访问（不含任何秘密）
+    '/manifest.webmanifest', '/icon-192.png', '/icon-512.png', '/icon-maskable-512.png'];
 app.use((req, res, next) => {
     if (AUTH_WHITELIST.includes(req.path)) return next();
     if (isAuthed(req)) return next();
@@ -774,6 +776,6 @@ wss.on('connection', (ws) => {
     });
 });
 
-server.listen(cfg.port, '127.0.0.1', () => {
-    console.log(`服务器已启动: http://127.0.0.1:${cfg.port} (仅本机，由 nginx 反代)`);
+server.listen(config.port, '127.0.0.1', () => {
+    console.log(`服务器已启动: http://127.0.0.1:${config.port} (仅本机，由 nginx 反代)`);
 });

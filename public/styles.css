@@ -325,6 +325,8 @@
             gap: 0;
             align-items: center;
             /* width 由 #page flex 列布局默认 stretch 提供 */
+            background: #1e1e1e;  /* 顶栏底色：配合 viewport-fit=cover，TWA 沉浸态下铺满顶部状态栏原区域，避免露出底层白/黑 */
+            padding-top: env(safe-area-inset-top, 0);  /* 普通手机浏览器：顶栏下移避开系统状态栏；TWA 沉浸(inset=0)与桌面(无 inset)无影响 */
         }
         #hotkeys-bar {
             display: flex;

@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <link rel="stylesheet" href="./xterm/css/xterm.css">
     <link rel="stylesheet" href="./styles.css">
     <script src="./addon-web-links/lib/addon-web-links.js"></script>
@@ -37,10 +37,10 @@
             </div>
             <div id="hotkeysList" style="display:flex;gap:0;flex-wrap:nowrap;">
                 <button id="editBtn">编辑</button>
+                <button id="scrollBottomBtn">到底</button>
                 <div id="scrollGroup" style="display:flex;flex-shrink:0;margin-left:auto;">
                     <button id="scrollUpBtn">▲上滑</button>
                     <button id="scrollDownBtn">▼下滑</button>
-                    <button id="scrollBottomBtn">▽到底页面</button>
                 </div>
             </div>
         </div>
@@ -85,6 +85,7 @@
         // renderHotkeys() 中 bar.innerHTML = '' 会把它们从 DOM 树摘下,getElementById 失效
         // 必须用变量持有引用才能在 renderHotkeys 末尾 appendChild 回去
         const editBtnEl = document.getElementById('editBtn');
+        const scrollBottomBtnEl = document.getElementById('scrollBottomBtn');
         const scrollGroupEl = document.getElementById('scrollGroup');
 
         // dir: 'out' = 客户端→服务端 (C→S, 蓝色 →)
@@ -867,7 +868,7 @@
         document.getElementById('editBtn').onclick = openHotkeyEditor;
         // editBtn 引用已保留为 editBtnEl（被 renderHotkeys 重新附加），上行的 getElementById 在首次
         // init 时拿到引用并赋值 onclick 即可，后续即使元素被摘下再附加，onclick 仍在同一 JS 对象上
-        document.getElementById('scrollBottomBtn').onclick = scrollBottom;
+        scrollBottomBtnEl.onclick = scrollBottom;
         // 按住连续滚动（pointerdown 触发，pointerup/pointerleave/pointercancel 停止）
         // setInterval 创建时调用 intervalGetter() 读一次周期，运行期间不变（需释放+再次按住才按新值）
         // 触摸/笔：先判定是否为「滑动手势」——pointerdown 后位移超阈值视为横滑底部栏，
@@ -1410,6 +1411,7 @@ function showToast(message, type = 'success') {
             // CSS 换行时 #scrollGroup 会跟着 hotkeyList 内部 flex-wrap 走,
             // 自然落到有空隙的那一行右侧
             bar.appendChild(editBtnEl);
+            bar.appendChild(scrollBottomBtnEl);
             bar.appendChild(scrollGroupEl);
         }
 
