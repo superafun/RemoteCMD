@@ -40,8 +40,8 @@
             box-shadow: 0 8px 32px rgba(0,0,0,0.5);
             min-width: 360px;
             max-width: 520px;
-            max-height: 60vh;
-            max-height: 60dvh;
+            max-height: 70vh;
+            max-height: 70dvh;
             display: flex;
             flex-direction: column;
             overflow: hidden;
