@@ -835,6 +835,25 @@
             const hotkeys = document.getElementById('hotkeys-bar');
             if (toolbar) toolbar.style.width = w;
             if (hotkeys) hotkeys.style.width = w;
+            positionInputBarText();   // 输入条文本框 left/right 跟随「发按键」/「换行」按钮宽度
+        }
+        // 输入条文本框相对 #page 绝对定位，需与底部栏内按钮对齐：
+        // left = 发按键左缘相对 #page 的偏移，right = #page 右缘到「换行」按钮左缘的距离。
+        // 必须用两个元素的 getBoundingClientRect 差值（布局坐标、不随滚动变化），
+        // 不能直接拿 sendBtn.offsetWidth 当 right：#page 有 min-width:100%（视口宽时比
+        // xterm 宽），直接 right=按钮宽会让文本框右缘越过 xterm 右缘、盖住换行按钮（desktop 回归）。
+        function positionInputBarText() {
+            const ta = document.getElementById('inputBarText');
+            const sendKeysBtn = document.getElementById('sendKeysBtn');
+            const sendBtn = document.getElementById('inputBarSend');
+            const pageEl = document.getElementById('page');
+            if (!ta || !sendKeysBtn || !sendBtn || !pageEl) return;
+            const pr = pageEl.getBoundingClientRect();
+            const kr = sendKeysBtn.getBoundingClientRect();
+            const sr = sendBtn.getBoundingClientRect();
+            if (!(sr.width > 0)) return;   // 换行按钮不可见（输入条收起）时保持现值
+            ta.style.left = (kr.right - pr.left) + 'px';   // 发按键右缘相对 #page
+            ta.style.right = (pr.right - sr.left) + 'px';  // #page 右缘 - 换行按钮左缘
         }
         // DOM 加载完成后首次同步
         if (document.readyState === 'loading') {
@@ -1496,6 +1515,7 @@ function showToast(message, type = 'success') {
             hotkeysListEl.style.display = 'none';    // 展开时隐藏快捷键栏
             inputBarWrap.style.display = 'flex';     // 输入条独占整行
             applyInputBarButtonLabel();              // 按当前设置刷新右侧按钮文字
+            positionInputBarText();                  // 文本框对齐底部栏内按钮（wrap 显示后按钮尺寸才有效）
             // 不再清空 value：保留上次未发送草稿，autoGrow 按现有内容重算高度
             autoGrow(inputBarText);
             inputBarText.focus();
