@@ -1,13 +1,16 @@
 {
+  "id": "remote-cmd-app",
   "name": "RemoteCMD",
   "short_name": "RemoteCMD",
   "description": "基于 Web 的远程 PowerShell 终端",
+  "lang": "zh-CN",
   "start_url": "/cmd/",
   "scope": "/cmd/",
-  "display": "standalone",
-  "orientation": "any",
+  "display": "fullscreen",
+  "orientation": "portrait",
   "background_color": "#0b1020",
   "theme_color": "#0b1020",
+  "categories": ["developer", "productivity", "utilities"],
   "icons": [
     { "src": "./icon-192.png",          "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "./icon-512.png",          "sizes": "512x512", "type": "image/png", "purpose": "any" },
