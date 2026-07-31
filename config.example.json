@@ -36,6 +36,7 @@
   "enterDelayMs": 600,
   "inputBarHideOnBlur": false,
   "recentPaths": [],
+  "recentNames": [],
   "screenHistoryLines": 500,
   "bellOsEnabled": true,
   "sessionDurationHours": 24,
