@@ -32,6 +32,7 @@ function loadConfig() {
             enterDelayMs: 300,
             inputBarHideOnBlur: true,
             recentPaths: [],
+            recentNames: [],
             recentPathsLimit: 10,
             sessionDurationHours: 24,
             htpasswdPath: './htpasswd'
@@ -41,6 +42,7 @@ function loadConfig() {
     }
     const cfg = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
     if (!Array.isArray(cfg.recentPaths)) cfg.recentPaths = [];
+    if (!Array.isArray(cfg.recentNames)) cfg.recentNames = [];
 
     // === sizeSlots 兜底：缺失/非法时填默认值 ===
     if (!cfg.sizeSlots || typeof cfg.sizeSlots !== 'object') cfg.sizeSlots = {};
@@ -421,6 +423,26 @@ function removeRecentPath(raw) {
     broadcast({ type: 'recent_paths', data: config.recentPaths, deleted: p });
 }
 
+// 记录一条历史命名：去重 + 置顶 + 截断到 recentPathsLimit + 写盘 + 广播
+function addRecentName(raw) {
+    const n = (raw || '').trim();
+    if (!n) return;
+    config.recentNames = [n, ...config.recentNames.filter(x => x !== n)].slice(0, config.recentPathsLimit);
+    saveConfig(config);
+    broadcast({ type: 'recent_names', data: config.recentNames, added: n });
+}
+
+// 删除一条历史命名：从列表过滤移除 + 落盘 + 广播（与 removeRecentPath 同款结构）
+function removeRecentName(raw) {
+    const n = (raw || '').trim();
+    if (!n) return;
+    const before = config.recentNames.length;
+    config.recentNames = config.recentNames.filter(x => x !== n);
+    if (config.recentNames.length === before) return; // 本就不在列表，无变化不广播
+    saveConfig(config);
+    broadcast({ type: 'recent_names', data: config.recentNames, deleted: n });
+}
+
 // 判定一个盘符路径应记入的"文件夹路径"：
 // 是目录 → 本身；是文件 → 其父文件夹；不存在/出错 → null（跳过，不记录）
 // 返回 Promise<string|null>
@@ -583,6 +605,7 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'max_frontend_logs', data: config.maxFrontendLogs }));
     ws.send(JSON.stringify({ type: 'session_duration_hours', data: config.sessionDurationHours }));
     ws.send(JSON.stringify({ type: 'recent_paths', data: config.recentPaths }));
+    ws.send(JSON.stringify({ type: 'recent_names', data: config.recentNames }));
     ws.send(JSON.stringify({ type: 'recent_paths_limit', data: config.recentPathsLimit }));
     ws.on('message', (msg) => {
         const p = JSON.parse(msg.toString());
@@ -757,7 +780,9 @@ wss.on('connection', (ws) => {
 
         else if (type === 'rename' && sessions[id]) {
             const name = (data == null ? '' : String(data)).trim().slice(0, 50);
+            const prev = sessions[id].name;
             sessions[id].name = name === '' ? computeSmartName() : name;
+            if (name !== '' && name !== prev) addRecentName(name);
             broadcast(buildListMsg());
         }
         else if (type === 'rename_all') {
@@ -767,6 +792,9 @@ wss.on('connection', (ws) => {
                 sessions[id].name = 'Shell #' + (i + 1);
             });
             broadcast(buildListMsg());
+        }
+        else if (type === 'recent_names_delete') {
+            removeRecentName(data);
         }
         else if (type === 'restart_server') {
             ws.send(JSON.stringify({ type: 'restart_server', data: 'ok' }));
