@@ -867,7 +867,9 @@
         } else {
             syncLayoutWidths();
         }
-        // 窗口尺寸变化时不再同步（#terminal-container { align-self: flex-start } 不随窗口缩放）
+        // 窗口 resize 时重算输入条文本框定位：#page min-width:100% 随视口变宽，而底部栏固定为
+        // xterm 宽，视口跨过 xterm 宽时两者错位，不重算会盖住右侧换行按钮（2026-07-31 final review）
+        window.addEventListener('resize', positionInputBarText);
         // xterm 尺寸变化时同步（设置弹窗改 rows/cols 后触发）
         if (typeof ResizeObserver !== 'undefined') {
             const term = document.getElementById('terminal-container');
@@ -1560,7 +1562,7 @@ function showToast(message, type = 'success') {
             try {
                 const raw = localStorage.getItem(CMD_HISTORY_KEY);
                 const arr = raw ? JSON.parse(raw) : [];
-                cmdHistory = Array.isArray(arr) ? arr.filter(x => typeof x === 'string') : [];
+                cmdHistory = Array.isArray(arr) ? arr.filter(x => typeof x === 'string').slice(0, CMD_HISTORY_MAX) : [];
             } catch (e) { cmdHistory = []; }
         }
         function saveCmdHistory() {

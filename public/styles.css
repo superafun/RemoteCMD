@@ -387,8 +387,8 @@
         }
         #inputBarSend {
             flex-shrink: 0;
-            width: 60px;           /* 固定宽与 #inputBarText 的 right:62px 留位匹配，
-                                      防止绝对定位的文本框覆盖到换行按钮 */
+            width: 60px;           /* 固定宽：JS positionInputBarText() 按按钮左缘 rect 差值算文本框
+                                      right，文本框不会覆盖到换行按钮 */
             box-sizing: border-box;/* width 含 padding/border，保证实际渲染宽 = 60px */
         }
         .dropdown-menu button {
