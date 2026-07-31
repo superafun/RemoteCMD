@@ -16,18 +16,35 @@
     <div id="info-tip-portal"></div>
     <div id="page">
         <div class="toolbar">
-            <button id="sessionSelectBtn"></button>
+            <div class="toolbar-left">
+                <button id="sessionSelectBtn"></button>
+                <button id="renameBtn">重命名</button>
+                <button onclick="createNew()">新建终端</button>
+                <button id="recentPathsBtn">最近路径</button>
+            </div>
+            <div class="toolbar-icon">
+                <svg viewBox="0 0 32 32" width="20" height="20">
+                    <defs>
+                        <linearGradient id="tbg" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="#6366f1"/>
+                            <stop offset="100%" stop-color="#8b5cf6"/>
+                        </linearGradient>
+                    </defs>
+                    <rect width="32" height="32" rx="6" fill="url(#tbg)"/>
+                    <path d="M11 11l8 5-8 5" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                    <rect x="19" y="19" width="6" height="2" rx="1" fill="#fff" opacity="0.8"/>
+                </svg>
+            </div>
+            <div class="toolbar-right">
+                <button id="sizeToggleBtn" onclick="toggleSize()">大</button>
+                <button id="selectModeBtn" onclick="toggleSelectMode()">选区模式</button>
+                <button id="openSettingsBtn" onclick="openSettingsModal()">设置</button>
+                <button id="logoutBtn" onclick="logout()">退出</button>
+                <span id="wsStatus"></span>
+            </div>
             <div id="sessionDropdown" class="dropdown-menu"></div>
-            <button id="renameBtn">重命名</button>
             <div id="renameDropdown" class="dropdown-menu"></div>
-            <button onclick="createNew()">新建终端</button>
-            <button id="recentPathsBtn">最近路径</button>
-            <button id="sizeToggleBtn" onclick="toggleSize()">大</button>
-            <button id="selectModeBtn" onclick="toggleSelectMode()">选区模式</button>
-            <button id="openSettingsBtn" onclick="openSettingsModal()">设置</button>
-            <button id="logoutBtn" onclick="logout()">退出</button>
             <div id="recentPathsDropdown" class="dropdown-menu"></div>
-            <span id="wsStatus"></span>
         </div>
         <div id="terminal-container"></div>
         <div id="hotkeys-bar">

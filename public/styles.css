@@ -329,6 +329,31 @@
             background: #1e1e1e;  /* 顶栏底色：配合 viewport-fit=cover，TWA 沉浸态下铺满顶部状态栏原区域，避免露出底层白/黑 */
             padding-top: env(safe-area-inset-top, 0);  /* 普通手机浏览器：顶栏下移避开系统状态栏；TWA 沉浸(inset=0)与桌面(无 inset)无影响 */
         }
+        .toolbar-left {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0;
+            align-items: center;
+            margin-right: auto;  /* 弹性撑杆：将图标推向中间 */
+        }
+        .toolbar-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;     /* 不压缩图标 */
+            padding: 0 8px;
+            height: 100%;        /* 与顶栏高度一致 */
+        }
+        .toolbar-icon svg {
+            display: block;      /* 去除 inline svg 底部间隙 */
+        }
+        .toolbar-right {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0;
+            align-items: center;
+            margin-left: auto;   /* 弹性撑杆：将图标推向中间，与左侧 margin-right:auto 平衡 */
+        }
         #hotkeys-bar {
             display: flex;
             flex-wrap: nowrap;       /* 不换行，单行 */
@@ -568,9 +593,10 @@
 .rename-dropdown-input:focus {
     border-color: #4a9eff;
 }
-.rename-dropdown-ok {
+.rename-dropdown-top .rename-dropdown-ok {
     flex: 0 0 auto;
     min-width: 0;
+    width: auto;         /* 覆盖 .dropdown-menu button 的 width:100%，防止按钮撑满整个下拉框 */
     padding: 4px 10px;
     background: #1e6fb8;
     border-color: #4a9eff;
@@ -578,7 +604,7 @@
     border-radius: 4px;
     cursor: pointer;
 }
-.rename-dropdown-ok:hover {
+.rename-dropdown-top .rename-dropdown-ok:hover {
     background: #2680d4;
 }
     
