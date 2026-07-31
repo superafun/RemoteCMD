@@ -1954,6 +1954,17 @@ function showToast(message, type = 'success') {
         // 移动端：阻止按钮 pointerdown 的焦点转移，保持键盘状态不变
         document.addEventListener('pointerdown', function(e) { if (e.target.closest('button')) e.preventDefault(); }, { capture: true, passive: false });
     </script>
+    <script>
+        // --- Service Worker 注册（PWA 安装前提） ---
+        // 调试期最小 SW：不缓存任何资源，仅满足 PWA 安装条件。
+        // 必须用相对路径 ./sw.js：nginx 剥离 /cmd/ 前缀后，绝对路径 /sw.js 会 404。
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .catch((err) => console.error('SW registration failed:', err));
+            });
+        }
+    </script>
 </body>
 
 </html>
