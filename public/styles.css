@@ -482,7 +482,7 @@
     text-overflow: ellipsis;
     direction: rtl;
 }
-#recentPathsDropdown .recent-path-expand {
+.dropdown-menu .recent-path-expand {
     flex: 0 0 auto;
     width: 22px;
     height: 22px;
@@ -500,15 +500,15 @@
     line-height: 1;
     border-radius: 4px;
 }
-#recentPathsDropdown .recent-path-expand:hover { background: rgba(255, 255, 255, 0.12); color: #e0e0e0; }
-#recentPathsDropdown .recent-path-item.expanded .recent-path-label {
+.dropdown-menu .recent-path-expand:hover { background: rgba(255, 255, 255, 0.12); color: #e0e0e0; }
+.dropdown-menu .recent-path-item.expanded .recent-path-label {
     white-space: normal;
     word-break: break-all;
     overflow: visible;
     text-overflow: clip;
     direction: ltr;
 }
-#recentPathsDropdown .recent-path-del {
+.dropdown-menu .recent-path-del {
     flex: 0 0 auto;
     width: 22px;
     height: 22px;
@@ -526,7 +526,7 @@
     line-height: 1;
     border-radius: 4px;
 }
-#recentPathsDropdown .recent-path-del:hover { background: rgba(255, 80, 80, 0.18); color: #ff6b6b; }
+.dropdown-menu .recent-path-del:hover { background: rgba(255, 80, 80, 0.18); color: #ff6b6b; }
 .recent-path-item:hover { background: rgba(255, 255, 255, 0.08); }
 .dropdown-menu {
     display: none;
