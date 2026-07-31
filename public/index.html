@@ -18,7 +18,8 @@
         <div class="toolbar">
             <button id="sessionSelectBtn"></button>
             <div id="sessionDropdown" class="dropdown-menu"></div>
-            <button onclick="renameCurrent()">重命名</button>
+            <button id="renameBtn">重命名</button>
+            <div id="renameDropdown" class="dropdown-menu"></div>
             <button onclick="createNew()">新建终端</button>
             <button id="recentPathsBtn">最近路径</button>
             <button id="sizeToggleBtn" onclick="toggleSize()">大</button>
@@ -54,6 +55,7 @@
         let activeId = null;         // number | null
         let recentPaths = [];
         let recentPathsLimit = 10;
+        let recentNames = [];
         const wsProtocol = location.protocol === 'https:' ? 'wss' : 'ws';
         let hotkeys = {};
         let scrollIntervalTerminal = 100;
@@ -827,6 +829,16 @@
                         } else {
                             addFrontendLog('最近路径已同步: ' + recentPaths.length + ' 条', 'in');
                         }
+                    } else if (msg.type === 'recent_names') {
+                        recentNames = msg.data || [];
+                        renderRenameDropdown();
+                        if (msg.added) {
+                            addFrontendLog('历史命名已添加: ' + msg.added + ' (共 ' + recentNames.length + ' 条)', 'in');
+                        } else if (msg.deleted) {
+                            addFrontendLog('历史命名已删除: ' + msg.deleted + ' (共 ' + recentNames.length + ' 条)', 'in');
+                        } else {
+                            addFrontendLog('历史命名已同步: ' + recentNames.length + ' 条', 'in');
+                        }
                     }
                 };
             }
@@ -1074,6 +1086,85 @@
             }
         });
 
+        // 渲染「历史命名」下拉内容（打开面板时 + 收到同步时调用）
+        function renderRenameDropdown() {
+            const dd = document.getElementById('renameDropdown');
+            dd.innerHTML = '';
+            // 顶部：输入框 + 确定按钮
+            const top = document.createElement('div');
+            top.className = 'rename-dropdown-top';
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'rename-dropdown-input';
+            input.maxLength = 50;
+            input.value = activeId == null ? '' : (sessions.get(activeId)?.name || ('Shell #' + activeId));
+            const ok = document.createElement('button');
+            ok.type = 'button';
+            ok.className = 'rename-dropdown-ok';
+            ok.textContent = '确定';
+            ok.addEventListener('click', () => {
+                const v = input.value.trim();
+                if (activeId == null) return;
+                wsSend({ type: 'rename', id: activeId, data: v });
+                addFrontendLog('终端重命名: ' + (v || '(空)'), 'out');
+                dd.classList.remove('open');
+            });
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); ok.click(); }
+                else if (e.key === 'Escape') { e.preventDefault(); dd.classList.remove('open'); }
+            });
+            top.appendChild(input);
+            top.appendChild(ok);
+            dd.appendChild(top);
+            setTimeout(() => { try { input.focus(); input.select(); } catch (e) {} }, 0);
+            // 历史命名列表
+            if (!recentNames.length) {
+                const empty = document.createElement('div');
+                empty.className = 'dropdown-empty';
+                empty.textContent = '暂无历史命名';
+                dd.appendChild(empty);
+                return;
+            }
+            recentNames.forEach(n => {
+                const item = document.createElement('div');
+                item.className = 'recent-path-item';
+                item.title = n;
+                const label = document.createElement('span');
+                label.className = 'recent-path-label';
+                label.textContent = n;
+                item.appendChild(label);
+                const del = document.createElement('button');
+                del.className = 'recent-path-del';
+                del.type = 'button';
+                del.textContent = '✕';
+                del.title = '删除该历史命名';
+                del.addEventListener('click', (e) => {
+                    e.stopPropagation();   // 避免触发整行直接应用
+                    wsSend({ type: 'recent_names_delete', data: n });
+                    showToast('已删除', 'success');
+                });
+                item.appendChild(del);
+                item.addEventListener('click', () => {
+                    if (activeId == null) return;
+                    wsSend({ type: 'rename', id: activeId, data: n });
+                    addFrontendLog('终端重命名: ' + n, 'out');
+                    dd.classList.remove('open');
+                });
+                dd.appendChild(item);
+            });
+        }
+
+        // 「重命名」按钮：定位 + 展开/收起
+        document.getElementById('renameBtn').addEventListener('click', renameCurrent);
+        // 点击下拉外部关闭（与 recentPathsDropdown 同款 document 监听模式）
+        document.addEventListener('click', (e) => {
+            const btn = document.getElementById('renameBtn');
+            const dd = document.getElementById('renameDropdown');
+            if (btn && !btn.contains(e.target) && !dd.contains(e.target)) {
+                dd.classList.remove('open');
+            }
+        });
+
         function killCurrent() {
             if (activeId == null) return;
             addFrontendLog('关闭终端 (' + (sessions.get(activeId)?.name || 'Shell #' + activeId) + ')', 'out');
@@ -1081,11 +1172,14 @@
         }
         function renameCurrent() {
             if (activeId == null) return;
-            const cur = sessions.get(activeId)?.name || ('Shell #' + activeId);
-            const name = prompt('重命名当前会话', cur);
-            if (name === null) return;
-            wsSend({ type: 'rename', id: activeId, data: name });
-            addFrontendLog('终端重命名: ' + (name.trim() || '(空)'), 'out');
+            const btn = document.getElementById('renameBtn');
+            const dd = document.getElementById('renameDropdown');
+            const rect = btn.getBoundingClientRect();
+            dd.style.top = rect.bottom + 'px';
+            dd.style.left = rect.left + 'px';
+            dd.style.minWidth = Math.max(rect.width, 200) + 'px';
+            renderRenameDropdown();
+            dd.classList.toggle('open');
         }
         function renameAll() {
             wsSend({ type: 'rename_all' });
