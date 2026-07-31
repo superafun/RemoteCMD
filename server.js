@@ -434,7 +434,7 @@ function addRecentName(raw) {
 
 // 删除一条历史命名：从列表过滤移除 + 落盘 + 广播（与 removeRecentPath 同款结构）
 function removeRecentName(raw) {
-    const n = (raw || '').trim();
+    const n = String(raw || '').trim();
     if (!n) return;
     const before = config.recentNames.length;
     config.recentNames = config.recentNames.filter(x => x !== n);
@@ -773,6 +773,10 @@ wss.on('connection', (ws) => {
             if (config.recentPaths.length > v) {
                 config.recentPaths = config.recentPaths.slice(0, v);
                 broadcast({ type: 'recent_paths', data: config.recentPaths });
+            }
+            if (config.recentNames.length > v) {
+                config.recentNames = config.recentNames.slice(0, v);
+                broadcast({ type: 'recent_names', data: config.recentNames });
             }
             broadcast({ type: 'recent_paths_limit', data: config.recentPathsLimit });
             saveConfig(config);
