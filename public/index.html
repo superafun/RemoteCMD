@@ -66,6 +66,12 @@
         let inputBarCloseAfterSend = false;
         let enterDelayMs = 300;   // 输入条回车停顿(ms)，设置可改、多端同步
         let inputBarHideOnBlur = true;
+        // === 输入条命令历史（localStorage 纯前端，各设备独立）===
+        const CMD_HISTORY_KEY = 'cmdHistory';
+        const CMD_HISTORY_MAX = 20;
+        let cmdHistory = [];      // 最新在前
+        let cmdHistoryIdx = -1;   // 当前浏览位置（-1 = 未浏览，停在草稿）
+        let cmdHistoryDraft = ''; // 首次按 ↑ 时保存的未发送草稿
         let sessionDurationHours = 24;
         // sizeSlots / currentSize 替代原 rows/cols（2026-07-01 改用 size_slots/current_size 协议）
         // 初始 null：服务端消息到达前不调用 term.resize，也不渲染弹窗默认值
@@ -875,6 +881,7 @@
             scrollGroupEl.classList.toggle('hidden', !showScrollButtons);
         }
         applyScrollButtonsVisibility();  // 初始化应用（连接建立后若服务端为 false 会被接收侧再次切换）
+        loadCmdHistory();
 
         // 初始渲染会话选择按钮文本
         renderSessionSelect();
@@ -1528,6 +1535,7 @@ function showToast(message, type = 'success') {
             inputBarBtn.style.display = '';          // 恢复输入条按钮
             hotkeysListEl.style.display = 'flex';    // 恢复快捷键栏
             if (clear) { inputBarText.value = ''; }
+            cmdHistoryIdx = -1; cmdHistoryDraft = '';
             // 不显式设 height='auto':下次 openInputBar → autoGrow() 会自己重置
         }
         // 保留草稿地关闭（焦点移出用）：不清空内容，下次点开仍可见
@@ -1535,6 +1543,7 @@ function showToast(message, type = 'success') {
         // 清空内容但保持展开、焦点留在输入框（Esc / 发送后用）
         function clearInputBar() {
             inputBarText.value = '';
+            cmdHistoryIdx = -1; cmdHistoryDraft = '';
             // 不显式设 height='auto':下面 autoGrow() 第一行会自己重置
             autoGrow(inputBarText);
             // 不移动焦点：桌面端光标留在输入框；移动端软键盘不收回，可连续输入
@@ -1546,6 +1555,17 @@ function showToast(message, type = 'success') {
         }
         // 输入条回车停顿（ms），模拟手动按 Enter 前的手感；值来自设置项 enterDelayMs（多端同步），非硬编码
         function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+        // 命令历史：localStorage 读写（try/catch 包裹，损坏数据视为空历史）
+        function loadCmdHistory() {
+            try {
+                const raw = localStorage.getItem(CMD_HISTORY_KEY);
+                const arr = raw ? JSON.parse(raw) : [];
+                cmdHistory = Array.isArray(arr) ? arr.filter(x => typeof x === 'string') : [];
+            } catch (e) { cmdHistory = []; }
+        }
+        function saveCmdHistory() {
+            try { localStorage.setItem(CMD_HISTORY_KEY, JSON.stringify(cmdHistory)); } catch (e) {}
+        }
 
         // 换行按钮：在光标处插入一个换行；空内容时不做事并退出输入条
         function insertNewline() {
@@ -1576,13 +1596,45 @@ function showToast(message, type = 'success') {
             if (inputBarCloseAfterSend) closeInputBar();   // 清空并收起（closeInputBar 默认 clear=true）
             else clearInputBar();                          // 清空保持展开
             if (!targetId) return;                               // 捕获时无活动会话则不发送
+            // 记录命令历史（空内容不发，已由前面 !t return 保证；重复命令去重并移到最前）
+            if (t) {
+                cmdHistory = [t].concat(cmdHistory.filter(x => x !== t)).slice(0, CMD_HISTORY_MAX);
+                saveCmdHistory();
+                cmdHistoryIdx = -1;
+            }
             wsSend({ type: 'input', id: targetId, data: textSeq });  // 整段正文一次性发出
             await sleep(enterDelayMs);                          // 停顿，模拟手动按 Enter 前的手感（取自设置项）
             wsSend({ type: 'input', id: targetId, data: '\r' });     // 单独发回车 = 确认/执行
         }
         inputBarText.addEventListener('input', () => autoGrow(inputBarText));
         inputBarText.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (!cmdHistory.length) return;
+                if (cmdHistoryIdx === -1) {          // 首次按：保存当前草稿
+                    cmdHistoryDraft = inputBarText.value;
+                    cmdHistoryIdx = 0;
+                } else if (cmdHistoryIdx < cmdHistory.length - 1) {
+                    cmdHistoryIdx++;
+                }
+                inputBarText.value = cmdHistory[cmdHistoryIdx];
+                autoGrow(inputBarText);
+                inputBarText.selectionStart = inputBarText.selectionEnd = inputBarText.value.length;
+            }
+            else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (cmdHistoryIdx === -1) return;    // 未进入浏览状态
+                if (cmdHistoryIdx === 0) {           // 回到草稿
+                    cmdHistoryIdx = -1;
+                    inputBarText.value = cmdHistoryDraft;
+                } else {
+                    cmdHistoryIdx--;
+                    inputBarText.value = cmdHistory[cmdHistoryIdx];
+                }
+                autoGrow(inputBarText);
+                inputBarText.selectionStart = inputBarText.selectionEnd = inputBarText.value.length;
+            }
+            else if (e.key === 'Escape') {
                 e.preventDefault();
                 if (inputBarText.value) clearInputBar();   // 有内容：清空、保持展开、焦点留输入框
                 else closeInputBar();                       // 无内容：隐藏输入条
