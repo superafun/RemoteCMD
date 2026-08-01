@@ -1194,7 +1194,7 @@
             const rect = btn.getBoundingClientRect();
             dd.style.top = rect.bottom + 'px';
             dd.style.left = rect.left + 'px';
-            dd.style.minWidth = Math.max(rect.width, 200) + 'px';
+            dd.style.width = rect.width * 2.0 + 'px';
             renderRenameDropdown();
             dd.classList.toggle('open');
         }
