@@ -585,6 +585,7 @@
             selectionMode = false;
             window.selectionMode = false;
             btn.classList.remove('mod-active');
+            hideLoupe();   // 退出选区模式时强制收起放大镜
         }
 
         function updateSizeToggleText() {
@@ -606,6 +607,7 @@
             // 重连后 UI 状态复位（选区模式是本地状态，重连视为全新开始）
             selectionMode = false;
             window.selectionMode = false;
+            hideLoupe();   // 重连视为全新开始，清理残留放大镜
             const smBtn = document.getElementById('selectModeBtn');
             if (smBtn) smBtn.classList.remove('mod-active');
             // 清理上一个待执行的定时器
@@ -1378,6 +1380,57 @@ function showToast(message, type = 'success') {
 
         // === 选区模式移动端触摸选区辅助（2026-07-21）===
         let selStartCell = { col: 0, row: 0 };  // 选区模式：单指拖选的起点单元格
+        // === 选区模式放大镜（loupe，2026-08-02）===
+        // 复用 xterm 真实 DOM：克隆 term.element 进圆形 loupe，transform: scale(2.5) 对准手指坐标。
+        let loupeEl = null;
+        const LOUPE_SIZE = 140;   // 直径，与 styles.css 一致
+        const LOUPE_ZOOM = 2.5;   // 放大倍数
+        const LOUPE_GAP  = 70;    // 手指与 loupe 的垂直间距
+
+        function showLoupe(t) {
+            const term = getActiveTerm();
+            if (!term || !term.element) return;
+            if (!loupeEl) {
+                loupeEl = document.createElement('div');
+                loupeEl.className = 'loupe';
+                loupeEl.innerHTML = '<div class="loupe-inner"></div><div class="loupe-center"></div>';
+                document.body.appendChild(loupeEl);
+            }
+            const inner = loupeEl.querySelector('.loupe-inner');
+            inner.innerHTML = '';                       // 清旧克隆
+            const clone = term.element.cloneNode(true); // 快照当前屏幕（含选区蓝底）
+            const ta = clone.querySelector('.xterm-helper-textarea');
+            if (ta) ta.remove();                        // 排除隐藏辅助 textarea，避免聚焦干扰
+            inner.appendChild(clone);
+            updateLoupe(t);
+        }
+
+        function updateLoupe(t) {
+            if (!loupeEl) return;
+            const term = getActiveTerm();
+            if (!term || !term.element) return;
+            const rect = term.element.getBoundingClientRect();
+            const tx = t.clientX - rect.left;           // 手指在终端坐标内的位置
+            const ty = t.clientY - rect.top;
+            const inner = loupeEl.querySelector('.loupe-inner');
+            // 以手指点为 pivot 放大，并把该点对齐到 loupe 中心
+            inner.style.transformOrigin = tx + 'px ' + ty + 'px';
+            inner.style.transform = 'scale(' + LOUPE_ZOOM + ')';
+            inner.style.left = (LOUPE_SIZE / 2 - tx) + 'px';
+            inner.style.top  = (LOUPE_SIZE / 2 - ty) + 'px';
+            // loupe 屏幕位置：手指上方 LOUPE_GAP；上方放不下则翻到下方；边界 clamp
+            let lx = t.clientX - LOUPE_SIZE / 2;
+            let ly = t.clientY - LOUPE_GAP - LOUPE_SIZE;
+            if (ly < 4) ly = t.clientY + LOUPE_GAP;
+            lx = Math.max(4, Math.min(window.innerWidth  - LOUPE_SIZE - 4, lx));
+            ly = Math.max(4, Math.min(window.innerHeight - LOUPE_SIZE - 4, ly));
+            loupeEl.style.left = lx + 'px';
+            loupeEl.style.top  = ly + 'px';
+        }
+
+        function hideLoupe() {
+            if (loupeEl) { loupeEl.remove(); loupeEl = null; }
+        }
         // 取当前活动会话的 xterm 实例；无活动会话时返回 null。
         function getActiveTerm() {
             const s = (typeof activeId !== 'undefined' && activeId != null) ? sessions.get(activeId) : null;
@@ -1421,6 +1474,7 @@ function showToast(message, type = 'success') {
                 // 选区模式：用触摸驱动 xterm 选区，并拦掉 xterm 手势处理器（杜绝 NaN 垃圾）。
                 if (e.touches.length >= 2) {
                     // 多指：走双指缩放拦截，但绝不 preventDefault（保留原生缩放），不干扰选区。
+                    hideLoupe();   // 进入缩放即收起放大镜（避免残留）
                     pinchActive = true; swipeTouchId = null; swipeActive = false;
                     e.stopPropagation();
                     return;
@@ -1432,6 +1486,7 @@ function showToast(message, type = 'success') {
                         selStartCell = c;                    // 记录拖选起点（move 中用于规范化）
                         term.select(c.col, c.row, 0);   // 折叠光标到起点；后续 move 实时扩展
                     }
+                    showLoupe(e.touches[0]);            // 显示放大镜（跟随手指）
                     e.stopPropagation();                // 捕获阶段截住 xterm 冒泡监听，避免 NaN
                 }
                 return;
@@ -1476,6 +1531,7 @@ function showToast(message, type = 'success') {
                         const r2 = Math.max(selStartCell.row, c.row);
                         const len = (r2 - r1) * term.cols + (c2 - c1) + 1;
                         term.select(c1, r1, len);
+                        updateLoupe(t);             // 放大镜跟随手指实时更新
                     }
                     e.stopPropagation();
                 }
@@ -1507,6 +1563,7 @@ function showToast(message, type = 'success') {
 
         function onTouchScrollEnd(e) {
             if (selectionMode) {
+                hideLoupe();   // 抬手即收起放大镜
                 // 选区模式：清起点，但保留选区（供复制按钮 / Ctrl+C 使用）。
                 if (pinchActive) {
                     e && e.stopPropagation();
