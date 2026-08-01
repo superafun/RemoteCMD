@@ -563,6 +563,59 @@
         // 所有观察信息打到浏览器控制台（DevTools）。
         let selectionMode = false;
 
+        // === 选区模式放大镜（loupe，2026-08-02）===
+        // 复用 xterm 真实 DOM：克隆 term.element 进圆形 loupe，transform: scale(2.5) 对准手指坐标。
+        // 声明位置必须在 connect() 初始调用之前（否则初始加载时 hideLoupe() 触发 TDZ 报错）。
+        let loupeEl = null;
+        const LOUPE_SIZE = 140;   // 直径，与 styles.css 一致
+        const LOUPE_ZOOM = 2.5;   // 放大倍数
+        const LOUPE_GAP  = 70;    // 手指与 loupe 的垂直间距
+
+        function showLoupe(t) {
+            const term = getActiveTerm();
+            if (!term || !term.element) return;
+            if (!loupeEl) {
+                loupeEl = document.createElement('div');
+                loupeEl.className = 'loupe';
+                loupeEl.innerHTML = '<div class="loupe-inner"></div><div class="loupe-center"></div>';
+                document.body.appendChild(loupeEl);
+            }
+            const inner = loupeEl.querySelector('.loupe-inner');
+            inner.innerHTML = '';                       // 清旧克隆
+            const clone = term.element.cloneNode(true); // 快照当前屏幕（含选区蓝底）
+            const ta = clone.querySelector('.xterm-helper-textarea');
+            if (ta) ta.remove();                        // 排除隐藏辅助 textarea，避免聚焦干扰
+            inner.appendChild(clone);
+            updateLoupe(t);
+        }
+
+        function updateLoupe(t) {
+            if (!loupeEl) return;
+            const term = getActiveTerm();
+            if (!term || !term.element) return;
+            const rect = term.element.getBoundingClientRect();
+            const tx = t.clientX - rect.left;           // 手指在终端坐标内的位置
+            const ty = t.clientY - rect.top;
+            const inner = loupeEl.querySelector('.loupe-inner');
+            // 以手指点为 pivot 放大，并把该点对齐到 loupe 中心
+            inner.style.transformOrigin = tx + 'px ' + ty + 'px';
+            inner.style.transform = 'scale(' + LOUPE_ZOOM + ')';
+            inner.style.left = (LOUPE_SIZE / 2 - tx) + 'px';
+            inner.style.top  = (LOUPE_SIZE / 2 - ty) + 'px';
+            // loupe 屏幕位置：手指上方 LOUPE_GAP；上方放不下则翻到下方；边界 clamp
+            let lx = t.clientX - LOUPE_SIZE / 2;
+            let ly = t.clientY - LOUPE_GAP - LOUPE_SIZE;
+            if (ly < 4) ly = t.clientY + LOUPE_GAP;
+            lx = Math.max(4, Math.min(window.innerWidth  - LOUPE_SIZE - 4, lx));
+            ly = Math.max(4, Math.min(window.innerHeight - LOUPE_SIZE - 4, ly));
+            loupeEl.style.left = lx + 'px';
+            loupeEl.style.top  = ly + 'px';
+        }
+
+        function hideLoupe() {
+            if (loupeEl) { loupeEl.remove(); loupeEl = null; }
+        }
+
         function toggleSelectMode() {
             const btn = document.getElementById('selectModeBtn');
             const s = sessions.get(activeId);
@@ -1380,57 +1433,6 @@ function showToast(message, type = 'success') {
 
         // === 选区模式移动端触摸选区辅助（2026-07-21）===
         let selStartCell = { col: 0, row: 0 };  // 选区模式：单指拖选的起点单元格
-        // === 选区模式放大镜（loupe，2026-08-02）===
-        // 复用 xterm 真实 DOM：克隆 term.element 进圆形 loupe，transform: scale(2.5) 对准手指坐标。
-        let loupeEl = null;
-        const LOUPE_SIZE = 140;   // 直径，与 styles.css 一致
-        const LOUPE_ZOOM = 2.5;   // 放大倍数
-        const LOUPE_GAP  = 70;    // 手指与 loupe 的垂直间距
-
-        function showLoupe(t) {
-            const term = getActiveTerm();
-            if (!term || !term.element) return;
-            if (!loupeEl) {
-                loupeEl = document.createElement('div');
-                loupeEl.className = 'loupe';
-                loupeEl.innerHTML = '<div class="loupe-inner"></div><div class="loupe-center"></div>';
-                document.body.appendChild(loupeEl);
-            }
-            const inner = loupeEl.querySelector('.loupe-inner');
-            inner.innerHTML = '';                       // 清旧克隆
-            const clone = term.element.cloneNode(true); // 快照当前屏幕（含选区蓝底）
-            const ta = clone.querySelector('.xterm-helper-textarea');
-            if (ta) ta.remove();                        // 排除隐藏辅助 textarea，避免聚焦干扰
-            inner.appendChild(clone);
-            updateLoupe(t);
-        }
-
-        function updateLoupe(t) {
-            if (!loupeEl) return;
-            const term = getActiveTerm();
-            if (!term || !term.element) return;
-            const rect = term.element.getBoundingClientRect();
-            const tx = t.clientX - rect.left;           // 手指在终端坐标内的位置
-            const ty = t.clientY - rect.top;
-            const inner = loupeEl.querySelector('.loupe-inner');
-            // 以手指点为 pivot 放大，并把该点对齐到 loupe 中心
-            inner.style.transformOrigin = tx + 'px ' + ty + 'px';
-            inner.style.transform = 'scale(' + LOUPE_ZOOM + ')';
-            inner.style.left = (LOUPE_SIZE / 2 - tx) + 'px';
-            inner.style.top  = (LOUPE_SIZE / 2 - ty) + 'px';
-            // loupe 屏幕位置：手指上方 LOUPE_GAP；上方放不下则翻到下方；边界 clamp
-            let lx = t.clientX - LOUPE_SIZE / 2;
-            let ly = t.clientY - LOUPE_GAP - LOUPE_SIZE;
-            if (ly < 4) ly = t.clientY + LOUPE_GAP;
-            lx = Math.max(4, Math.min(window.innerWidth  - LOUPE_SIZE - 4, lx));
-            ly = Math.max(4, Math.min(window.innerHeight - LOUPE_SIZE - 4, ly));
-            loupeEl.style.left = lx + 'px';
-            loupeEl.style.top  = ly + 'px';
-        }
-
-        function hideLoupe() {
-            if (loupeEl) { loupeEl.remove(); loupeEl = null; }
-        }
         // 取当前活动会话的 xterm 实例；无活动会话时返回 null。
         function getActiveTerm() {
             const s = (typeof activeId !== 'undefined' && activeId != null) ? sessions.get(activeId) : null;
