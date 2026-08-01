@@ -607,4 +607,40 @@
 .rename-dropdown-top .rename-dropdown-ok:hover {
     background: #2680d4;
 }
+
+/* ===== 选区模式放大镜（loupe，2026-08-02）===== */
+/* 圆形遮罩容器：固定定位、不拦截触摸、置于最上层 */
+.loupe {
+    position: fixed;
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    overflow: hidden;
+    pointer-events: none;          /* 关键：绝不拦截触摸，避免干扰选区 */
+    border: 2px solid rgba(255,255,255,0.85);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    z-index: 1000;
+    background: #1e1e1e;           /* 与终端背景一致，避免边缘露白 */
+}
+/* 克隆终端的缩放层：绝对定位，由 JS 设置 transform/left/top */
+.loupe-inner {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: 0 0;         /* JS 会按手指坐标覆盖 */
+    will-change: transform, left, top;
+}
+/* 中心标记：指示手指正对的确切字符位置 */
+.loupe-center {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 6px;
+    height: 6px;
+    margin: -3px 0 0 -3px;
+    border-radius: 50%;
+    background: rgba(255,80,80,0.9);
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.4);
+    pointer-events: none;
+}
     
