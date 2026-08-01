@@ -78,6 +78,9 @@ function loadConfig() {
     if (typeof cfg.sessionDurationHours !== 'number' || !isFinite(cfg.sessionDurationHours) || cfg.sessionDurationHours <= 0) cfg.sessionDurationHours = 24;
     if (!Number.isInteger(cfg.recentPathsLimit) || cfg.recentPathsLimit < 1 || cfg.recentPathsLimit > 100) cfg.recentPathsLimit = 10;
     if (typeof cfg.htpasswdPath !== 'string' || !cfg.htpasswdPath) cfg.htpasswdPath = './htpasswd';
+    // === shellPath 兜底：pty spawn 用的 shell 绝对路径（如 pwsh.exe）。
+    // 手动在 config.json 里配置；空字符串时 spawn 会用空路径并报错（前端能看到清晰错误）。
+    if (typeof cfg.shellPath !== 'string') cfg.shellPath = '';
     if (typeof cfg.sessionSecret !== 'string' || cfg.sessionSecret.length < 16) {
         cfg.sessionSecret = crypto.randomBytes(32).toString('hex');
         saveConfig(cfg);
@@ -522,15 +525,25 @@ function computeSmartName() {
 function createSession() {
     const newId = sessionCounter++;
     const slot = config.sizeSlots[config.currentSize];
-    // PowerShell 7 (pwsh.exe)。不传 env → node-pty 默认继承父进程 env。
+    // 使用探测后的绝对路径（见 detectShell），避免 node-pty 找不到 WindowsApps 别名下的 pwsh.exe
+    // 不传 env → node-pty 默认继承父进程 env。
     // PS7 的 PSEdition-aware 模块加载能正确挑出 PS7 版本模块，无需过滤 PSModulePath；
     // 实测过滤反而会误删 `C:\Program Files\WindowsPowerShell\Modules`（PS5.1/PS7 共享的 AllUsers 模块路径）。
-    const ptyProcess = pty.spawn('pwsh.exe', ['-ExecutionPolicy', 'Bypass'], {
-        name: 'xterm-color',
-        cols: slot.cols,
-        rows: slot.rows,
-        cwd: process.env.USERPROFILE
-    });
+    let ptyProcess;
+    try {
+        ptyProcess = pty.spawn(config.shellPath, ['-ExecutionPolicy', 'Bypass'], {
+            name: 'xterm-color',
+            cols: slot.cols,
+            rows: slot.rows,
+            cwd: process.env.USERPROFILE
+        });
+    } catch (e) {
+        console.error('[createSession] spawn 失败:', config.shellPath, e && e.message);
+        // 给前端可见的清晰错误（不再冒泡 uncaughtException）
+        broadcast({ type: 'server_log', level: 'error', text: 'Shell 启动失败: ' + (config.shellPath || '(空)') + ' — ' + (e && e.message ? e.message : e) });
+        broadcast(buildListMsg());
+        return;
+    }
     sessions[newId] = { pty: ptyProcess, inputLine: '', name: computeSmartName() };
     // === 重连同步：headless 终端维护"当前可见屏幕 + 有界真实滚屏历史" ===
     // scrollback 用有界行数（config.screenHistoryLines，绝不为 0，否则重连无法上滚看历史）。
