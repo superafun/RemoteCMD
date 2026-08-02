@@ -291,33 +291,12 @@
             font-style: italic;
         }
         .term-wrapper {
-            position: relative;  /* 让 .buffer-loading 绝对定位参照 */
             touch-action: pan-x pinch-zoom;  /* 横向交浏览器、纵向交 JS 模拟滚轮，但保留双指缩放 */
         }
         .xterm {
             touch-action: pan-x pinch-zoom;  /* 同上，更具体保底（xterm 自身可能设过 touch-action） */
         }
         .hidden { display: none !important; }  /* 滚动按钮显隐开关（服务端 showScrollButtons 控制） */
-        .buffer-loading {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: rgba(0,0,0,0.3);
-            z-index: 10;
-            pointer-events: none;  /* 不阻挡终端交互 */
-        }
-        .buffer-loading::after {
-            content: '';
-            width: 32px;
-            height: 32px;
-            border: 3px solid #555;
-            border-top-color: #0078d4;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
@@ -347,6 +326,18 @@
         }
         .toolbar-icon svg {
             display: block;      /* 去除 inline svg 底部间隙 */
+        }
+        /* 顶栏图标位置的加载转圈（替代原来的全屏遮罩） */
+        .toolbar-icon.loading svg { display: none; }
+        .toolbar-icon.loading::after {
+            content: '';
+            width: 20px;
+            height: 20px;
+            border: 3px solid #555;
+            border-top-color: #0078d4;
+            border-radius: 50%;
+            box-sizing: border-box;
+            animation: spin 0.8s linear infinite;
         }
         .toolbar-right {
             display: flex;

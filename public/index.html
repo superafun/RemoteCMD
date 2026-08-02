@@ -706,6 +706,9 @@
                 ws.onclose = () => {
                     addFrontendLog('连接已断开');
                     pendingCreate = false;
+                    // 断线时把所有 pendingBuffer 复位——否则 buffer 响应永不到达，图标会一直转
+                    sessions.forEach(s => { s.pendingBuffer = false; });
+                    updateTopIconLoading();
                     updateWsStatus();
                     // pre-reconnect auth check: 401 -> login page
                     fetch('api/auth-check').then(r => {
@@ -768,6 +771,8 @@
                                         switchSession(currentIds.reduce((a, b) => a > b ? a : b));
                                     } else { activeId = null; }
                                 };
+                                // 删除会话后重算图标：被删的若是正在加载的前台终端，activeId 已改或为 null
+                                updateTopIconLoading();
                             }
                         });
 
@@ -1073,6 +1078,16 @@
                 dd.appendChild(optBtn);
             });
         }
+        // 顶栏图标加载态：只在【当前前台终端】等 buffer 响应时把 logo 换成转圈。
+        // 集中式判定的原因：切换会话时需要重算（切到仍在排队等缓存的终端要开始转），
+        // 若让 TermSession 各自改图标 DOM 就漏掉了切换这条路径。
+        function updateTopIconLoading() {
+            const s = activeId != null ? sessions.get(activeId) : null;
+            const icon = document.querySelector('.toolbar-icon');
+            if (!icon) return;
+            icon.classList.toggle('loading', !!(s && s.pendingBuffer));
+        }
+        window.updateTopIconLoading = updateTopIconLoading;
         function switchSession(id) {
             const idNum = parseInt(id);
             if (selectionMode) { exitSelectMode(); }
@@ -1081,6 +1096,7 @@
             activeId = idNum;
             sessions.get(idNum)?.show();
             document.getElementById('sessionSelectBtn').textContent = sessions.get(activeId)?.name || ('Shell #' + activeId);
+            updateTopIconLoading();
         }
         // 点击按钮切换下拉菜单
         document.getElementById('sessionSelectBtn').addEventListener('click', (e) => {

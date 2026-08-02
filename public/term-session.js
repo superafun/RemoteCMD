@@ -104,28 +104,16 @@ class TermSession {
         this.pendingBuffer = true;
         wsSend({ type: 'buffer', id: this.id, screenHash: hash });
         if (typeof addFrontendLog === 'function') addFrontendLog(`重连请求 发指纹 ${hash} (${this.name})`, 'out');
-        this.showBufferLoading();
+        // 顶栏图标转圈：集中在 index.html 判定，只对前台终端生效
+        if (window.updateTopIconLoading) window.updateTopIconLoading();
     }
 
     handleBufferResponse(msg) {
         this.pendingBuffer = false;
-        this.hideBufferLoading();
+        if (window.updateTopIconLoading) window.updateTopIconLoading();
         if (msg.data === '') return 'skip';
         if (msg.reset) { this.write(msg.data, 'reset'); return 'full'; }
         this.write(msg.data); return 'incremental';
-    }
-
-    // === 加载动画 ===
-    showBufferLoading() {
-        if (this.wrapper.querySelector('.buffer-loading')) return;
-        const div = document.createElement('div');
-        div.className = 'buffer-loading';
-        this.wrapper.appendChild(div);
-    }
-
-    hideBufferLoading() {
-        const el = this.wrapper.querySelector('.buffer-loading');
-        if (el) el.remove();
     }
 
     // === 显示控制 ===
