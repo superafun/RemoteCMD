@@ -352,9 +352,13 @@ function resizeAllPtys(rows, cols) {
 function serverViewportHash(screen) {
     const buf = screen.buffer.active;
     const rowCount = screen.rows;
+    // 可见视口 = buffer 绝对行 baseY .. baseY+rows-1。getLine(i) 的 i 是【含 scrollback 的绝对行号】，
+    // i=0 是保留的最老一行历史，不是屏幕第一行。曾误写成 getLine(i)，导致哈希的是最老的 rows 行：
+    // 输出超一屏、滚屏历史又没写满时那段永久冻结 → 指纹恒定 → 重连永远假命中、画面变了也不回放。
+    const base = buf.baseY;
     let s = '';
     for (let i = 0; i < rowCount; i++) {
-        const line = buf.getLine(i);
+        const line = buf.getLine(base + i);
         s += line ? line.translateToString() : '';
         s += '\n';
     }

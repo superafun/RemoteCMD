@@ -13,9 +13,13 @@
 function computeViewportHash(term) {
     const buf = term.buffer.active;
     const rowCount = term.rows;
+    // 见 server.js serverViewportHash 的同款注释：getLine 的下标是含 scrollback 的绝对行号，
+    // 必须从 baseY 起算才是可见视口。此处用 baseY 而非 viewportY —— 服务端 headless 没人滚动，
+    // 其 viewportY 恒等于 baseY；客户端若改用 viewportY，用户一上滚就与服务端口径不一致。
+    const base = buf.baseY;
     let s = '';
     for (let i = 0; i < rowCount; i++) {
-        const line = buf.getLine(i);
+        const line = buf.getLine(base + i);
         s += line ? line.translateToString() : '';
         s += '\n';
     }
