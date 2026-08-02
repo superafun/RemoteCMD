@@ -643,4 +643,13 @@
     box-shadow: 0 0 0 1px rgba(0,0,0,0.4);
     pointer-events: none;
 }
+/* 选区高亮覆盖层：xterm 选区蓝底在克隆 DOM 中不渲染，这里按单元格手绘一层蓝色（与克隆同处
+   .loupe-inner 缩放空间，自动与放大文字对齐）。pointer-events:none 不拦截触摸。 */
+.loupe-sel {
+    position: absolute;
+    background: rgba(77, 166, 255, 0.40);
+    border-radius: 1px;
+    pointer-events: none;
+    z-index: 1;
+}
     

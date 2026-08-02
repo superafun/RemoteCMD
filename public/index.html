@@ -586,6 +586,10 @@
             const ta = clone.querySelector('.xterm-helper-textarea');
             if (ta) ta.remove();                        // 排除隐藏辅助 textarea，避免聚焦干扰
             inner.appendChild(clone);
+            // 选区高亮覆盖层：xterm 选区蓝底在克隆中不渲染，这里按单元格手绘（见 updateLoupe）
+            const selOverlay = document.createElement('div');
+            selOverlay.className = 'loupe-sel';
+            inner.appendChild(selOverlay);
             updateLoupe(t);
         }
 
@@ -602,6 +606,23 @@
             inner.style.transform = 'scale(' + LOUPE_ZOOM + ')';
             inner.style.left = (LOUPE_SIZE / 2 - tx) + 'px';
             inner.style.top  = (LOUPE_SIZE / 2 - ty) + 'px';
+            // 选区高亮覆盖层：xterm 蓝底在克隆 DOM 中不渲染，按当前选区单元格手绘一层蓝色。
+            // 覆盖层与克隆同处 .loupe-inner 缩放空间，用未缩放的终端像素坐标，自动与放大文字对齐。
+            const sel = inner.querySelector('.loupe-sel');
+            if (sel && term._core && term._core._renderService && term._core._renderService.dimensions &&
+                term._core._renderService.dimensions.css && term._core._renderService.dimensions.css.cell) {
+                const cell = term._core._renderService.dimensions.css.cell;
+                const cur = cellOfTouch(t);
+                const c1 = Math.min(selStartCell.col, cur.col);
+                const r1 = Math.min(selStartCell.row, cur.row);
+                const c2 = Math.max(selStartCell.col, cur.col);
+                const r2 = Math.max(selStartCell.row, cur.row);
+                const vy = term.buffer.active.viewportY;   // 克隆显示的是视口内行，需减去偏移
+                sel.style.left   = (c1 * cell.width) + 'px';
+                sel.style.top    = ((r1 - vy) * cell.height) + 'px';
+                sel.style.width  = ((c2 - c1 + 1) * cell.width) + 'px';
+                sel.style.height = ((r2 - r1 + 1) * cell.height) + 'px';
+            }
             // loupe 屏幕位置：手指上方 LOUPE_GAP；上方放不下则翻到下方；边界 clamp
             let lx = t.clientX - LOUPE_SIZE / 2;
             let ly = t.clientY - LOUPE_GAP - LOUPE_SIZE;
