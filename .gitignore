@@ -15,6 +15,7 @@ reasonix.toml
 *~
 .codebuddy/
 .opencode/
+.workbuddy/
 
 # === 操作系统临时文件 ===
 .DS_Store
