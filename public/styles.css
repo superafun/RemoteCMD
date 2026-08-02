@@ -1,5 +1,6 @@
 
         html {
+            background: #1e1e1e;  /* 深色底：整页重载时第一帧即为深色，消除 TWA 冷启动白闪（与 .toolbar 同色） */
             overflow-x: auto;  /* 兜底：xterm 本身比视口宽时滚动 */
             interactive-widget: resizes-content;  /* 安卓键盘弹起时锁底栏停在键盘上方，不被遮挡 */
         }
