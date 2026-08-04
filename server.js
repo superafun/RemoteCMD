@@ -284,14 +284,14 @@ app.post('/api/login', loginRateLimiter, (req, res) => {
         };
         res.cookie(SESSION_COOKIE, signToken(Date.now() + maxAgeMs), cookieOpts);
         const prefix = safePrefix(req.headers['x-forwarded-prefix']);
-        res.redirect(prefix + '/');
+        res.json({ ok: true, redirect: prefix + '/' });
     } else {
         onLoginFail(ip);
         res.status(401).json({ ok: false, error: '用户名或密码错误' });
     }
 });
 app.post('/api/logout', (req, res) => {
-    res.clearCookie(SESSION_COOKIE, { path: '/' });
+    res.clearCookie(SESSION_COOKIE, { path: '/', httpOnly: true, sameSite: 'lax', secure: 'auto' });
     res.json({ ok: true });
 });
 app.get('/api/auth-check', (req, res) => {

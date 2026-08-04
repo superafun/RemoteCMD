@@ -5,7 +5,7 @@
 // 缓存策略 stale-while-revalidate：先吐缓存保证秒开，同时后台回源刷新，下次冷启动即为最新。
 // v1 曾用纯 cache-first，命中就永不回源，前端改动永远到不了客户端（改了像没改），已废弃。
 
-const CACHE = 'remote-cmd-shell-v4';
+const CACHE = 'remote-cmd-shell-v5';
 const SHELL = [
   './',
   './index.html',
@@ -47,13 +47,21 @@ self.addEventListener('fetch', (event) => {
   // 接口一律走网络：auth-check 等 GET 接口若被缓存，会永远返回首次结果。
   if (url.pathname.includes('/api/')) return;
 
-  // 文档导航统一复用 index.html 这一份缓存条目。
-  const key = req.mode === 'navigate' ? './index.html' : req;
+  // 导航请求归一化缓存 key：
+  // 仅 scope 根路径（如 /cmd/）复用 ./index.html 缓存条目（与 SHELL 预缓存一致）。
+  // 其他导航请求（如 /cmd/login）按自身 URL 独立缓存，
+  // 避免登录页内容被错误写入 index.html 的缓存条目。
+  const scopePath = new URL('./', self.location.href).pathname;
+  const isRootNav = req.mode === 'navigate' &&
+      (url.pathname === scopePath || url.pathname === scopePath + 'index.html');
+  const key = isRootNav ? './index.html' : req;
 
   event.respondWith(
     caches.match(key).then((cached) => {
       const fresh = fetch(req).then((res) => {
-        if (res.ok) {
+        // 跳过重定向响应：未登录时 /cmd/ 被 302 到 /cmd/login，
+        // 若写入缓存会用 login.html 内容覆盖 index.html 条目。
+        if (res.ok && !res.redirected) {
           const copy = res.clone();
           return caches.open(CACHE).then((c) => c.put(key, copy)).then(() => res);
         }

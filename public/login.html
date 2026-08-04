@@ -105,12 +105,11 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username, password })
         });
-        if (resp.ok) {
-          const base = location.pathname.replace(/\/[^/]*$/, '');
-          location.href = base + '/';
+        const data = await resp.json().catch(() => ({}));
+        if (resp.ok && data.ok) {
+          location.href = data.redirect || (location.pathname.replace(/\/[^/]*$/, '') + '/');
           return;
         }
-        const data = await resp.json().catch(() => ({}));
         errEl.textContent = data.error || '登录失败';
       } catch (e) {
         errEl.textContent = '网络错误，请重试';
