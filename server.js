@@ -26,6 +26,7 @@ function loadConfig() {
             swipeThreshold: 24,
             swipeClassify: 10,
             showScrollButtons: true,
+            autoSendPathToTerminal: false,
             inputBarButtonAction: 'newline',
             inputBarEnterAction: 'send',
             inputBarCloseAfterSend: false,
@@ -70,6 +71,7 @@ function loadConfig() {
     if (typeof cfg.swipeThreshold !== 'number' || cfg.swipeThreshold < 1 || cfg.swipeThreshold > 200) cfg.swipeThreshold = 24;
     if (typeof cfg.swipeClassify !== 'number' || cfg.swipeClassify < 1 || cfg.swipeClassify > 100) cfg.swipeClassify = 10;
     if (typeof cfg.showScrollButtons !== 'boolean') cfg.showScrollButtons = true;
+    if (typeof cfg.autoSendPathToTerminal !== 'boolean') cfg.autoSendPathToTerminal = false;
     if (cfg.inputBarButtonAction !== 'newline' && cfg.inputBarButtonAction !== 'send') cfg.inputBarButtonAction = 'newline';
     if (cfg.inputBarEnterAction !== 'newline' && cfg.inputBarEnterAction !== 'send') cfg.inputBarEnterAction = 'send';
     if (typeof cfg.inputBarCloseAfterSend !== 'boolean') cfg.inputBarCloseAfterSend = false;
@@ -614,6 +616,7 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'swipe_threshold', data: config.swipeThreshold }));
     ws.send(JSON.stringify({ type: 'swipe_classify', data: config.swipeClassify }));
     ws.send(JSON.stringify({ type: 'show_scroll_buttons', data: config.showScrollButtons }));
+    ws.send(JSON.stringify({ type: 'auto_send_path_to_terminal', data: config.autoSendPathToTerminal }));
     ws.send(JSON.stringify({ type: 'input_bar_button_action', data: config.inputBarButtonAction }));
     ws.send(JSON.stringify({ type: 'input_bar_enter_action', data: config.inputBarEnterAction }));
     ws.send(JSON.stringify({ type: 'input_bar_close_after_send', data: config.inputBarCloseAfterSend }));
@@ -728,6 +731,12 @@ wss.on('connection', (ws) => {
             if (typeof data !== 'boolean') return;
             config.showScrollButtons = data;
             broadcast({ type: 'show_scroll_buttons', data: config.showScrollButtons });
+            saveConfig(config);
+        }
+        else if (type === 'auto_send_path_to_terminal') {
+            if (typeof data !== 'boolean') return;
+            config.autoSendPathToTerminal = data;
+            broadcast({ type: 'auto_send_path_to_terminal', data: config.autoSendPathToTerminal });
             saveConfig(config);
         }
         else if (type === 'input_bar_button_action') {
