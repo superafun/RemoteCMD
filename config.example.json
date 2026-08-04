@@ -26,6 +26,7 @@
   "swipeThreshold": 12,
   "swipeClassify": 10,
   "showScrollButtons": false,
+  "autoSendPathToTerminal": false,
   "doneToken": "",
   "bellSoundEnabled": true,
   "bellToastEnabled": true,
