@@ -81,6 +81,7 @@
         let swipeThreshold = 24;   // 滑动滚动阈值(px)，设置可改、实时生效
         let swipeClassify  = 10;   // 滑动判定阈值(px)，设置可改、实时生效
         let showScrollButtons = true;
+        let autoSendPathToTerminal = false;
         let inputBarButtonAction = 'newline';
         let inputBarEnterAction = 'send';
         let inputBarCloseAfterSend = false;
@@ -198,6 +199,10 @@
             html += '<div class="modal-row">';
             html += '<label class="modal-label"><input type="checkbox" id="settingsShowScrollButtonsInput" onchange="applySettingsShowScrollButtons()"> 显示滚动按钮</label>';
             html += '<span id="hint-showScrollButtons" class="apply-hint"></span>';
+            html += '</div>';
+            html += '<div class="modal-row">';
+            html += '<label class="modal-label"><input type="checkbox" id="settingsAutoSendPathInput" onchange="applySettingsAutoSendPath()"> 路径自动上屏</label>';
+            html += '<span id="hint-autoSendPath" class="apply-hint"></span>';
             html += '</div>';
 
             // 按住终端滚动间隔 (ms)
@@ -331,6 +336,7 @@
             document.getElementById('settingsSwipeThresholdInput').value = swipeThreshold;
             document.getElementById('settingsSwipeClassifyInput').value = swipeClassify;
             document.getElementById('settingsShowScrollButtonsInput').checked = showScrollButtons;
+            document.getElementById('settingsAutoSendPathInput').checked = autoSendPathToTerminal;
             document.getElementById('settingsInputBarButtonActionInput').value = inputBarButtonAction;
             document.getElementById('settingsInputBarEnterActionInput').value = inputBarEnterAction;
             document.getElementById('settingsInputBarCloseAfterSendInput').checked = inputBarCloseAfterSend;
@@ -440,6 +446,11 @@
             const v = document.getElementById('settingsShowScrollButtonsInput').checked;
             wsSend({ type: 'show_scroll_buttons', data: v });
             flashHint('hint-showScrollButtons');
+        }
+        function applySettingsAutoSendPath() {
+            const v = document.getElementById('settingsAutoSendPathInput').checked;
+            wsSend({ type: 'auto_send_path_to_terminal', data: v });
+            flashHint('hint-autoSendPath');
         }
 
         function applySettingsInputBarButtonAction() {
@@ -894,6 +905,9 @@
                         showScrollButtons = msg.data;
                         applyScrollButtonsVisibility();
                         addFrontendLog('滚动按钮显示状态同步为 ' + (showScrollButtons ? '显示' : '隐藏'), 'in');
+                    } else if (msg.type === 'auto_send_path_to_terminal') {
+                        autoSendPathToTerminal = msg.data;
+                        addFrontendLog('路径自动上屏同步为 ' + (autoSendPathToTerminal ? '开启' : '关闭'), 'in');
                     } else if (msg.type === 'input_bar_button_action') {
                         inputBarButtonAction = msg.data;
                         applyInputBarButtonLabel();
