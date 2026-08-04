@@ -1182,8 +1182,14 @@
                 item.appendChild(del);
 
                 item.addEventListener('click', () => {
-                    copyToClipboard(p);
-                    showToast('已复制', 'success');
+                    if (autoSendPathToTerminal && activeId) {
+                        sendInput(p);
+                        copyToClipboard(p);
+                        showToast('已写入并复制', 'success');
+                    } else {
+                        copyToClipboard(p);
+                        showToast('已复制', 'success');
+                    }
                     dd.classList.remove('open');
                 });
                 dd.appendChild(item);
