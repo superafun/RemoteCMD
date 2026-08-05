@@ -1418,6 +1418,29 @@ function showToast(message, type = 'success') {
 
         // 非 secure 上下文兜底（用户环境为 HTTPS，此路径仅作保险）
         function fallbackCopy(text) {
+            // 键盘安全：若当前焦点本就在可编辑元素上（输入条 textarea / xterm 辅助 textarea），
+            // 直接用它承载选区并复制，全程焦点不离开该元素——避免旧实现新建临时 textarea、
+            // ta.select() 抢焦点再移除，导致安卓软键盘收回且 prevFocus.focus() 唤不回。
+            // 这正是「点最近路径里的路径时键盘收回」的根因：该点击会触发 copyToClipboard，
+            // 而 navigator.clipboard 不可用时落到此兜底，临时 textarea 短暂夺走键盘输入框焦点。
+            const ae = document.activeElement;
+            if (ae && (ae.tagName === 'TEXTAREA' || ae.tagName === 'INPUT') && !ae.disabled) {
+                const prevVal = ae.value;
+                const prevStart = ae.selectionStart;
+                const prevEnd = ae.selectionEnd;
+                try {
+                    ae.value = text;
+                    ae.select();                       // 焦点始终在 ae 上，不创建/移除第二个可编辑元素
+                    let ok = false;
+                    try { ok = document.execCommand('copy'); } catch (e) {}
+                    return ok;
+                } finally {
+                    // 同步还原原元素内容与选区（execCommand 同步执行，期间不会重绘，无可见闪烁）
+                    ae.value = prevVal;
+                    try { ae.setSelectionRange(prevStart, prevEnd); } catch (e) {}
+                }
+            }
+            // 兜底（无任何聚焦可编辑元素时，本就无软键盘需要保护）：沿用临时 textarea 方案
             const ta = document.createElement('textarea');
             ta.value = text;
             ta.style.position = 'fixed';
