@@ -1192,6 +1192,7 @@
                         showToast('已复制', 'success');
                     }
                     dd.classList.remove('open');
+                    restoreKeyboardFocus();   // 交还键盘焦点，避免安卓软键盘收回
                 });
                 dd.appendChild(item);
             });
@@ -1240,6 +1241,7 @@
                 wsSend({ type: 'rename', id: activeId, data: v });
                 addFrontendLog('终端重命名: ' + (v || '(空)'), 'out');
                 dd.classList.remove('open');
+                restoreKeyboardFocus();   // 下拉隐藏会使里面聚焦的输入框失焦，交还键盘焦点防收回
             });
             input.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') { e.preventDefault(); ok.click(); }
@@ -1281,6 +1283,7 @@
                     wsSend({ type: 'rename', id: activeId, data: n });
                     addFrontendLog('终端重命名: ' + n, 'out');
                     dd.classList.remove('open');
+                    restoreKeyboardFocus();   // 交还键盘焦点，避免安卓软键盘收回
                 });
                 dd.appendChild(item);
             });
@@ -2095,8 +2098,20 @@ function showToast(message, type = 'success') {
         // document.addEventListener('mousedown', e => { if (e.target.tagName === 'BUTTON') e.preventDefault(); });
         // 浏览器报告网络恢复时立即重连（不等 3 秒 backoff）
         window.addEventListener('online', () => { addFrontendLog('网络恢复，触发重连'); connect(); });
-        // 移动端：阻止按钮 pointerdown 的焦点转移，保持键盘状态不变
-        document.addEventListener('pointerdown', function(e) { if (e.target.closest('button')) e.preventDefault(); }, { capture: true, passive: false });
+        // 键盘焦点归属：输入条展开时归 inputBarText，否则归当前终端的 xterm 辅助 textarea。
+        // 用于在 UI 交互（点下拉项、关下拉）后把焦点交还，避免安卓软键盘因焦点离开可编辑元素而收回。
+        function restoreKeyboardFocus() {
+            if (inputBarWrap.style.display === 'flex') { try { inputBarText.focus(); } catch (e) {} }
+            else if (activeId != null) { try { sessions.get(activeId)?.focus(); } catch (e) {} }
+        }
+
+        // 移动端：阻止非文本控件（按钮 / 下拉里的 div 项等）pointerdown 的默认焦点转移，保住软键盘。
+        // xterm 辅助 textarea 是屏幕外 opacity:0 元素，点其它控件时安卓会把它失焦导致键盘收回；
+        // 真实输入框（input/textarea）与终端区域不拦截，保证可正常输入与定位光标。
+        document.addEventListener('pointerdown', function(e) {
+            if (e.target.closest('input, textarea, #terminal-container')) return;
+            if (e.target.closest('button, .dropdown-menu')) e.preventDefault();
+        }, { capture: true, passive: false });
 
         // ===== 临时调试浮层（键盘收回排查用，定位后删除）=====
         (function(){
