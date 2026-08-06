@@ -68,7 +68,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 18;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
+        const APP_VERSION = 19;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -181,15 +181,19 @@
             } catch (e) {}
             return (t.rows || 1) / (t.cols || 1);
         }
-        // 面板尺寸完全由「固定页宽 × xterm 比例」推导，不依赖 visualViewport.height
+        // 面板(box)尺寸完全由「固定页宽 × xterm 比例」推导，不依赖 visualViewport.height
         // （键盘/地址栏只动高度，竖屏 innerWidth 恒定），故面板永不因键盘开合而跳动。
+        // 遮罩(overlay)高度则必须取「真实可见高度」visualViewport.height（已排除键盘/地址栏），
+        // 而非布局视口 realH——键盘打开时 realH 含键盘后区域，fixed 遮罩会超出可见区→页面被撑高可滚动。
         function fitModalsToTerminal() {
             const pageW = window.innerWidth || document.documentElement.clientWidth || 360;
             const Pw = Math.min(pageW - 24, 560);
             const ratio = terminalAspect();
             const Ph = Math.round(Pw * ratio);
-            // real page height: #page top to #hotkeys-bar bottom (keyboard/url-bar independent)
+            // real page height: #page top to #hotkeys-bar bottom (布局视口，键盘打开时会含键盘后区域)
             let pageTop = 0, realH = window.innerHeight || 640;
+            const vv = window.visualViewport;
+            const vvHeight = (vv && vv.height) ? vv.height : (window.innerHeight || 640);
             const pageEl = document.getElementById('page');
             const hb = document.getElementById('hotkeys-bar');
             if (pageEl && hb) {
@@ -198,11 +202,14 @@
                 pageTop = pr.top;
                 realH = Math.max(0, hr.bottom - pr.top);
             }
-            const boxCap = Math.max(120, Math.round(realH - 16));
+            // 遮罩取「内容高度」与「可见高度」较小者 —— 键盘打开时 vvHeight<realH，故遮罩=可见高度，绝不超出可见区
+            const visH = Math.max(0, Math.min(realH, vvHeight));
+            const boxCap = Math.max(120, Math.round(visH - 16));
+            window.__modalGeom = { pageTop: Math.round(pageTop), realH: Math.round(realH), vvHeight: Math.round(vvHeight), visH: Math.round(visH), boxCap };
             const overlays = document.querySelectorAll('.modal-overlay');
             for (const ov of overlays) {
                 ov.style.top = pageTop + 'px';
-                ov.style.height = Math.round(realH) + 'px';
+                ov.style.height = Math.round(visH) + 'px';
                 ov.style.bottom = 'auto';
             }
             const boxes = document.querySelectorAll('.modal-box');
@@ -2174,16 +2181,24 @@ function showToast(message, type = 'success') {
     var vv = window.visualViewport;
     var ae = document.activeElement;
     var b = document.querySelector('.modal-box');
+    var ov = document.querySelector('.modal-overlay');
+    var g = window.__modalGeom || {};
     return {
       appV: (typeof APP_VERSION!=='undefined')?APP_VERSION:'?',
       sw: window.__swCache||'?',
       vvh: vv?Math.round(vv.height):'na',
+      innerH: window.innerHeight,
       kb: (vv && vv.height < window.innerHeight*0.85)?'OPEN':'closed',
+      realH: g.realH!=null?g.realH:'?',
+      visH: g.visH!=null?g.visH:'?',
+      ovh: ov?Math.round(parseFloat(ov.style.height)||0):'-',
+      pageTop: g.pageTop!=null?g.pageTop:'?',
+      scrollH: document.documentElement.scrollHeight,
       ae: ae===document.body?'BODY':(ae.classList&&ae.classList.contains('xterm-helper-textarea'))?'HELPER':(ae.id||ae.tagName),
       box: b?b.style.maxHeight:'-'
     };
   }
-  function fmt(s){ return 'appV='+s.appV+' sw='+s.sw+' kb='+s.kb+' vvh='+s.vvh+' ae='+s.ae+' box='+s.box; }
+  function fmt(s){ return 'appV='+s.appV+' sw='+s.sw+' kb='+s.kb+' vvh='+s.vvh+' innerH='+s.innerH+' realH='+s.realH+' visH='+s.visH+' ovh='+s.ovh+' pageTop='+s.pageTop+' scrollH='+s.scrollH+' ae='+s.ae+' box='+s.box; }
   function rec(tag){ lines.push('['+ts()+'] '+tag+' '+fmt(snap())); if(lines.length>500) lines.shift(); if(on) render(); }
   function render(){ logEl.textContent = lines.join('\n'); logEl.scrollTop = logEl.scrollHeight; }
   t.onclick = function(){ on=!on; p.style.display=on?'block':'none'; if(on) render(); };
