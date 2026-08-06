@@ -644,4 +644,21 @@
     pointer-events: none;
     z-index: 1;
 }
-    
+
+/* 安卓软键盘持久化（2026-08-06）：xterm 辅助 textarea 默认 left:-99999px 屏幕外、opacity:0。
+   终端模式下它才是“键盘焦点归属”，但因为它屏幕外，点任何 UI 控件时安卓判定“焦点不在可见
+   输入框上”而收回 IME，且事后把焦点设回这个屏幕外元素也唤不回键盘（输入条模式用可见的
+   inputBarText 作归属则不会收回，正是此差异）。这里把它覆写成覆盖全视口、透明、点击穿透
+   的“可见”输入框：任意点击都算“点在输入框上”，安卓不再收回键盘（与输入条模式行为一致）。
+   pointer-events:none 让点击穿透到下层控件/终端，不挡 UI；opacity:0 不可见。!important 覆盖
+   xterm 默认内联样式。z-index:0 使其位于各 UI 之下，靠透明+穿透不干扰交互。 */
+.xterm-helper-textarea {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    z-index: 0 !important;
+}
