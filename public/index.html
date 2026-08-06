@@ -68,7 +68,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 20;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
+        const APP_VERSION = 21;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -207,8 +207,7 @@
             const boxCap = Math.max(120, Math.round(visH - 16));
             window.__modalGeom = { pageTop: Math.round(pageTop), realH: Math.round(realH), vvHeight: Math.round(vvHeight), visH: Math.round(visH), boxCap };
             // 遮罩尺寸交给 CSS（position:fixed; inset:0 覆盖整个初始包含块），不再用 JS 设 top/height。
-            // 否则高度按布局视口算，安卓软键盘打开时布局视口膨胀、遮罩被撑高；配合 html.modal-open 的
-            // overflow:hidden 滚动锁定，页面不可滚动即不显撑高。
+            // 否则高度按布局视口算，安卓软键盘打开时布局视口膨胀、遮罩被撑高；改由 syncModalScrollLock 冻结 body(position:fixed) 锁定滚动，页面不可滚动即不显撑高。
             const overlays = document.querySelectorAll('.modal-overlay');
             for (const ov of overlays) {
                 ov.style.top = '';
@@ -2153,10 +2152,17 @@ function showToast(message, type = 'success') {
 
         // 模态打开时锁定页面滚动：安卓在「fixed 遮罩 + 软键盘」下会把布局视口膨胀到(全屏+键盘区域)，
         // 使 document 高度=innerH 而可见区更小 → 页面被撑高可滚动。给 html/body 加 overflow:hidden 即不可滚动、不显撑高。
+        // 模态打开时「冻结」body（position:fixed 覆盖视口）：避免安卓 fixed 遮罩 + 软键盘把布局视口
+        // 膨胀到(全屏+键盘)后页面变高可滚动/位移；冻结 body 即不可滚动、不显撑高。
+        // 注意：不要去切换 html/body 的 overflow —— 安卓在 IME 期间 toggle overflow 会触发页面缩放（v30 的教训）。
         function syncModalScrollLock() {
             const has = !!document.querySelector('.modal-overlay');
-            document.documentElement.classList.toggle('modal-open', has);
-            document.body.classList.toggle('modal-open', has);
+            const b = document.body.style;
+            if (has) {
+                b.position = 'fixed'; b.top = '0'; b.left = '0'; b.right = '0'; b.bottom = '0'; b.width = '100%';
+            } else {
+                b.position = ''; b.top = ''; b.left = ''; b.right = ''; b.bottom = ''; b.width = '';
+            }
         }
         const _modalMo = new MutationObserver(syncModalScrollLock);
         _modalMo.observe(document.body, { childList: true, subtree: true });

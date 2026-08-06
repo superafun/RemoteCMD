@@ -33,9 +33,6 @@
             background: rgba(0,0,0,0.55);
             overflow: hidden;  /* 遮罩自身不滚动 */
         }
-        /* 模态打开时锁定页面滚动：安卓 fixed 遮罩 + 软键盘会膨胀布局视口、document 变高可滚动→页面被撑高；
-           加 overflow:hidden 即不可滚动，撑高不可见。any 模态存在即生效（覆盖所有面板）。 */
-        html.modal-open, body.modal-open { overflow: hidden; }
         .modal-box {
             position: fixed;
             top: 8px;
