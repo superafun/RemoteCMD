@@ -55,11 +55,6 @@
             flex: 1 1 auto;
             min-height: 0;
             overflow-y: auto;
-            scrollbar-width: none;     /* Firefox: 隐藏滚动条 */
-            -ms-overflow-style: none;  /* 旧 Edge: 隐藏滚动条 */
-        }
-        .modal-content::-webkit-scrollbar {
-            display: none;             /* Chrome/Edge/Safari: 隐藏滚动条 */
         }
         .modal-box h3 {
             margin: 0 0 14px;
@@ -244,17 +239,13 @@
             padding: 3px 10px;
             font-size: 12px;
         }
-        /* 拖拽手柄:左侧 ☰ 提示可拖动,鼠标变 grab */
-        .hotkey-item .drag-handle {
-            color: #888;
-            cursor: grab;
-            user-select: none;
+        /* 排序按钮:左侧上下箭头,替代移动端不支持的拖拽 */
+        .hotkey-item .move-group {
             margin-right: 8px;
-            font-size: 14px;
-            line-height: 1;
         }
-        .hotkey-item .drag-handle:active {
-            cursor: grabbing;
+        .hotkey-item .move-group button {
+            padding: 2px 6px;
+            font-size: 12px;
         }
         .hotkey-item .hk-label {
             font-family: Consolas, 'Courier New', monospace;
@@ -266,17 +257,7 @@
             text-overflow: ellipsis;
             white-space: nowrap;
         }
-        /* 拖拽中:半透明 */
-        .hotkey-item.dragging {
-            opacity: 0.4;
-        }
-        /* 插入位置指示线:target 项的上/下边一条蓝色亮线 */
-        .hotkey-item.drag-over-top {
-            border-top: 2px solid #4a9eff;
-        }
-        .hotkey-item.drag-over-bottom {
-            border-bottom: 2px solid #4a9eff;
-        }
+        /* (排序由显式上下按钮处理，无拖拽状态) */
         .modal-actions {
             display: flex;
             gap: 8px;

@@ -1914,8 +1914,10 @@ function showToast(message, type = 'success') {
             if (editorDiv) { editorDiv.remove(); editorDiv = null; }
             const names = Object.keys(hotkeys);
             let html = '<div class="modal-overlay" onclick="if(event.target===this)closeEditor()">';
-            html += '<div class="modal-box">';
+            html += '<div class="modal-box" style="min-width:0;max-width:360px;width:min(360px,calc(100vw - 24px));">';
             html += '<h3>编辑快捷键</h3>';
+            // 列表区包进 .modal-content（overflow-y:auto），内容超出 70dvh 时可滚动，下方按钮不再被裁掉
+            html += '<div class="modal-content">';
             html += '<div class="modal-row">';
             html += '<input id="hkName" placeholder="显示名称（如 Alt+M）" style="flex:1;min-width:0;">';
             html += '<button onclick="resolveHotkey()">解析</button>';
@@ -1928,14 +1930,13 @@ function showToast(message, type = 'success') {
             if (names.length === 0) {
                 html += '<div class="empty-hint">暂无快捷键，上方添加</div>';
             } else {
-                names.forEach(n => {
+                names.forEach((n, idx) => {
                     const val = hotkeys[n];
                     const displayVal = val.length > 14 ? val.slice(0, 14) + '…' : val;
                     const safe = n.replace(/'/g, "\\'");
-                    // draggable + data-hotkey-name 让 drag 事件能找到源项的 key
-                    // 不用 inline ondragstart 因为要读 currentTarget.dataset
-                    html += `<div class="hotkey-item" draggable="true" data-hotkey-name="${n}">`;
-                    html += '<span class="drag-handle" title="拖动排序">☰</span>';
+                    // 用上下按钮显式排序，避免移动端 HTML5 拖拽不可用
+                    html += `<div class="hotkey-item" data-hotkey-name="${n}">`;
+                    html += `<span class="btn-group move-group"><button onclick="moveHotkey('${safe}', -1)" title="上移" ${idx === 0 ? 'disabled' : ''}>↑</button><button onclick="moveHotkey('${safe}', 1)" title="下移" ${idx === names.length - 1 ? 'disabled' : ''}>↓</button></span>`;
                     html += `<span class="hk-label" title="${val}">${n}: ${displayVal}</span>`;
                     html += '<div class="btn-group">';
                     html += `<button onclick="editHotkey('${safe}')">编辑</button>`;
@@ -1943,6 +1944,8 @@ function showToast(message, type = 'success') {
                     html += '</div></div>';
                 });
             }
+            html += '</div>';  // .modal-content 结束
+            // 「关闭」留在滚动区外，始终固定在底部可见
             html += '<div class="modal-actions">';
             html += '<button onclick="closeEditor()" style="margin-left:auto;">关闭</button>';
             html += '</div>';
@@ -1951,72 +1954,22 @@ function showToast(message, type = 'success') {
             div.innerHTML = html;
             editorDiv = div.firstElementChild;
             document.body.appendChild(editorDiv);
-            // 拖拽排序:弹窗 DOM 建好后遍历 .hotkey-item 绑定 dragstart/dragover/dragleave/drop
-            // draggable=true 在 innerHTML 里已经写好,这里只挂事件
-            bindHotkeyDragSort(editorDiv);
+            // 排序由每个条目左侧的上下按钮处理
         }
 
-        // 拖拽排序:支持拖到目标项的"上半部分"插到它前面,或"下半部分"插到它后面
-        // 用 dragover 时鼠标 y 坐标与目标中线的相对位置决定插入方向
-        // 不用 e.target 避免嵌套子元素(.drag-handle / .hk-label / button)事件源判断复杂
-        function bindHotkeyDragSort(modal) {
-            let draggedName = null;
-            modal.querySelectorAll('.hotkey-item').forEach(item => {
-                item.addEventListener('dragstart', e => {
-                    draggedName = item.dataset.hotkeyName;
-                    item.classList.add('dragging');
-                    // dataTransfer 必须 setData 否则 Firefox 拒绝 drag
-                    e.dataTransfer.setData('text/plain', draggedName);
-                    e.dataTransfer.effectAllowed = 'move';
-                });
-                item.addEventListener('dragend', () => {
-                    item.classList.remove('dragging');
-                    modal.querySelectorAll('.hotkey-item').forEach(el => {
-                        el.classList.remove('drag-over-top', 'drag-over-bottom');
-                    });
-                    draggedName = null;
-                });
-                item.addEventListener('dragover', e => {
-                    if (!draggedName || item.dataset.hotkeyName === draggedName) return;
-                    e.preventDefault();  // 必须 preventDefault 才能触发 drop
-                    e.dataTransfer.dropEffect = 'move';
-                    const rect = item.getBoundingClientRect();
-                    const isAbove = e.clientY < rect.top + rect.height / 2;
-                    // 清理所有 .hotkey-item 的指示类,只给当前项加
-                    modal.querySelectorAll('.hotkey-item').forEach(el => {
-                        el.classList.remove('drag-over-top', 'drag-over-bottom');
-                    });
-                    item.classList.add(isAbove ? 'drag-over-top' : 'drag-over-bottom');
-                });
-                item.addEventListener('dragleave', e => {
-                    // dragleave 在进入子元素时也会冒泡触发,只在真正离开 .hotkey-item 边界时清
-                    // relatedTarget 是进入的元素,若仍在 item 子树里则不动
-                    if (!item.contains(e.relatedTarget)) {
-                        item.classList.remove('drag-over-top', 'drag-over-bottom');
-                    }
-                });
-                item.addEventListener('drop', e => {
-                    e.preventDefault();
-                    const targetName = item.dataset.hotkeyName;
-                    if (!draggedName || !targetName || draggedName === targetName) return;
-                    const rect = item.getBoundingClientRect();
-                    const insertBefore = e.clientY < rect.top + rect.height / 2;
-                    const order = Object.keys(hotkeys);
-                    const fromIdx = order.indexOf(draggedName);
-                    const toIdx = order.indexOf(targetName);
-                    if (fromIdx === -1 || toIdx === -1) return;
-                    // 取出后重新定位 target 的新索引(因为数组变了)
-                    // insertBefore 决定是插在它前还是后
-                    order.splice(fromIdx, 1);
-                    let newIdx = order.indexOf(targetName);
-                    if (!insertBefore) newIdx += 1;
-                    order.splice(newIdx, 0, draggedName);
-                    const nh = {};
-                    order.forEach(n => nh[n] = hotkeys[n]);
-                    hotkeys = nh;
-                    syncHotkeys();
-                });
-            });
+        // 显式上下移动快捷键一位。移动端无 HTML5 拖拽，用按钮替代 ☰ 拖拽手柄。
+        function moveHotkey(name, delta) {
+            const order = Object.keys(hotkeys);
+            const idx = order.indexOf(name);
+            if (idx === -1) return;
+            const newIdx = idx + delta;
+            if (newIdx < 0 || newIdx >= order.length) return;
+            order.splice(idx, 1);
+            order.splice(newIdx, 0, name);
+            const nh = {};
+            order.forEach(n => nh[n] = hotkeys[n]);
+            hotkeys = nh;
+            syncHotkeys();
         }
 
         function closeEditor() { if (editorDiv) { editorDiv.remove(); editorDiv = null; } }
