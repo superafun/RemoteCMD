@@ -68,6 +68,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
+        const APP_VERSION = 1;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -309,6 +310,9 @@
 
 
             html += '</div>'; // end 缓冲区
+
+            // 当前版本号（每次代码改动 +1，须与 sw.js CACHE 同步）
+            html += '<div class="modal-row" style="margin-top:10px;color:#888;font-size:12px;">当前版本：<span>' + APP_VERSION + '</span></div>';
 
 
 
