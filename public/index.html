@@ -1421,11 +1421,12 @@ function showToast(message, type = 'success') {
 
         // 非 secure 上下文兜底（用户环境为 HTTPS，此路径仅作保险）
         function fallbackCopy(text) {
-            // 键盘安全：若当前焦点本就在可编辑元素上（输入条 textarea / xterm 辅助 textarea），
-            // 直接用它承载选区并复制，全程焦点不离开该元素——避免旧实现新建临时 textarea、
-            // ta.select() 抢焦点再移除，导致安卓软键盘收回且 prevFocus.focus() 唤不回。
-            // 这正是「点最近路径里的路径时键盘收回」的根因：该点击会触发 copyToClipboard，
-            // 而 navigator.clipboard 不可用时落到此兜底，临时 textarea 短暂夺走键盘输入框焦点。
+            // 键盘安全（防御性）：若当前焦点本就在可编辑元素上（输入条 textarea / xterm 辅助 textarea），
+            // 直接用它承载选区并复制，全程焦点不离开该元素——避免旧实现新建临时 textarea、ta.select()
+            // 抢焦点再移除，导致安卓软键盘收回且 prevFocus.focus() 唤不回。
+            // 注意：本函数并非「点最近路径/重命名保存键盘收回」的根因（那次真因是 xterm 辅助 textarea
+            // 屏幕外、被安卓判定为「焦点不在可见输入框」而收 IME，已于 styles.css 用全视口覆写修复）；
+            // 此处保留键盘安全写法，是让 clipboard 兜底路径自身在任何「键盘开着」的场景下都不偷焦点。
             const ae = document.activeElement;
             if (ae && (ae.tagName === 'TEXTAREA' || ae.tagName === 'INPUT') && !ae.disabled) {
                 const prevVal = ae.value;
