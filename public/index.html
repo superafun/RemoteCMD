@@ -68,7 +68,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 5;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
+        const APP_VERSION = 6;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -162,6 +162,37 @@
         const PRIMARY_KEYS = ['↑', '↓', '→', '←', 'Up', 'Down', 'Right', 'Left', 'Home', 'End', 'PgUp', 'PgDn', 'Insert', 'Delete', 'Tab', 'Enter', 'Esc', 'Backspace', 'Space', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
         // 当前勾选的修饰键（方案A：勾选式组合，非物理按住）
         let activeMods = new Set();
+
+        // === 弹窗在软键盘场景下的限高（所有 .modal-box 通用）===
+        // 关键根因：svh/vh 等视口单位跟踪「布局视口」(window.innerHeight)，而软键盘(默认 resizes-visual)
+        // 只缩「视觉视口」、不动布局视口 —— 所以 70svh 永远按全屏算，面板会伸入键盘下方（纯 CSS 无解）。
+        // 因此直接用 visualViewport.height（键盘上方真实可见高度）给面板设 max-height。
+        // html 同时保留 interactive-widget:resizes-content：键盘弹出时布局视口也压矮，使固定遮罩与输入条停在键盘上方。
+        function fitAllModalsToViewport() {
+            const vv = window.visualViewport;
+            const h = (vv ? vv.height : window.innerHeight) || window.innerHeight;
+            const boxes = document.querySelectorAll('.modal-box');
+            for (const box of boxes) {
+                box.style.maxHeight = Math.round(h * 0.7) + 'px';
+            }
+        }
+        (function installModalViewportFit() {
+            if (window.__modalVpFit) return;
+            window.__modalVpFit = true;
+            if (window.visualViewport) {
+                window.visualViewport.addEventListener('resize', fitAllModalsToViewport);
+            }
+            window.addEventListener('resize', fitAllModalsToViewport);
+            const onMut = () => { if (document.querySelector('.modal-box')) fitAllModalsToViewport(); };
+            if (document.body) {
+                new MutationObserver(onMut).observe(document.body, { childList: true, subtree: true });
+            } else {
+                document.addEventListener('DOMContentLoaded', () => {
+                    new MutationObserver(onMut).observe(document.body, { childList: true, subtree: true });
+                });
+            }
+            fitAllModalsToViewport();
+        })();
 
         // === 设置弹窗 ===
         function openSettingsModal() {

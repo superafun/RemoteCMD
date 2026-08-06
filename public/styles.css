@@ -2,9 +2,12 @@
         html {
             background: #1e1e1e;  /* 深色底：整页重载时第一帧即为深色，消除 TWA 冷启动白闪（与 .toolbar 同色） */
             overflow-x: auto;  /* 兜底：xterm 本身比视口宽时滚动 */
-            /* 刻意不设置 interactive-widget:resizes-content：它会让布局视口随键盘 resize，
-               使 svh/dvh 拴在布局视口、弹窗 max-height:70svh 失效（见 .modal-box）；
-               保持默认 resizes-visual 下 svh 才 reliably = 键盘上方高度。输入条改靠浏览器原生「聚焦时自动滚到键盘上方」。 */
+            /* 保留 interactive-widget:resizes-content：软键盘弹出时让「布局视口」也压矮，
+               使固定定位的遮罩(.modal-overlay inset:0)与输入条停在键盘上方。
+               注意：仅靠它还不够——视口单位(svh/vh)跟踪布局视口，面板限高若只靠 70svh，
+               在「键盘已开时开弹窗」那瞬仍可能取到陈旧全屏值；故 .modal-box 由 index.html 的
+               fitAllModalsToViewport() 按 visualViewport.height 实时设 max-height（见该文件）。 */
+            interactive-widget: resizes-content;
         }
         body {
             margin: 0;
@@ -43,7 +46,7 @@
             min-width: 360px;
             max-width: 520px;
             max-height: 70vh;       /* 兜底：极老内核不识 svh 时退化为 70% 视口 */
-            max-height: 70svh;      /* 小视口高度=键盘弹出时的可见高度；默认 resizes-visual 下 svh 才 reliably 等于键盘上方高度（若开 resizes-content 会让 svh 拴回布局视口而失效），面板永不伸入键盘下方 */
+            max-height: 70svh;      /* 渐进增强/fallback：新内核由 index.html 的 fitAllModalsToViewport() 按 visualViewport.height 实时设 max-height（可靠感知软键盘）；此 70svh 仅作无 JS 时的兜底，单独并不可靠感知键盘 */
             display: flex;
             flex-direction: column;
             overflow: hidden;
