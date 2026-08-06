@@ -28,24 +28,25 @@
         /* ===== 通用弹窗遮罩 ===== */
         .modal-overlay {
             position: fixed;
-            inset: 0;  /* 取代 top/left + width/height:100dvh：四边贴齐撑满，避免 interactive-widget:resizes-content 下 dvh 长度与 fixed 的 ICB 在键盘切换时错位（遮罩高度随键盘状态忽长忽短） */
+            top: 0; left: 0; right: 0; bottom: 0;  /* longhand 替代 inset:0：兼容旧内核，确保遮罩被视口约束、不撑高页面 */
+            z-index: 998;
             background: rgba(0,0,0,0.55);
-            z-index: 999;
-            display: flex;
-            align-items: flex-start;
-            justify-content: center;
-            padding: 16px 12px;
+            overflow: hidden;  /* 兜底：遮罩绝不超出视口、绝不拉伸页面 */
         }
         .modal-box {
+            position: fixed;
+            top: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 999;
+            max-height: var(--ph, 70vh);  /* 主尺寸来自 --ph（页宽×xterm 比例，JS 设）；100vh-16px 仅作超高时可达性兜底，不参与正常尺寸 */
             background: #1e1e1e;
             color: #d4d4d4;
             padding: 20px 24px;
             border-radius: 8px;
             box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-            min-width: 360px;
-            max-width: 520px;
-            max-height: 50vh;       /* 兜底：极老内核不识 svh 时退化为 50% 视口 */
-            max-height: 50svh;      /* 渐进增强/fallback：新内核由 index.html 的 fitAllModalsToViewport() 按 visualViewport.height 实时设 max-height（可靠感知软键盘）；此 50svh 仅作无 JS 时的兜底，单独并不可靠感知键盘 */
+            min-width: 0;
+            max-width: 560px;
             display: flex;
             flex-direction: column;
             overflow: hidden;

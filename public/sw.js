@@ -5,7 +5,7 @@
 // 缓存策略 stale-while-revalidate：先吐缓存保证秒开，同时后台回源刷新，下次冷启动即为最新。
 // v1 曾用纯 cache-first，命中就永不回源，前端改动永远到不了客户端（改了像没改），已废弃。
 
-const CACHE = 'remote-cmd-shell-v18';
+const CACHE = 'remote-cmd-shell-v28';
 const SHELL = [
   './',
   './index.html',
@@ -34,6 +34,7 @@ self.addEventListener('activate', (event) => {
     caches.keys()
       .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
+      .then(() => self.clients.matchAll({type:'window'}).then(function(cs){ cs.forEach(function(c){ try{ c.postMessage({cache: CACHE}); }catch(e){} }); }))
   );
 });
 

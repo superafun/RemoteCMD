@@ -68,7 +68,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 8;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
+        const APP_VERSION = 18;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -168,22 +168,56 @@
         // 只缩「视觉视口」、不动布局视口 —— 所以 50svh 永远按全屏算，面板会伸入键盘下方（纯 CSS 无解）。
         // 因此直接用 visualViewport.height（键盘上方真实可见高度）给面板设 max-height。
         // 输入条靠浏览器原生「聚焦时自动滚到键盘上方」即可（荣耀真机验证：无需 resizes-content）；本页 html 刻意不设置 resizes-content，避免键盘弹出时布局视口 resize 给固定元素引入「打开瞬取值陈旧」的时序坑。
-        function fitAllModalsToViewport() {
-            const vv = window.visualViewport;
-            const h = (vv ? vv.height : window.innerHeight) || window.innerHeight;
+        // xterm 宽高比：当前生效的行数/列数 × cell 宽高比（cell 由字号定，恒定）。
+        function terminalAspect() {
+            let t = null;
+            try { t = getActiveTerm(); } catch (e) { t = null; }
+            if (!t) return 1;
+            try {
+                const d = t._core._renderService.dimensions.css;
+                if (d && d.cell && d.cell.width && d.cell.height) {
+                    return (t.rows * d.cell.height) / (t.cols * d.cell.width);
+                }
+            } catch (e) {}
+            return (t.rows || 1) / (t.cols || 1);
+        }
+        // 面板尺寸完全由「固定页宽 × xterm 比例」推导，不依赖 visualViewport.height
+        // （键盘/地址栏只动高度，竖屏 innerWidth 恒定），故面板永不因键盘开合而跳动。
+        function fitModalsToTerminal() {
+            const pageW = window.innerWidth || document.documentElement.clientWidth || 360;
+            const Pw = Math.min(pageW - 24, 560);
+            const ratio = terminalAspect();
+            const Ph = Math.round(Pw * ratio);
+            // real page height: #page top to #hotkeys-bar bottom (keyboard/url-bar independent)
+            let pageTop = 0, realH = window.innerHeight || 640;
+            const pageEl = document.getElementById('page');
+            const hb = document.getElementById('hotkeys-bar');
+            if (pageEl && hb) {
+                const pr = pageEl.getBoundingClientRect();
+                const hr = hb.getBoundingClientRect();
+                pageTop = pr.top;
+                realH = Math.max(0, hr.bottom - pr.top);
+            }
+            const boxCap = Math.max(120, Math.round(realH - 16));
+            const overlays = document.querySelectorAll('.modal-overlay');
+            for (const ov of overlays) {
+                ov.style.top = pageTop + 'px';
+                ov.style.height = Math.round(realH) + 'px';
+                ov.style.bottom = 'auto';
+            }
             const boxes = document.querySelectorAll('.modal-box');
             for (const box of boxes) {
-                box.style.maxHeight = Math.round(h * 0.5) + 'px';
+                box.style.width = Pw + 'px';
+                box.style.maxWidth = Pw + 'px';
+                box.style.minWidth = '0';
+                box.style.setProperty('--ph', Math.min(Ph, boxCap) + 'px');
             }
         }
-        (function installModalViewportFit() {
-            if (window.__modalVpFit) return;
-            window.__modalVpFit = true;
-            if (window.visualViewport) {
-                window.visualViewport.addEventListener('resize', fitAllModalsToViewport);
-            }
-            window.addEventListener('resize', fitAllModalsToViewport);
-            const onMut = () => { if (document.querySelector('.modal-box')) fitAllModalsToViewport(); };
+        (function installModalFit() {
+            if (window.__modalFit) return;
+            window.__modalFit = true;
+            window.addEventListener('resize', fitModalsToTerminal);
+            const onMut = () => { if (document.querySelector('.modal-box')) fitModalsToTerminal(); };
             if (document.body) {
                 new MutationObserver(onMut).observe(document.body, { childList: true, subtree: true });
             } else {
@@ -191,7 +225,7 @@
                     new MutationObserver(onMut).observe(document.body, { childList: true, subtree: true });
                 });
             }
-            fitAllModalsToViewport();
+            fitModalsToTerminal();
         })();
 
         // === 设置弹窗 ===
@@ -360,6 +394,7 @@
             div.innerHTML = html;
             settingsDiv = div.firstElementChild;
             document.body.appendChild(settingsDiv);
+            fitModalsToTerminal();
 
             // 同步当前值到弹窗
             document.getElementById('settingsLargeRowsInput').value = sizeSlots.large?.rows ?? 60;
@@ -386,6 +421,7 @@
 
         function closeSettingsModal() {
             if (settingsDiv) { settingsDiv.remove(); settingsDiv = null; }
+            restoreKeyboardFocus();
         }
 
         // === 日志弹窗 ===
@@ -1989,6 +2025,7 @@ function showToast(message, type = 'success') {
             div.innerHTML = html;
             editorDiv = div.firstElementChild;
             document.body.appendChild(editorDiv);
+            fitModalsToTerminal();
             // 排序由每个条目左侧的上下按钮处理
         }
 
@@ -2007,7 +2044,7 @@ function showToast(message, type = 'success') {
             syncHotkeys();
         }
 
-        function closeEditor() { if (editorDiv) { editorDiv.remove(); editorDiv = null; } }
+        function closeEditor() { if (editorDiv) { editorDiv.remove(); editorDiv = null; } restoreKeyboardFocus(); }
 
         function resolveHotkey() {
             const name = document.getElementById('hkName').value.trim();
@@ -2079,7 +2116,8 @@ function showToast(message, type = 'success') {
             wsStatusEl.style.color = ok ? 'green' : 'red';
         }
 
-        // 移动端：阻止按钮 mousedown 默认行为，避免软键盘因焦点转移而收起，但后来发现，不用这条也行，完全通过css屏蔽更好，于是去掉
+        // 历史：曾用下方 mousedown preventDefault 阻止按钮抢焦点（见下文 addEventListener('mousedown'））。
+        // 一度误以为"CSS 屏蔽更好"而删除（见 2026-07-21），后证实 pointerdown 拦不住 <button> 焦点，故恢复为 mousedown 实现。
         // document.addEventListener('mousedown', e => { if (e.target.tagName === 'BUTTON') e.preventDefault(); });
         // 浏览器报告网络恢复时立即重连（不等 3 秒 backoff）
         window.addEventListener('online', () => { addFrontendLog('网络恢复，触发重连'); connect(); });
@@ -2090,12 +2128,15 @@ function showToast(message, type = 'success') {
             else if (activeId != null) { try { sessions.get(activeId)?.focus(); } catch (e) {} }
         }
 
-        // 移动端：阻止非文本控件（按钮 / 下拉里的 div 项等）pointerdown 的默认焦点转移，保住软键盘。
-        // xterm 辅助 textarea 是屏幕外 opacity:0 元素，点其它控件时安卓会把它失焦导致键盘收回；
-        // 真实输入框（input/textarea）与终端区域不拦截，保证可正常输入与定位光标。
-        document.addEventListener('pointerdown', function(e) {
+        // 移动端：阻止非文本控件 mousedown 的默认焦点转移，保住软键盘（根因修复，2026-08-07 恢复并增强）。
+        // 根因：点按钮 / 浮层时，浏览器会在 mousedown 的默认动作里把焦点从 xterm 辅助 textarea 移走（→body），
+        //       安卓据此收起 IME。preventDefault 掉 mousedown 即可让终端继续持有焦点、键盘不收。
+        // 关键：pointerdown 的 preventDefault 拦不住 <button> 的焦点（按钮焦点落在 mousedown），故必须用 mousedown。
+        //       真实输入框（input/textarea）与终端区域不拦截，保证可正常输入与定位光标。
+        // 该机制曾在 2026-07-21 被误删（误以为"CSS 屏蔽更好"），导致点击设置等按钮键盘收回，本次恢复。
+        document.addEventListener('mousedown', function(e) {
             if (e.target.closest('input, textarea, #terminal-container')) return;
-            if (e.target.closest('button, .dropdown-menu')) e.preventDefault();
+            if (e.target.closest('button, [role="button"], .dropdown-menu') || (e.target.classList && e.target.classList.contains('modal-overlay'))) e.preventDefault();
         }, { capture: true, passive: false });
     </script>
     <script>
@@ -2109,6 +2150,65 @@ function showToast(message, type = 'success') {
             });
         }
     </script>
+
+<div id="dbgPanel" style="position:fixed;top:30px;right:4px;z-index:999999;font:11px/1.4 monospace;color:#0f0;background:rgba(0,0,0,.88);padding:6px 8px;border-radius:6px;max-width:72vw;max-height:72vh;overflow:auto;display:none;white-space:pre;pointer-events:auto;">
+<div id="dbgLog" style="margin-bottom:6px;"></div>
+<div>
+<button id="dbgCopy" style="font:bold 11px monospace;background:#0a0;color:#000;border:none;border-radius:4px;padding:3px 7px;cursor:pointer;">COPY</button>
+<button id="dbgClear" style="font:bold 11px monospace;background:#a00;color:#fff;border:none;border-radius:4px;padding:3px 7px;cursor:pointer;margin-left:6px;">CLEAR</button>
+</div>
+</div>
+<button id="dbgToggle" style="position:fixed;top:4px;right:4px;z-index:999999;font:bold 12px monospace;opacity:1;border:1px solid #0f0;background:#000;color:#0f0;border-radius:4px;padding:3px 7px;cursor:pointer;">DBG</button>
+<script>
+(function(){
+  var p = document.getElementById('dbgPanel');
+  var logEl = document.getElementById('dbgLog');
+  var t = document.getElementById('dbgToggle');
+  var copyBtn = document.getElementById('dbgCopy');
+  var clearBtn = document.getElementById('dbgClear');
+  var lines = [];
+  var on = false;
+  function z(n){ return (n<10?'0':'')+n; }
+  function ts(){ var d=new Date(); return z(d.getHours())+':'+z(d.getMinutes())+':'+z(d.getSeconds()); }
+  function snap(){
+    var vv = window.visualViewport;
+    var ae = document.activeElement;
+    var b = document.querySelector('.modal-box');
+    return {
+      appV: (typeof APP_VERSION!=='undefined')?APP_VERSION:'?',
+      sw: window.__swCache||'?',
+      vvh: vv?Math.round(vv.height):'na',
+      kb: (vv && vv.height < window.innerHeight*0.85)?'OPEN':'closed',
+      ae: ae===document.body?'BODY':(ae.classList&&ae.classList.contains('xterm-helper-textarea'))?'HELPER':(ae.id||ae.tagName),
+      box: b?b.style.maxHeight:'-'
+    };
+  }
+  function fmt(s){ return 'appV='+s.appV+' sw='+s.sw+' kb='+s.kb+' vvh='+s.vvh+' ae='+s.ae+' box='+s.box; }
+  function rec(tag){ lines.push('['+ts()+'] '+tag+' '+fmt(snap())); if(lines.length>500) lines.shift(); if(on) render(); }
+  function render(){ logEl.textContent = lines.join('\n'); logEl.scrollTop = logEl.scrollHeight; }
+  t.onclick = function(){ on=!on; p.style.display=on?'block':'none'; if(on) render(); };
+  copyBtn.onclick = function(){
+    var txt = lines.join('\n');
+    function done(){ var o=copyBtn.textContent; copyBtn.textContent='COPIED'; setTimeout(function(){copyBtn.textContent='COPY';},1000); }
+    function fb(){ try{ var ta=document.createElement('textarea'); ta.value=txt; ta.style.position='fixed'; ta.style.top='0'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); done(); }catch(e){ alert('copy failed'); } }
+    if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(done, fb); } else fb();
+  };
+  clearBtn.onclick = function(){ lines=[]; render(); };
+  // detect panel open/close via DOM mutation (robust, no fn wrap needed)
+  function hasModal(n){ return n && n.nodeType===1 && ((n.classList && n.classList.contains('modal-box')) || (n.querySelector && n.querySelector('.modal-box'))); }
+  var mo = new MutationObserver(function(muts){
+    muts.forEach(function(m){
+      m.addedNodes && m.addedNodes.forEach(function(n){ if(hasModal(n)) rec('PANEL_OPEN'); });
+      m.removedNodes && m.removedNodes.forEach(function(n){ if(hasModal(n)) rec('PANEL_CLOSE'); });
+    });
+  });
+  mo.observe(document.body, {childList:true, subtree:true});
+  if(window.visualViewport){ var lastV = window.visualViewport.height; window.visualViewport.addEventListener('resize', function(){ var d=Math.abs(window.visualViewport.height-lastV); lastV=window.visualViewport.height; if(d>20) rec('VP_RESIZE'); }); }
+  window.addEventListener('focusin', function(){ rec('FOCUS'); });
+  if(navigator.serviceWorker){ navigator.serviceWorker.addEventListener('message', function(e){ if(e.data&&e.data.cache){ window.__swCache=e.data.cache; rec('SW cache='+e.data.cache); } }); }
+  rec('INIT');
+})();
+</script>
 </body>
 
 </html>
