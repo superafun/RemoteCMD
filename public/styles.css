@@ -2,12 +2,11 @@
         html {
             background: #1e1e1e;  /* 深色底：整页重载时第一帧即为深色，消除 TWA 冷启动白闪（与 .toolbar 同色） */
             overflow-x: auto;  /* 兜底：xterm 本身比视口宽时滚动 */
-            /* 保留 interactive-widget:resizes-content：软键盘弹出时让「布局视口」也压矮，
-               使固定定位的遮罩(.modal-overlay inset:0)与输入条停在键盘上方。
-               注意：仅靠它还不够——视口单位(svh/vh)跟踪布局视口，面板限高若只靠 70svh，
-               在「键盘已开时开弹窗」那瞬仍可能取到陈旧全屏值；故 .modal-box 由 index.html 的
-               fitAllModalsToViewport() 按 visualViewport.height 实时设 max-height（见该文件）。 */
-            interactive-widget: resizes-content;
+            /* 刻意不设置 interactive-widget:resizes-content：
+               设置弹窗/输入条避开软键盘都不靠它——
+               - 设置弹窗(.modal-box)限高由 index.html 的 fitAllModalsToViewport() 按 visualViewport.height 实时设置（键盘上方真实可见高度）；
+               - 输入条靠浏览器原生「聚焦输入框时自动滚到键盘上方」（荣耀真机验证：去掉 resizes-content 后输入条未被遮挡）。
+               设了 resizes-content 反而会让键盘弹出时布局视口 resize，给固定元素引入「打开瞬取值陈旧」的时序坑，且对键盘遮挡无额外帮助。 */
         }
         body {
             margin: 0;

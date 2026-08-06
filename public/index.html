@@ -68,7 +68,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 6;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
+        const APP_VERSION = 7;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -167,7 +167,7 @@
         // 关键根因：svh/vh 等视口单位跟踪「布局视口」(window.innerHeight)，而软键盘(默认 resizes-visual)
         // 只缩「视觉视口」、不动布局视口 —— 所以 70svh 永远按全屏算，面板会伸入键盘下方（纯 CSS 无解）。
         // 因此直接用 visualViewport.height（键盘上方真实可见高度）给面板设 max-height。
-        // html 同时保留 interactive-widget:resizes-content：键盘弹出时布局视口也压矮，使固定遮罩与输入条停在键盘上方。
+        // 输入条靠浏览器原生「聚焦时自动滚到键盘上方」即可（荣耀真机验证：无需 resizes-content）；本页 html 刻意不设置 resizes-content，避免键盘弹出时布局视口 resize 给固定元素引入「打开瞬取值陈旧」的时序坑。
         function fitAllModalsToViewport() {
             const vv = window.visualViewport;
             const h = (vv ? vv.height : window.innerHeight) || window.innerHeight;
