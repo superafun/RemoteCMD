@@ -50,7 +50,7 @@ RemoteCMD 不是那种「把 SSH 套个 Web 壳」就完事的项目。这堆设
 
 第二个坑：手机没有真正的键盘，打个 `Tab` 或 `↑` 要切到符号键盘，来回倒腾你想砸手机。所以在软键盘上方加了一排自定义快捷键按钮——Esc、Tab、方向键、Ctrl+C、刷新环境变量。直接点、直接发，不用再切键盘了。
 
-第三个坑：输入条/弹窗不能被软键盘遮挡。根因（`svh`/`vh` 跟踪**布局视口**，软键盘只缩**视觉视口**）：纯 CSS 的 `70svh` 永远按全屏算、面板会伸入键盘下方，纯 CSS 无解。正确做法：**不**设 `interactive-widget: resizes-content`（设了反而引入布局视口 resize 时序坑，且荣耀真机验证输入条去掉它也没被遮挡——浏览器原生「聚焦时滚到键盘上方」已够）；弹窗限高由 JS 读 `visualViewport.height`（键盘上方真实高度）实时设置、键盘开/合时更新。
+第三个坑：输入条/弹窗不能被软键盘遮挡。根因（`svh`/`vh` 跟踪**布局视口**，软键盘只缩**视觉视口**）：纯 CSS 的 `50svh` 永远按全屏算、面板会伸入键盘下方，纯 CSS 无解。正确做法：**不**设 `interactive-widget: resizes-content`（设了反而引入布局视口 resize 时序坑，且荣耀真机验证输入条去掉它也没被遮挡——浏览器原生「聚焦时滚到键盘上方」已够）；弹窗限高由 JS 读 `visualViewport.height`（键盘上方真实高度）实时设置、键盘开/合时更新。
 
 第四个坑：手机上没滚轮怎么回看终端输出？加了触摸滑动手势，两根手指上下划就能滚动。
 
@@ -192,7 +192,7 @@ RemoteCMD isn't yet another "SSH in a web wrapper." The design came from real us
 
 **Reconnect was a hard lesson.** First attempt: byte-offset diffing. Worked until two terminals interleaved their output — then reconnects produced garbage. The fix that stuck: a headless xterm on the server that renders everything in sync with the real display. Reconnect = freeze frame → serialize to ANSI → push whole frame. Zero math, zero mismatches.
 
-**Mobile is full of traps.** Android Chrome returns `Unidentified` for `e.key` on physical keyboard shortcuts — `e.code` saves the day. No real keyboard on a phone? Put a shortcut bar (Esc, Tab, arrows, Ctrl+C, refresh Path) above the soft keyboard. Input bar sits above the soft keyboard via the browser's native "scroll focused input into view" — `interactive-widget: resizes-content` is deliberately NOT set (it would cause a layout-viewport resize timing glitch and, per on-device testing, isn't needed — the native scroll already keeps the input bar clear). The settings modal's height is set in JS from `visualViewport.height` (the real visible area above the keyboard), NOT `svh` — `svh`/`vh` track the layout viewport and never see the IME, so a pure-CSS `70svh` would overflow under the keyboard. Swipe to scroll because phones don't have wheels.
+**Mobile is full of traps.** Android Chrome returns `Unidentified` for `e.key` on physical keyboard shortcuts — `e.code` saves the day. No real keyboard on a phone? Put a shortcut bar (Esc, Tab, arrows, Ctrl+C, refresh Path) above the soft keyboard. Input bar sits above the soft keyboard via the browser's native "scroll focused input into view" — `interactive-widget: resizes-content` is deliberately NOT set (it would cause a layout-viewport resize timing glitch and, per on-device testing, isn't needed — the native scroll already keeps the input bar clear). The settings modal's height is set in JS from `visualViewport.height` (the real visible area above the keyboard), NOT `svh` — `svh`/`vh` track the layout viewport and never see the IME, so a pure-CSS `50svh` would overflow under the keyboard. Swipe to scroll because phones don't have wheels.
 
 **Two size slots, not auto-resize.** TUI programs don't do responsive. A 27" monitor and a 6" phone want different terminal dimensions. Two presets, one tap, crisp at every size.
 

@@ -44,8 +44,8 @@
             box-shadow: 0 8px 32px rgba(0,0,0,0.5);
             min-width: 360px;
             max-width: 520px;
-            max-height: 70vh;       /* 兜底：极老内核不识 svh 时退化为 70% 视口 */
-            max-height: 70svh;      /* 渐进增强/fallback：新内核由 index.html 的 fitAllModalsToViewport() 按 visualViewport.height 实时设 max-height（可靠感知软键盘）；此 70svh 仅作无 JS 时的兜底，单独并不可靠感知键盘 */
+            max-height: 50vh;       /* 兜底：极老内核不识 svh 时退化为 50% 视口 */
+            max-height: 50svh;      /* 渐进增强/fallback：新内核由 index.html 的 fitAllModalsToViewport() 按 visualViewport.height 实时设 max-height（可靠感知软键盘）；此 50svh 仅作无 JS 时的兜底，单独并不可靠感知键盘 */
             display: flex;
             flex-direction: column;
             overflow: hidden;
