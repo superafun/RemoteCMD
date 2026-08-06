@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-生成 RemoteCMD 的 Android 自适应图标（TWA / Bubblewrap 需要）。
+生成 RemoteCMD 的 PWA 自适应图标（PWA 安装需要）。
 
 输出（到 public/）：
   - icon-maskable-512.png : 512x512 铺满背景，用于自适应启动器图标（maskable，主体在安全区）

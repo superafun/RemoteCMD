@@ -303,7 +303,7 @@ app.get('/api/auth-check', (req, res) => {
 
 // === 鉴权网关：保护静态资源与除白名单外的所有请求 ===
 const AUTH_WHITELIST = ['/login', '/api/login', '/api/logout', '/api/auth-check',
-    // 公开静态资源：TWA/PWA 构建与安装必须匿名可访问（不含任何秘密）
+    // 公开静态资源：PWA 安装与离线 shell 必须匿名可访问（不含任何秘密）
     '/manifest.webmanifest', '/icon-192.png', '/icon-512.png', '/icon-maskable-512.png', '/sw.js'];
 app.use((req, res, next) => {
     if (AUTH_WHITELIST.includes(req.path)) return next();
