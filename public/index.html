@@ -1182,6 +1182,7 @@
                 item.appendChild(del);
 
                 item.addEventListener('click', () => {
+                    if (window.__dbg) window.__dbg('recentPathClick ae=' + (document.activeElement && document.activeElement.tagName) + (document.activeElement && document.activeElement.id ? '#' + document.activeElement.id : ''));
                     if (autoSendPathToTerminal && activeId) {
                         sendInput(p);
                         copyToClipboard(p);
@@ -1233,6 +1234,7 @@
             ok.className = 'rename-dropdown-ok';
             ok.textContent = '确定';
             ok.addEventListener('click', () => {
+                if (window.__dbg) window.__dbg('renameOkClick ae=' + (document.activeElement && document.activeElement.tagName) + (document.activeElement && document.activeElement.id ? '#' + document.activeElement.id : ''));
                 const v = input.value.trim();
                 if (activeId == null) return;
                 wsSend({ type: 'rename', id: activeId, data: v });
@@ -1408,6 +1410,7 @@ function showToast(message, type = 'success') {
         // === Ctrl+C 选区复制 ===
         // 复制到剪贴板：优先 navigator.clipboard，失败/不可用退回 execCommand 兜底
         function copyToClipboard(text) {
+            if (window.__dbg) window.__dbg('copyToClipboard clip=' + (!!(navigator.clipboard && navigator.clipboard.writeText)) + ' ae=' + (document.activeElement && document.activeElement.tagName));
             if (navigator.clipboard?.writeText) {
                 return navigator.clipboard.writeText(text)
                     .then(() => true)
@@ -1418,6 +1421,7 @@ function showToast(message, type = 'success') {
 
         // 非 secure 上下文兜底（用户环境为 HTTPS，此路径仅作保险）
         function fallbackCopy(text) {
+            if (window.__dbg) window.__dbg('fallbackCopy ae=' + (document.activeElement && document.activeElement.tagName) + (document.activeElement && document.activeElement.id ? '#' + document.activeElement.id : ''));
             // 键盘安全：若当前焦点本就在可编辑元素上（输入条 textarea / xterm 辅助 textarea），
             // 直接用它承载选区并复制，全程焦点不离开该元素——避免旧实现新建临时 textarea、
             // ta.select() 抢焦点再移除，导致安卓软键盘收回且 prevFocus.focus() 唤不回。
@@ -2093,6 +2097,18 @@ function showToast(message, type = 'success') {
         window.addEventListener('online', () => { addFrontendLog('网络恢复，触发重连'); connect(); });
         // 移动端：阻止按钮 pointerdown 的焦点转移，保持键盘状态不变
         document.addEventListener('pointerdown', function(e) { if (e.target.closest('button')) e.preventDefault(); }, { capture: true, passive: false });
+
+        // ===== 临时调试浮层（键盘收回排查用，定位后删除）=====
+        (function(){
+            function __desc(el){ if(!el) return 'null'; var c=(el.className&&typeof el.className==='string')?('.'+el.className.trim().split(/\s+/).join('.')):''; return el.tagName+(el.id?('#'+el.id):'')+c; }
+            var __p=document.createElement('div');
+            __p.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:rgba(0,0,0,.82);color:#0f0;font:11px/1.4 monospace;padding:3px 5px;pointer-events:none;white-space:pre;max-height:38%;overflow:hidden;';
+            document.body.appendChild(__p);
+            var __l=[];
+            window.__dbg=function(m){ __l.push(m); if(__l.length>14)__l.shift(); __p.textContent='[FOCUS DBG]\n'+__l.join('\n'); };
+            document.addEventListener('focusin',function(e){ window.__dbg('IN  '+__desc(e.target)+'  t='+(Date.now()%100000)); });
+            document.addEventListener('focusout',function(e){ window.__dbg('OUT '+__desc(e.target)+'  ->ae='+__desc(document.activeElement)); });
+        })();
     </script>
     <script>
         // --- Service Worker 注册（PWA 安装前提） ---
