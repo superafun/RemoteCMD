@@ -2,7 +2,9 @@
         html {
             background: #1e1e1e;  /* 深色底：整页重载时第一帧即为深色，消除 TWA 冷启动白闪（与 .toolbar 同色） */
             overflow-x: auto;  /* 兜底：xterm 本身比视口宽时滚动 */
-            interactive-widget: resizes-content;  /* 安卓键盘弹起时锁底栏停在键盘上方，不被遮挡 */
+            /* 刻意不设置 interactive-widget:resizes-content：它会让布局视口随键盘 resize，
+               使 svh/dvh 拴在布局视口、弹窗 max-height:70svh 失效（见 .modal-box）；
+               保持默认 resizes-visual 下 svh 才 reliably = 键盘上方高度。输入条改靠浏览器原生「聚焦时自动滚到键盘上方」。 */
         }
         body {
             margin: 0;
@@ -24,9 +26,7 @@
         /* ===== 通用弹窗遮罩 ===== */
         .modal-overlay {
             position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100vh;
-            height: 100dvh;
+            inset: 0;  /* 取代 top/left + width/height:100dvh：四边贴齐撑满，避免 interactive-widget:resizes-content 下 dvh 长度与 fixed 的 ICB 在键盘切换时错位（遮罩高度随键盘状态忽长忽短） */
             background: rgba(0,0,0,0.55);
             z-index: 999;
             display: flex;
@@ -42,8 +42,8 @@
             box-shadow: 0 8px 32px rgba(0,0,0,0.5);
             min-width: 360px;
             max-width: 520px;
-            max-height: 70vh;
-            max-height: 70dvh;
+            max-height: 70vh;       /* 兜底：极老内核不识 svh 时退化为 70% 视口 */
+            max-height: 70svh;      /* 小视口高度=键盘弹出时的可见高度；默认 resizes-visual 下 svh 才 reliably 等于键盘上方高度（若开 resizes-content 会让 svh 拴回布局视口而失效），面板永不伸入键盘下方 */
             display: flex;
             flex-direction: column;
             overflow: hidden;

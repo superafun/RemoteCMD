@@ -50,7 +50,7 @@ RemoteCMD 不是那种「把 SSH 套个 Web 壳」就完事的项目。这堆设
 
 第二个坑：手机没有真正的键盘，打个 `Tab` 或 `↑` 要切到符号键盘，来回倒腾你想砸手机。所以在软键盘上方加了一排自定义快捷键按钮——Esc、Tab、方向键、Ctrl+C、刷新环境变量。直接点、直接发，不用再切键盘了。
 
-第三个坑：输入条不能跟着键盘弹起。试过用 JS 算 `visualViewport` 高度来定位，不稳定。最后靠 `interactive-widget: resizes-content` 让浏览器原生搞定，干净利落。
+第三个坑：输入条不能跟着键盘弹起。试过用 JS 算 `visualViewport` 高度来定位，不稳定；曾靠 `interactive-widget: resizes-content` 让浏览器原生搞定，但它在「设置弹窗」场景会让 `svh` 失效（`svh` 被拴回布局视口，面板会伸入键盘下方）。2026-08-06 route B 改为**移除** `resizes-content`，输入条改依赖浏览器原生「聚焦输入框时自动滚到键盘上方」（原生滚动一般能避开遮挡，真机验收）。
 
 第四个坑：手机上没滚轮怎么回看终端输出？加了触摸滑动手势，两根手指上下划就能滚动。
 
@@ -192,7 +192,7 @@ RemoteCMD isn't yet another "SSH in a web wrapper." The design came from real us
 
 **Reconnect was a hard lesson.** First attempt: byte-offset diffing. Worked until two terminals interleaved their output — then reconnects produced garbage. The fix that stuck: a headless xterm on the server that renders everything in sync with the real display. Reconnect = freeze frame → serialize to ANSI → push whole frame. Zero math, zero mismatches.
 
-**Mobile is full of traps.** Android Chrome returns `Unidentified` for `e.key` on physical keyboard shortcuts — `e.code` saves the day. No real keyboard on a phone? Put a shortcut bar (Esc, Tab, arrows, Ctrl+C, refresh Path) above the soft keyboard. Input bar pinned to the bottom via `interactive-widget: resizes-content` (native CSS, zero JS). Swipe to scroll because phones don't have wheels.
+**Mobile is full of traps.** Android Chrome returns `Unidentified` for `e.key` on physical keyboard shortcuts — `e.code` saves the day. No real keyboard on a phone? Put a shortcut bar (Esc, Tab, arrows, Ctrl+C, refresh Path) above the soft keyboard. Input bar pinned to the bottom via browser-native "scroll input into view on focus" — `interactive-widget: resizes-content` was removed in route B (2026-08-06) because it broke the settings modal's `svh` sizing (see the mobile-traps note above). Swipe to scroll because phones don't have wheels.
 
 **Two size slots, not auto-resize.** TUI programs don't do responsive. A 27" monitor and a 6" phone want different terminal dimensions. Two presets, one tap, crisp at every size.
 
