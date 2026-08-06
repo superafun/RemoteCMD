@@ -68,7 +68,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 19;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
+        const APP_VERSION = 20;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -206,11 +206,16 @@
             const visH = Math.max(0, Math.min(realH, vvHeight));
             const boxCap = Math.max(120, Math.round(visH - 16));
             window.__modalGeom = { pageTop: Math.round(pageTop), realH: Math.round(realH), vvHeight: Math.round(vvHeight), visH: Math.round(visH), boxCap };
+            // 遮罩尺寸交给 CSS（position:fixed; inset:0 覆盖整个初始包含块），不再用 JS 设 top/height。
+            // 否则高度按布局视口算，安卓软键盘打开时布局视口膨胀、遮罩被撑高；配合 html.modal-open 的
+            // overflow:hidden 滚动锁定，页面不可滚动即不显撑高。
             const overlays = document.querySelectorAll('.modal-overlay');
             for (const ov of overlays) {
-                ov.style.top = pageTop + 'px';
-                ov.style.height = Math.round(visH) + 'px';
-                ov.style.bottom = 'auto';
+                ov.style.top = '';
+                ov.style.height = '';
+                ov.style.bottom = '';
+                ov.style.left = '';
+                ov.style.right = '';
             }
             const boxes = document.querySelectorAll('.modal-box');
             for (const box of boxes) {
@@ -2145,6 +2150,17 @@ function showToast(message, type = 'success') {
             if (e.target.closest('input, textarea, #terminal-container')) return;
             if (e.target.closest('button, [role="button"], .dropdown-menu') || (e.target.classList && e.target.classList.contains('modal-overlay'))) e.preventDefault();
         }, { capture: true, passive: false });
+
+        // 模态打开时锁定页面滚动：安卓在「fixed 遮罩 + 软键盘」下会把布局视口膨胀到(全屏+键盘区域)，
+        // 使 document 高度=innerH 而可见区更小 → 页面被撑高可滚动。给 html/body 加 overflow:hidden 即不可滚动、不显撑高。
+        function syncModalScrollLock() {
+            const has = !!document.querySelector('.modal-overlay');
+            document.documentElement.classList.toggle('modal-open', has);
+            document.body.classList.toggle('modal-open', has);
+        }
+        const _modalMo = new MutationObserver(syncModalScrollLock);
+        _modalMo.observe(document.body, { childList: true, subtree: true });
+        syncModalScrollLock();
     </script>
     <script>
         // --- Service Worker 注册（PWA 安装前提） ---
@@ -2160,9 +2176,9 @@ function showToast(message, type = 'success') {
 
 <div id="dbgPanel" style="position:fixed;top:30px;right:4px;z-index:999999;font:11px/1.4 monospace;color:#0f0;background:rgba(0,0,0,.88);padding:6px 8px;border-radius:6px;max-width:72vw;max-height:72vh;overflow:auto;display:none;white-space:pre;pointer-events:auto;">
 <div id="dbgLog" style="margin-bottom:6px;"></div>
-<div>
-<button id="dbgCopy" style="font:bold 11px monospace;background:#0a0;color:#000;border:none;border-radius:4px;padding:3px 7px;cursor:pointer;">COPY</button>
-<button id="dbgClear" style="font:bold 11px monospace;background:#a00;color:#fff;border:none;border-radius:4px;padding:3px 7px;cursor:pointer;margin-left:6px;">CLEAR</button>
+<div style="display:flex; gap:18px; align-items:center;">
+<button id="dbgCopy" style="font:bold 13px monospace;background:#0a0;color:#000;border:none;border-radius:6px;padding:8px 16px;cursor:pointer;min-width:72px;">COPY</button>
+<button id="dbgClear" style="font:bold 13px monospace;background:#a00;color:#fff;border:none;border-radius:6px;padding:8px 16px;cursor:pointer;min-width:72px;">CLEAR</button>
 </div>
 </div>
 <button id="dbgToggle" style="position:fixed;top:4px;right:4px;z-index:999999;font:bold 12px monospace;opacity:1;border:1px solid #0f0;background:#000;color:#0f0;border-radius:4px;padding:3px 7px;cursor:pointer;">DBG</button>
@@ -2191,7 +2207,7 @@ function showToast(message, type = 'success') {
       kb: (vv && vv.height < window.innerHeight*0.85)?'OPEN':'closed',
       realH: g.realH!=null?g.realH:'?',
       visH: g.visH!=null?g.visH:'?',
-      ovh: ov?Math.round(parseFloat(ov.style.height)||0):'-',
+      ovh: ov?Math.round(parseFloat(getComputedStyle(ov).height)||0):'-',
       pageTop: g.pageTop!=null?g.pageTop:'?',
       scrollH: document.documentElement.scrollHeight,
       ae: ae===document.body?'BODY':(ae.classList&&ae.classList.contains('xterm-helper-textarea'))?'HELPER':(ae.id||ae.tagName),
