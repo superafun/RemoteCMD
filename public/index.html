@@ -68,7 +68,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 35;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
+        const APP_VERSION = 37;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -247,7 +247,7 @@
         function openSettingsModal() {
             if (settingsDiv) { settingsDiv.remove(); settingsDiv = null; }
             let html = '<div class="modal-overlay" onclick="if(event.target===this)closeSettingsModal()">';
-            html += '<div class="modal-box" style="min-width:0;max-width:360px;width:min(360px,calc(100vw - 24px));">';
+            html += '<div class="modal-box modal-box--narrow">';
             html += '<div class="modal-content">';
             html += '<h3>设置</h3>';
 
@@ -474,129 +474,61 @@
         }
 
 
-        function fbBtn(id, ok) {
-            const btn = document.getElementById(id);
-            if (!btn) return;
-            btn.textContent = ok ? '✓已应用' : '✗无效';
-            btn.style.color = ok ? '#4caf50' : '#f44336';
-            setTimeout(() => { btn.textContent = '应用'; btn.style.color = ''; }, 1500);
-        }
-
-        function flashHint(spanId) {
-            const el = document.getElementById(spanId);
+        // 应用反馈核心：按钮(asButton=true 时显绿/失败显红，1.5s 复位为"应用") 或 span(只显"✓已应用"，1.5s 清空)
+        function flashApplied(el, ok, asButton) {
             if (!el) return;
-            el.textContent = '✓已应用';
-            setTimeout(() => { if (el) el.textContent = ''; }, 1500);
+            if (asButton) {
+                el.textContent = ok ? '✓已应用' : '✗无效';
+                el.style.color = ok ? '#4caf50' : '#f44336';
+                setTimeout(() => { el.textContent = '应用'; el.style.color = ''; }, 1500);
+            } else {
+                el.textContent = '✓已应用';
+                setTimeout(() => { if (el) el.textContent = ''; }, 1500);
+            }
+        }
+        function fbBtn(id, ok) { flashApplied(document.getElementById(id), ok, true); }
+        function flashHint(spanId) { flashApplied(document.getElementById(spanId), true, false); }
+
+        // === 设置项通用 apply 辅助 ===
+        // 数值项：读 input → 范围校验 → wsSend（服务端权威，只发不本地改状态）→ fbBtn 反馈
+        function applyNumericSetting(inputId, wsType, min, max, btnId) {
+            const v = parseInt(document.getElementById(inputId).value);
+            const ok = Number.isInteger(v) && v >= min && v <= max;
+            if (ok) wsSend({ type: wsType, data: v });
+            fbBtn(btnId, ok);
+        }
+        // 选项(select)项：取值限定白名单 → wsSend → fbBtn 反馈
+        function applyChoiceSetting(inputId, wsType, btnId, allowed) {
+            const v = document.getElementById(inputId).value;
+            const ok = allowed.indexOf(v) !== -1;
+            if (ok) wsSend({ type: wsType, data: v });
+            fbBtn(btnId, ok);
+        }
+        // 复选项：读 checked → wsSend → flashHint 反馈
+        function applyCheckboxSetting(inputId, wsType, hintId) {
+            wsSend({ type: wsType, data: document.getElementById(inputId).checked });
+            flashHint(hintId);
         }
 
-        function applySettingsScrollIntervalTerminal() {
-            const v = parseInt(document.getElementById('settingsScrollIntervalTerminalInput').value);
-            if (Number.isInteger(v) && v >= 1 && v <= 1000) {
-                // 服务端权威：只发不发本地状态，收到 broadcast 后再更新
-                wsSend({ type: 'scroll_interval_terminal', data: v });
-                fbBtn('btn-apply-scrollIntervalTerminal', true);
-            } else {
-                fbBtn('btn-apply-scrollIntervalTerminal', false);
-            }
-        }
+        function applySettingsScrollIntervalTerminal() { applyNumericSetting('settingsScrollIntervalTerminalInput', 'scroll_interval_terminal', 1, 1000, 'btn-apply-scrollIntervalTerminal'); }
 
-        function applySettingsScrollIntervalPage() {
-            const v = parseInt(document.getElementById('settingsScrollIntervalPageInput').value);
-            if (Number.isInteger(v) && v >= 1 && v <= 1000) {
-                wsSend({ type: 'scroll_interval_page', data: v });
-                fbBtn('btn-apply-scrollIntervalPage', true);
-            } else {
-                fbBtn('btn-apply-scrollIntervalPage', false);
-            }
-        }
+        function applySettingsScrollIntervalPage() { applyNumericSetting('settingsScrollIntervalPageInput', 'scroll_interval_page', 1, 1000, 'btn-apply-scrollIntervalPage'); }
 
-        function applySettingsSwipeThreshold() {
-            const v = parseInt(document.getElementById('settingsSwipeThresholdInput').value);
-            if (Number.isInteger(v) && v >= 1 && v <= 200) {
-                wsSend({ type: 'swipe_threshold', data: v });
-                fbBtn('btn-apply-swipeThreshold', true);
-            } else {
-                fbBtn('btn-apply-swipeThreshold', false);
-            }
-        }
-        function applySettingsSwipeClassify() {
-            const v = parseInt(document.getElementById('settingsSwipeClassifyInput').value);
-            if (Number.isInteger(v) && v >= 1 && v <= 100) {
-                wsSend({ type: 'swipe_classify', data: v });
-                fbBtn('btn-apply-swipeClassify', true);
-            } else {
-                fbBtn('btn-apply-swipeClassify', false);
-            }
-        }
-        function applySettingsShowScrollButtons() {
-            const v = document.getElementById('settingsShowScrollButtonsInput').checked;
-            wsSend({ type: 'show_scroll_buttons', data: v });
-            flashHint('hint-showScrollButtons');
-        }
-        function applySettingsAutoSendPath() {
-            const v = document.getElementById('settingsAutoSendPathInput').checked;
-            wsSend({ type: 'auto_send_path_to_terminal', data: v });
-            flashHint('hint-autoSendPath');
-        }
+        function applySettingsSwipeThreshold() { applyNumericSetting('settingsSwipeThresholdInput', 'swipe_threshold', 1, 200, 'btn-apply-swipeThreshold'); }
+        function applySettingsSwipeClassify() { applyNumericSetting('settingsSwipeClassifyInput', 'swipe_classify', 1, 100, 'btn-apply-swipeClassify'); }
+        function applySettingsShowScrollButtons() { applyCheckboxSetting('settingsShowScrollButtonsInput', 'show_scroll_buttons', 'hint-showScrollButtons'); }
+        function applySettingsAutoSendPath() { applyCheckboxSetting('settingsAutoSendPathInput', 'auto_send_path_to_terminal', 'hint-autoSendPath'); }
 
-        function applySettingsInputBarButtonAction() {
-            const v = document.getElementById('settingsInputBarButtonActionInput').value;
-            if (v === 'newline' || v === 'send') {
-                wsSend({ type: 'input_bar_button_action', data: v });
-                fbBtn('btn-apply-inputBarButtonAction', true);
-            } else {
-                fbBtn('btn-apply-inputBarButtonAction', false);
-            }
-        }
-        function applySettingsInputBarEnterAction() {
-            const v = document.getElementById('settingsInputBarEnterActionInput').value;
-            if (v === 'newline' || v === 'send') {
-                wsSend({ type: 'input_bar_enter_action', data: v });
-                fbBtn('btn-apply-inputBarEnterAction', true);
-            } else {
-                fbBtn('btn-apply-inputBarEnterAction', false);
-            }
-        }
-        function applySettingsInputBarCloseAfterSend() {
-            const v = document.getElementById('settingsInputBarCloseAfterSendInput').checked;
-            wsSend({ type: 'input_bar_close_after_send', data: v });
-            flashHint('hint-inputBarCloseAfterSend');
-        }
-        function applySettingsInputBarHideOnBlur() {
-            const v = document.getElementById('settingsInputBarHideOnBlurInput').checked;
-            wsSend({ type: 'input_bar_hide_on_blur', data: v });
-            flashHint('hint-inputBarHideOnBlur');
-        }
-        function applySettingsEnterDelay() {
-            const v = parseInt(document.getElementById('settingsEnterDelayInput').value);
-            if (Number.isInteger(v) && v >= 50 && v <= 3000) {
-                wsSend({ type: 'enter_delay_ms', data: v });
-                fbBtn('btn-apply-enterDelay', true);
-            } else {
-                fbBtn('btn-apply-enterDelay', false);
-            }
-        }
+        function applySettingsInputBarButtonAction() { applyChoiceSetting('settingsInputBarButtonActionInput', 'input_bar_button_action', 'btn-apply-inputBarButtonAction', ['newline', 'send']); }
+        function applySettingsInputBarEnterAction() { applyChoiceSetting('settingsInputBarEnterActionInput', 'input_bar_enter_action', 'btn-apply-inputBarEnterAction', ['newline', 'send']); }
+        function applySettingsInputBarCloseAfterSend() { applyCheckboxSetting('settingsInputBarCloseAfterSendInput', 'input_bar_close_after_send', 'hint-inputBarCloseAfterSend'); }
+        function applySettingsInputBarHideOnBlur() { applyCheckboxSetting('settingsInputBarHideOnBlurInput', 'input_bar_hide_on_blur', 'hint-inputBarHideOnBlur'); }
+        function applySettingsEnterDelay() { applyNumericSetting('settingsEnterDelayInput', 'enter_delay_ms', 50, 3000, 'btn-apply-enterDelay'); }
 
 
-        function applySettingsScreenHistoryLines() {
-            const v = parseInt(document.getElementById('settingsScreenHistoryLinesInput').value);
-            if (Number.isInteger(v) && v >= 0 && v <= 20000) {
-                wsSend({ type: 'screen_history_lines', data: v });
-                fbBtn('btn-apply-screenHistoryLines', true);
-            } else {
-                fbBtn('btn-apply-screenHistoryLines', false);
-            }
-        }
+        function applySettingsScreenHistoryLines() { applyNumericSetting('settingsScreenHistoryLinesInput', 'screen_history_lines', 0, 20000, 'btn-apply-screenHistoryLines'); }
 
-        function applySettingsMaxFrontendLogs() {
-            const v = parseInt(document.getElementById('settingsMaxFrontendLogsInput').value);
-            if (Number.isInteger(v) && v >= 10 && v <= 10000) {
-                wsSend({ type: 'max_frontend_logs', data: v });
-                fbBtn('btn-apply-maxFrontendLogs', true);
-            } else {
-                fbBtn('btn-apply-maxFrontendLogs', false);
-            }
-        }
+        function applySettingsMaxFrontendLogs() { applyNumericSetting('settingsMaxFrontendLogsInput', 'max_frontend_logs', 10, 10000, 'btn-apply-maxFrontendLogs'); }
 
         function applySettingsSessionDuration() {
             const v = parseFloat(document.getElementById('settingsSessionDurationInput').value);
@@ -610,15 +542,7 @@
 
 
 
-        function applySettingsRecentPathsLimit() {
-            const v = parseInt(document.getElementById('settingsRecentPathsLimitInput').value);
-            if (Number.isInteger(v) && v >= 1 && v <= 100) {
-                wsSend({ type: 'recent_paths_limit', data: v });
-                fbBtn('btn-apply-recentPathsLimit', true);
-            } else {
-                fbBtn('btn-apply-recentPathsLimit', false);
-            }
-        }
+        function applySettingsRecentPathsLimit() { applyNumericSetting('settingsRecentPathsLimitInput', 'recent_paths_limit', 1, 100, 'btn-apply-recentPathsLimit'); }
 
 
 
@@ -708,9 +632,8 @@
             // 选区高亮覆盖层：xterm 蓝底在克隆 DOM 中不渲染，按当前选区单元格手绘一层蓝色。
             // 覆盖层与克隆同处 .loupe-inner 缩放空间，用未缩放的终端像素坐标，自动与放大文字对齐。
             const sel = inner.querySelector('.loupe-sel');
-            if (sel && term._core && term._core._renderService && term._core._renderService.dimensions &&
-                term._core._renderService.dimensions.css && term._core._renderService.dimensions.css.cell) {
-                const cell = term._core._renderService.dimensions.css.cell;
+            const cell = sel ? getCellDims(term) : null;
+            if (sel && cell) {
                 const cur = cellOfTouch(t);
                 const c1 = Math.min(selStartCell.col, cur.col);
                 const r1 = Math.min(selStartCell.row, cur.row);
@@ -1220,44 +1143,93 @@
             updateTopIconLoading();
         }
         // 点击按钮切换下拉菜单
-        document.getElementById('sessionSelectBtn').addEventListener('click', (e) => {
-            const btn = e.currentTarget;
-            const dd = document.getElementById('sessionDropdown');
+        // 下拉定位(按钮正下方展开) 与 点击外部关闭 —— session/recentPaths/rename 三处共用
+        function openDropdownBelow(btnId, ddId, sizeFn) {
+            const btn = document.getElementById(btnId);
+            const dd = document.getElementById(ddId);
             const rect = btn.getBoundingClientRect();
             dd.style.top = rect.bottom + 'px';
             dd.style.left = rect.left + 'px';
-            dd.style.minWidth = rect.width + 'px';
+            if (sizeFn) sizeFn(rect, dd);
             dd.classList.toggle('open');
+        }
+        function registerDropdownOutsideClose(btnId, ddId) {
+            document.addEventListener('click', (e) => {
+                const btn = document.getElementById(btnId);
+                const dd = document.getElementById(ddId);
+                if (btn && !btn.contains(e.target) && !dd.contains(e.target)) {
+                    dd.classList.remove('open');
+                }
+            });
+        }
+        document.getElementById('sessionSelectBtn').addEventListener('click', (e) => {
+            openDropdownBelow('sessionSelectBtn', 'sessionDropdown');
         });
-        // 点击下拉菜单外部时关闭
-        document.addEventListener('click', (e) => {
-            const btn = document.getElementById('sessionSelectBtn');
-            const dd = document.getElementById('sessionDropdown');
-            if (!btn.contains(e.target) && !dd.contains(e.target)) {
-                dd.classList.remove('open');
-            }
-        });
+        registerDropdownOutsideClose('sessionSelectBtn', 'sessionDropdown');
         function createNew() {
             addFrontendLog('新建终端', 'out');
             pendingCreate = true;
             wsSend({ type: 'create' });
         }
         // 渲染「最近路径」下拉内容
+        // 最近路径 / 历史命名 列表项共用：构建一行 .recent-path-item（label + 可选 ✕删除 + 整行点击应用）
+        function makeRecentPathRow(label, opts) {
+            opts = opts || {};
+            const item = document.createElement('div');
+            item.className = 'recent-path-item';
+            item.title = label;
+            const labelEl = document.createElement('span');
+            labelEl.className = 'recent-path-label';
+            labelEl.textContent = label;   // textContent 防路径特殊字符破坏 DOM
+            item.appendChild(labelEl);
+            if (opts.onDelete) {
+                const del = document.createElement('button');
+                del.className = 'recent-path-del';
+                del.type = 'button';
+                del.textContent = '✕';   // ✕ (U+2715)
+                del.title = opts.delTitle || '删除';
+                del.addEventListener('click', (e) => {
+                    e.stopPropagation();   // 避免触发整行应用
+                    opts.onDelete();
+                    showToast('已删除', 'success');
+                });
+                item.appendChild(del);
+            }
+            if (opts.onApply) item.addEventListener('click', opts.onApply);
+            return item;
+        }
+        // 空态块（dropdown-empty）共用
+        function appendEmpty(container, text) {
+            const empty = document.createElement('div');
+            empty.className = 'dropdown-empty';
+            empty.textContent = text;
+            container.appendChild(empty);
+        }
         function renderRecentPathsDropdown() {
             const dd = document.getElementById('recentPathsDropdown');
             dd.innerHTML = '';
             if (!recentPaths.length) {
-                const empty = document.createElement('div');
-                empty.className = 'dropdown-empty';
-                empty.textContent = '暂无记录';
-                dd.appendChild(empty);
+                appendEmpty(dd, '暂无记录');
                 return;
             }
             recentPaths.forEach(p => {
-                const item = document.createElement('div');
-                item.className = 'recent-path-item';
-                item.title = p;   // 悬停整行显示完整路径（原生 tooltip）；✕ 的 title 取更内层，不冲突
-
+                const item = makeRecentPathRow(p, {
+                    delTitle: '删除该路径',
+                    onDelete: () => wsSend({ type: 'recent_paths_delete', data: p }),
+                    onApply: () => {
+                        if (autoSendPathToTerminal && activeId) {
+                            sendInput(p);
+                            copyToClipboard(p);
+                            showToast('已写入并复制', 'success');
+                        } else {
+                            copyToClipboard(p);
+                            showToast('已复制', 'success');
+                        }
+                        dd.classList.remove('open');
+                        restoreKeyboardFocus();   // 交还键盘焦点，避免安卓软键盘收回
+                    }
+                });
+                // 展开/收起完整路径按钮（仅最近路径有）
                 const expandBtn = document.createElement('button');
                 expandBtn.className = 'recent-path-expand';
                 expandBtn.type = 'button';
@@ -1268,60 +1240,17 @@
                     const on = item.classList.toggle('expanded');
                     expandBtn.textContent = on ? '▾' : '▸';    // ▾ (U+25BE)
                 });
-                item.appendChild(expandBtn);
-
-                const label = document.createElement('span');
-                label.className = 'recent-path-label';
-                label.textContent = p;   // 用 textContent，避免路径特殊字符破坏 DOM
-                item.appendChild(label);
-
-                const del = document.createElement('button');
-                del.className = 'recent-path-del';
-                del.type = 'button';
-                del.textContent = '✕';   // ✕ (U+2715)
-                del.title = '删除该路径';
-                del.addEventListener('click', (e) => {
-                    e.stopPropagation();  // 避免触发整行复制
-                    wsSend({ type: 'recent_paths_delete', data: p });
-                    showToast('已删除', 'success');
-                });
-                item.appendChild(del);
-
-                item.addEventListener('click', () => {
-                    if (autoSendPathToTerminal && activeId) {
-                        sendInput(p);
-                        copyToClipboard(p);
-                        showToast('已写入并复制', 'success');
-                    } else {
-                        copyToClipboard(p);
-                        showToast('已复制', 'success');
-                    }
-                    dd.classList.remove('open');
-                    restoreKeyboardFocus();   // 交还键盘焦点，避免安卓软键盘收回
-                });
+                item.insertBefore(expandBtn, item.firstChild);
                 dd.appendChild(item);
             });
         }
 
         // 「最近路径」按钮：定位 + 展开/收起
         document.getElementById('recentPathsBtn').addEventListener('click', (e) => {
-            const btn = e.currentTarget;
-            const dd = document.getElementById('recentPathsDropdown');
-            const rect = btn.getBoundingClientRect();
-            dd.style.top = rect.bottom + 'px';
-            dd.style.left = rect.left + 'px';
-            dd.style.minWidth = Math.max(rect.width, 200) + 'px';
             renderRecentPathsDropdown();
-            dd.classList.toggle('open');
+            openDropdownBelow('recentPathsBtn', 'recentPathsDropdown', (r, dd) => { dd.style.minWidth = Math.max(r.width, 200) + 'px'; });
         });
-        // 点击下拉外部关闭（复用 sessionDropdown 同款 document 监听模式）
-        document.addEventListener('click', (e) => {
-            const btn = document.getElementById('recentPathsBtn');
-            const dd = document.getElementById('recentPathsDropdown');
-            if (!btn.contains(e.target) && !dd.contains(e.target)) {
-                dd.classList.remove('open');
-            }
-        });
+        registerDropdownOutsideClose('recentPathsBtn', 'recentPathsDropdown');
 
         // 渲染「历史命名」下拉内容（打开面板时 + 收到同步时调用）
         function renderRenameDropdown() {
@@ -1357,37 +1286,20 @@
             setTimeout(() => { try { input.focus(); input.select(); } catch (e) {} }, 0);
             // 历史命名列表
             if (!recentNames.length) {
-                const empty = document.createElement('div');
-                empty.className = 'dropdown-empty';
-                empty.textContent = '暂无历史命名';
-                dd.appendChild(empty);
+                appendEmpty(dd, '暂无历史命名');
                 return;
             }
             recentNames.forEach(n => {
-                const item = document.createElement('div');
-                item.className = 'recent-path-item';
-                item.title = n;
-                const label = document.createElement('span');
-                label.className = 'recent-path-label';
-                label.textContent = n;
-                item.appendChild(label);
-                const del = document.createElement('button');
-                del.className = 'recent-path-del';
-                del.type = 'button';
-                del.textContent = '✕';
-                del.title = '删除该历史命名';
-                del.addEventListener('click', (e) => {
-                    e.stopPropagation();   // 避免触发整行直接应用
-                    wsSend({ type: 'recent_names_delete', data: n });
-                    showToast('已删除', 'success');
-                });
-                item.appendChild(del);
-                item.addEventListener('click', () => {
-                    if (activeId == null) return;
-                    wsSend({ type: 'rename', id: activeId, data: n });
-                    addFrontendLog('终端重命名: ' + n, 'out');
-                    dd.classList.remove('open');
-                    restoreKeyboardFocus();   // 交还键盘焦点，避免安卓软键盘收回
+                const item = makeRecentPathRow(n, {
+                    delTitle: '删除该历史命名',
+                    onDelete: () => wsSend({ type: 'recent_names_delete', data: n }),
+                    onApply: () => {
+                        if (activeId == null) return;
+                        wsSend({ type: 'rename', id: activeId, data: n });
+                        addFrontendLog('终端重命名: ' + n, 'out');
+                        dd.classList.remove('open');
+                        restoreKeyboardFocus();   // 交还键盘焦点，避免安卓软键盘收回
+                    }
                 });
                 dd.appendChild(item);
             });
@@ -1395,14 +1307,7 @@
 
         // 「重命名」按钮：定位 + 展开/收起
         document.getElementById('renameBtn').addEventListener('click', renameCurrent);
-        // 点击下拉外部关闭（与 recentPathsDropdown 同款 document 监听模式）
-        document.addEventListener('click', (e) => {
-            const btn = document.getElementById('renameBtn');
-            const dd = document.getElementById('renameDropdown');
-            if (btn && !btn.contains(e.target) && !dd.contains(e.target)) {
-                dd.classList.remove('open');
-            }
-        });
+        registerDropdownOutsideClose('renameBtn', 'renameDropdown');
 
         function killCurrent() {
             if (activeId == null) return;
@@ -1411,14 +1316,8 @@
         }
         function renameCurrent() {
             if (activeId == null) return;
-            const btn = document.getElementById('renameBtn');
-            const dd = document.getElementById('renameDropdown');
-            const rect = btn.getBoundingClientRect();
-            dd.style.top = rect.bottom + 'px';
-            dd.style.left = rect.left + 'px';
-            dd.style.width = rect.width * 2.0 + 'px';
             renderRenameDropdown();
-            dd.classList.toggle('open');
+            openDropdownBelow('renameBtn', 'renameDropdown', (r, dd) => { dd.style.width = r.width * 2.0 + 'px'; });
         }
         function renameAll() {
             wsSend({ type: 'rename_all' });
@@ -1442,6 +1341,8 @@
 
     window.addEventListener('error', function (e) {
         var msg = 'Frontend JS error: ' + (e.message || 'unknown error');
+        // ResizeObserver loop 通知是浏览器良性提示（无栈、无位置），非应用错误，不弹红色 toast
+        if (/ResizeObserver loop/.test(msg)) return;
         if (e.filename) msg += ' (' + e.filename + ':' + (e.lineno || '?') + ':' + (e.colno || '?') + ')';
         var reason = (e.error && e.error.stack) ? e.error.stack : msg;
         addFrontendLog(reason, 'err');
@@ -1631,14 +1532,19 @@ function showToast(message, type = 'success') {
         }
         // 把一次触摸点换算成单元格坐标（带视口滚动偏移 + clamp）。
         // cell 尺寸取内部 API，取值前守卫非空；任一依赖缺失则回退到 {col:0,row:0}。
-        function cellOfTouch(t) {
-            const term = getActiveTerm();
+        // 取 xterm 单元格尺寸（内部 API），任一依赖缺失返回 null（cellOfTouch / updateLoupe 共用守卫）
+        function getCellDims(term) {
             if (!term || !term._core || !term._core._renderService ||
                 !term._core._renderService.dimensions || !term._core._renderService.dimensions.css ||
                 !term._core._renderService.dimensions.css.cell || !term.element) {
-                return { col: 0, row: 0 };
+                return null;
             }
-            const cell = term._core._renderService.dimensions.css.cell;
+            return term._core._renderService.dimensions.css.cell;
+        }
+        function cellOfTouch(t) {
+            const term = getActiveTerm();
+            const cell = getCellDims(term);
+            if (!cell) return { col: 0, row: 0 };
             const z = window.__pageZoom || 1;   // #page 已 zoom 缩放，rect 为屏上像素、cell 为未缩放，除 zoom 还原到终端本地坐标
             const rect = term.element.getBoundingClientRect();
             const col = Math.floor((t.clientX - rect.left) / (cell.width * z));
@@ -2038,7 +1944,7 @@ function showToast(message, type = 'success') {
             if (editorDiv) { editorDiv.remove(); editorDiv = null; }
             const names = Object.keys(hotkeys);
             let html = '<div class="modal-overlay" onclick="if(event.target===this)closeEditor()">';
-            html += '<div class="modal-box" style="min-width:0;max-width:360px;width:min(360px,calc(100vw - 24px));">';
+            html += '<div class="modal-box modal-box--narrow">';
             html += '<h3>编辑快捷键</h3>';
             // 列表区包进 .modal-content（overflow-y:auto），内容超出 70dvh 时可滚动，下方按钮不再被裁掉
             html += '<div class="modal-content">';

@@ -57,6 +57,12 @@
             min-height: 0;
             overflow-y: auto;
         }
+        /* 窄弹窗：设置弹窗 / 快捷键编辑弹窗共用，替代三处重复的内联 width 串 */
+        .modal-box--narrow {
+            min-width: 0;
+            max-width: 360px;
+            width: min(360px, calc(100vw - 24px));
+        }
         .modal-box h3 {
             margin: 0 0 14px;
             font-size: 16px;
@@ -291,13 +297,13 @@
             background: #1e1e1e;  /* 顶栏底色：配合 viewport-fit=cover，TWA 沉浸态下铺满顶部状态栏原区域，避免露出底层白/黑 */
             padding-top: env(safe-area-inset-top, 0);  /* 普通手机浏览器：顶栏下移避开系统状态栏；TWA 沉浸(inset=0)与桌面(无 inset)无影响 */
         }
-        .toolbar-left {
+        .toolbar-left, .toolbar-right {
             display: flex;
             flex-wrap: wrap;
             gap: 0;
             align-items: center;
-            margin-right: auto;  /* 弹性撑杆：将图标推向中间 */
         }
+        .toolbar-left { margin-right: auto; }  /* 弹性撑杆：将图标推向中间 */
         .toolbar-icon {
             display: flex;
             align-items: center;
@@ -321,13 +327,7 @@
             box-sizing: border-box;
             animation: spin 0.8s linear infinite;
         }
-        .toolbar-right {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0;
-            align-items: center;
-            margin-left: auto;   /* 弹性撑杆：将图标推向中间，与左侧 margin-right:auto 平衡 */
-        }
+        .toolbar-right { margin-left: auto; }   /* 弹性撑杆：将图标推向中间，与左侧 margin-right:auto 平衡 */
         #hotkeys-bar {
             display: flex;
             flex-wrap: nowrap;       /* 不换行，单行 */
@@ -416,25 +416,16 @@
         }
         /* 「编辑」按钮职责是打开快捷键编辑器(管理),跟发送指令的快捷键按钮不同
            用蓝色高亮,跟深灰色的快捷键/滚动按钮形成视觉区分 */
-        #editBtn {
-            background: #1e6fb8;
-            border-color: #4a9eff;
-            color: #fff;
-        }
-        #editBtn:hover {
-            background: #2680d4;
-            border-color: #6ab0ff;
-        }
-        /* 顶栏「设置」按钮也是管理类(打开设置弹窗),跟「编辑」对应,同色 */
-        #openSettingsBtn {
-            background: #1e6fb8;
-            border-color: #4a9eff;
-            color: #fff;
-        }
-        #openSettingsBtn:hover {
-            background: #2680d4;
-            border-color: #6ab0ff;
-        }
+/* 管理类按钮（编辑 / 设置）：同色高亮，与深灰快捷键/滚动按钮区分 */
+#editBtn, #openSettingsBtn {
+    background: #1e6fb8;
+    border-color: #4a9eff;
+    color: #fff;
+}
+#editBtn:hover, #openSettingsBtn:hover {
+    background: #2680d4;
+    border-color: #6ab0ff;
+}
         #wsStatus {
             margin-left: 4px;
             user-select: none;
@@ -481,7 +472,8 @@
     text-overflow: ellipsis;
     direction: rtl;
 }
-.dropdown-menu .recent-path-expand {
+.dropdown-menu .recent-path-expand,
+.dropdown-menu .recent-path-del {
     flex: 0 0 auto;
     width: 22px;
     height: 22px;
@@ -506,24 +498,6 @@
     overflow: visible;
     text-overflow: clip;
     direction: ltr;
-}
-.dropdown-menu .recent-path-del {
-    flex: 0 0 auto;
-    width: 22px;
-    height: 22px;
-    min-width: 0;
-    padding: 0;
-    margin: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border: none;
-    background: transparent;
-    color: #999;
-    cursor: pointer;
-    font-size: 13px;
-    line-height: 1;
-    border-radius: 4px;
 }
 .dropdown-menu .recent-path-del:hover { background: rgba(255, 80, 80, 0.18); color: #ff6b6b; }
 .recent-path-item:hover { background: rgba(255, 255, 255, 0.08); }
