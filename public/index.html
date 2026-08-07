@@ -1099,13 +1099,17 @@
         }
         // 点击按钮切换下拉菜单
         // 下拉定位(按钮正下方展开) 与 点击外部关闭 —— session/recentPaths/rename 三处共用
+        // ⚠️ 下拉菜单虽是 position:fixed，但 DOM 上挂在 .toolbar 内，处于 #page 的 zoom 子树中，
+        // 写进去的 px 会被 --page-zoom 再缩一次。而 getBoundingClientRect 给的已是缩放后的屏幕像素，
+        // 直接回写等于缩两次（实测 zoom .26 时下拉上移 7.3px 盖住按钮）。故写入前一律除 z 还原。
         function openDropdownBelow(btnId, ddId, sizeFn) {
             const btn = document.getElementById(btnId);
             const dd = document.getElementById(ddId);
             const rect = btn.getBoundingClientRect();
-            dd.style.top = rect.bottom + 'px';
-            dd.style.left = rect.left + 'px';
-            if (sizeFn) sizeFn(rect, dd);
+            const z = window.__pageZoom || 1;
+            dd.style.top = (rect.bottom / z) + 'px';
+            dd.style.left = (rect.left / z) + 'px';
+            if (sizeFn) sizeFn(rect, dd, z);
             dd.classList.toggle('open');
         }
         function registerDropdownOutsideClose(btnId, ddId) {
@@ -1272,7 +1276,7 @@
         function renameCurrent() {
             if (activeId == null) return;
             renderRenameDropdown();
-            openDropdownBelow('renameBtn', 'renameDropdown', (r, dd) => { dd.style.width = r.width * 2.0 + 'px'; });
+            openDropdownBelow('renameBtn', 'renameDropdown', (r, dd, z) => { dd.style.width = (r.width / z) * 2.0 + 'px'; });
         }
         function renameAll() {
             wsSend({ type: 'rename_all' });
