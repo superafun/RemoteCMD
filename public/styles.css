@@ -294,7 +294,7 @@
             left: 0;
             right: 0;
             z-index: 10;
-            background: rgba(30, 30, 30, 0.85);  /* 半透明覆盖在 xterm 上 */
+            background: transparent;  /* 全透明覆盖在 xterm 上 */
             padding-top: env(safe-area-inset-top, 0);  /* 顶栏下移避开系统状态栏（普通手机有效；桌面无 inset 无影响） */
         }
         .toolbar-left, .toolbar-right {
