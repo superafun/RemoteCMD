@@ -1112,8 +1112,9 @@
             const kr = sendKeysBtn.getBoundingClientRect();
             const sr = sendBtn.getBoundingClientRect();
             if (!(sr.width > 0)) return;   // 换行按钮不可见（输入条收起）时保持现值
-            ta.style.left = (kr.right - pr.left) + 'px';   // 发按键右缘相对 #page
-            ta.style.right = (pr.right - sr.left) + 'px';  // #page 右缘 - 换行按钮左缘
+            const z = (pageEl.style.zoom && parseFloat(pageEl.style.zoom)) || 1;
+            ta.style.left = ((kr.right - pr.left) / z) + 'px';   // 发按键右缘相对 #page
+            ta.style.right = ((pr.right - sr.left) / z) + 'px';  // #page 右缘 - 换行按钮左缘
         }
         // DOM 加载完成后首次同步
         if (document.readyState === 'loading') {
