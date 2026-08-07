@@ -888,9 +888,9 @@
                         maxFrontendLogs = msg.data;
                         addFrontendLog('日志上限同步为 ' + maxFrontendLogs + ' 条', 'in');
                     } else if (msg.type === 'glass_mode') {
-                        if (['off','subtle','strong','ultra'].includes(data)) {
-                            glassMode = data;
-                            applyGlassMode(data);
+                        if (['off','subtle','strong','ultra'].includes(msg.data)) {
+                            glassMode = msg.data;
+                            applyGlassMode(msg.data);
                         }
                     } else if (msg.type === 'screen_history_lines') {
                         screenHistoryLines = msg.data;
