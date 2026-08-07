@@ -38,6 +38,7 @@
             transform: translateX(-50%);
             z-index: 999;
             max-height: var(--ph, 70vh);  /* 主尺寸来自 --ph（页宽×xterm 比例，JS 设）；100vh-16px 仅作超高时可达性兜底，不参与正常尺寸 */
+            zoom: var(--page-zoom, 1);  /* 与 #page 同一缩放系数，避免弹窗（挂在 body 外）比缩小的页面显得更大 */
             background: #1e1e1e;
             color: #d4d4d4;
             padding: 20px 24px;
