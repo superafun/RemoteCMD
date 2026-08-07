@@ -2,12 +2,9 @@
         html {
             background: #1e1e1e;  /* 深色底：整页重载时第一帧即为深色，消除 TWA 冷启动白闪（与 .toolbar 同色） */
             overflow-x: auto;  /* 兜底：xterm 本身比视口宽时滚动 */
-            /* interactive-widget: resizes-content —— 根治「fixed 元素 + 软键盘」导致布局视口 innerHeight 膨胀(荣耀实测 1072→1392、整页被放大)。
-               默认 resizes-viewport 模式下，安卓在 position:fixed 元素(含 xterm-helper-textarea 常驻满屏、.modal-overlay、DBG 角标等)与 IME 共存时，
-               会把布局视口撑到(全屏+键盘)使页面可滚动=放大；resizes-content 改为让布局视口随键盘收缩到可见区，
-               固定元素不再触发膨胀（也顺带让底部输入条自然落在键盘上方）。此属性 Chrome94+ 支持，荣耀机满足。
-               注：曾因输入条顾虑移除，现膨胀为头号问题且 resizes-content 对输入条更合理，故恢复。 */
-            interactive-widget: resizes-content;
+            /* 注：曾加 interactive-widget:resizes-content 想根治 fixed+IME 布局视口膨胀(→1392)，
+               但荣耀真机实测该属性被完全无视（iwMode=na、键盘开 innerH 仍膨胀），故删除。
+               真正抑制膨胀的是「body 常态 position:fixed」(见 syncModalScrollLock)，与其无关。 */
         }
         body {
             margin: 0;
@@ -630,19 +627,20 @@
     z-index: 1;
 }
 
-/* 安卓软键盘持久化（2026-08-06）：xterm 辅助 textarea 默认 left:-99999px 屏幕外、opacity:0。
-   终端模式下它才是“键盘焦点归属”，但因为它屏幕外，点任何 UI 控件时安卓判定“焦点不在可见
-   输入框上”而收回 IME，且事后把焦点设回这个屏幕外元素也唤不回键盘（输入条模式用可见的
-   inputBarText 作归属则不会收回，正是此差异）。这里把它覆写成覆盖全视口、透明、点击穿透
-   的“可见”输入框：任意点击都算“点在输入框上”，安卓不再收回键盘（与输入条模式行为一致）。
-   pointer-events:none 让点击穿透到下层控件/终端，不挡 UI；opacity:0 不可见。!important 覆盖
-   xterm 默认内联样式。z-index:0 使其位于各 UI 之下，靠透明+穿透不干扰交互。 */
+/* 安卓软键盘持久化（2026-08-06 起）：
+   xterm 辅助 textarea 默认 left:-99999px 屏幕外、opacity:0。终端模式下它才是“键盘焦点归属”，
+   但因为它屏幕外，点任何 UI 控件时安卓判定“焦点不在可见输入框上”而收回 IME（输入条模式用可见的
+   inputBarText 作归属则不会收回，正是此差异）。故把它覆写成「落在视口内的小尺寸 fixed 锚点」
+   (100x40px, top:0/left:0, opacity:0, pointer-events:none)，让焦点始终落在可见输入框上 → 安卓不收回键盘。
+   ⚠️ 此锚点只负责“保键盘”，与「布局视口膨胀(→1392)」无关——膨胀由 body 常态 position:fixed 抑制
+   （见 syncModalScrollLock）；把 textarea 缩到 100x40 并不能消除膨胀（荣耀真机实测仍 1392，仅尺寸无关）。
+   !important 覆盖 xterm 默认内联样式；z-index:0 使其位于各 UI 之下。 */
 .xterm-helper-textarea {
     position: fixed !important;
     left: 0 !important;
     top: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
+    width: 100px !important;   /* 视口内角落的小尺寸锚点，仅作键盘焦点归属；不参与防膨胀 */
+    height: 40px !important;
     opacity: 0 !important;
     pointer-events: none !important;
     z-index: 0 !important;
