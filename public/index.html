@@ -68,7 +68,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 39;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
+        const APP_VERSION = 40;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -169,52 +169,30 @@
         // 因此直接用 visualViewport.height（键盘上方真实可见高度）给面板设 max-height。
         // 输入条靠浏览器原生「聚焦时自动滚到键盘上方」即可（荣耀真机验证：无需 resizes-content）。
         // 本页 html 不设 interactive-widget:resizes-content —— 该属性在荣耀 Chrome 被完全无视（debug 实测 iwMode=na、键盘开 innerH 仍膨胀到 1392），加了无效；布局视口膨胀由 body 常态 position:fixed 抑制（见 syncModalScrollLock）。
-        // xterm 宽高比：当前生效的行数/列数 × cell 宽高比（cell 由字号定，恒定）。
-        function terminalAspect() {
-            let t = null;
-            try { t = getActiveTerm(); } catch (e) { t = null; }
-            if (!t) return 1;
-            try {
-                const d = t._core._renderService.dimensions.css;
-                if (d && d.cell && d.cell.width && d.cell.height) {
-                    return (t.rows * d.cell.height) / (t.cols * d.cell.width);
-                }
-            } catch (e) {}
-            return (t.rows || 1) / (t.cols || 1);
-        }
-        // 面板(box)尺寸完全由「固定页宽 × xterm 比例」推导，不依赖 visualViewport.height
-        // （键盘/地址栏只动高度，竖屏 innerWidth 恒定），故面板永不因键盘开合而跳动。
-        // 遮罩(overlay)高度则必须取「真实可见高度」visualViewport.height（已排除键盘/地址栏），
-        // 而非布局视口 realH——键盘打开时 realH 含键盘后区域，fixed 遮罩会超出可见区→页面被撑高可滚动。
+        // 弹窗高度只设「上限」，所有弹窗统一一种：内容少就内容高，内容多(如设置页)就内部滚动，
+        // 绝不强加地板。上限 = 可见屏幕高度（键盘弹起时 visualViewport 自动缩小），盒子永远在可见区内、不被键盘盖。
+        // 盒子在 body 层、其 px 会被 --page-zoom 再缩，故高度数字要除 z 还原成布局px。
         function fitModalsToTerminal() {
             const pageW = window.innerWidth || document.documentElement.clientWidth || 360;
             const Pw = Math.min(pageW - 24, 560);
-            const ratio = terminalAspect();
-            const Ph = Math.round(Pw * ratio);
-            // real page height: #page top to #hotkeys-bar bottom（gBCR 取的是 #page 经 zoom 后的【屏幕px】）
-            let pageTop = 0, realH = window.innerHeight || 640;
+            const z = window.__pageZoom || 1;
+            // 可见屏幕高度（键盘弹起时自动缩小）
+            let vvHeight = window.innerHeight || 640;
             const vv = window.visualViewport;
-            const vvHeight = (vv && vv.height) ? vv.height : (window.innerHeight || 640);
+            if (vv && vv.height) vvHeight = vv.height;
+            // 除 z 还原布局px，上下各留 16px 边距
+            const cap = Math.max(120, Math.round(vvHeight / z - 16 / z));
+            // 以下仅为 debug 日志保留页面内容高度/顶部偏移
+            let pageTop = 0, realH = Math.round(window.innerHeight || 640);
             const pageEl = document.getElementById('page');
             const hb = document.getElementById('hotkeys-bar');
             if (pageEl && hb) {
                 const pr = pageEl.getBoundingClientRect();
                 const hr = hb.getBoundingClientRect();
-                pageTop = pr.top;
-                realH = Math.max(0, hr.bottom - pr.top);
+                pageTop = Math.round(pr.top);
+                realH = Math.round(Math.max(0, hr.bottom - pr.top));
             }
-            // 可见高度（屏幕px）：以【视觉视口高度】为准（键盘打开时它已自动排除键盘，无需再 min 页面内容高度）。
-            // 注意：不能用 #page 内容高度(realH) 当基准——它只是终端+工具条的高度，远小于整块屏幕，
-            // 用它会把弹窗算矮。弹窗该占的是「用户看到的屏幕高度」。
-            const visHScreen = vvHeight > 0 ? vvHeight : (realH || (window.innerHeight || 640));
-            // 关键：box 挂在 body 层，其 min-height 用的是【布局px】、会被 --page-zoom 再缩一次；
-            // 而 visHScreen/realH 已是 zoom 后的屏幕px，必须除 zoom 换算回布局px，否则高度会再被缩 1/zoom 反而变矮。
-            const z = window.__pageZoom || 1;
-            const visHLayout = visHScreen / z;
-            const boxCap = Math.max(120, Math.round(visHLayout - 16 / z));
-            window.__modalGeom = { pageTop: Math.round(pageTop), realH: Math.round(realH), vvHeight: Math.round(vvHeight), visHScreen: Math.round(visHScreen), visHLayout: Math.round(visHLayout), boxCap, zoom: z };
-            // 遮罩尺寸交给 CSS（position:fixed; inset:0 覆盖整个初始包含块），不再用 JS 设 top/height。
-            // 否则高度按布局视口算，安卓软键盘打开时布局视口膨胀、遮罩被撑高；改由 syncModalScrollLock 冻结 body(position:fixed) 锁定滚动，页面不可滚动即不显撑高。
+            window.__modalGeom = { pageTop, realH, visH: Math.round(vvHeight), boxCap: cap, zoom: z };
             const overlays = document.querySelectorAll('.modal-overlay');
             for (const ov of overlays) {
                 ov.style.top = '';
@@ -228,22 +206,18 @@
                 box.style.width = Pw + 'px';
                 box.style.maxWidth = Pw + 'px';
                 box.style.minWidth = '0';
-                // 高度：常规弹窗用「页宽×终端比例」作天花板（内容超出才滚动）；
-                // 窄弹窗（设置/编辑快捷键）内容行数有限，若只按内容高度会又矮又挤在顶部，
-                // 故改用「可视高度×0.7」把盒子撑高到约占屏 70%，min-height 保证真正撑满（不只天花板）。
-                // 上限仍由 boxCap(可视高度-16) 兜着，键盘打开时不溢出、仍稳。
-                const narrow = box.classList.contains('modal-box--narrow');
-                const targetH = narrow ? Math.round(boxCap * 0.7) : Math.min(Ph, boxCap);
-                box.style.setProperty('--ph', targetH + 'px');
-                box.style.minHeight = targetH + 'px';
+                box.style.minHeight = '';
+                box.style.setProperty('--ph', cap + 'px');  // 仅当天花板(max-height)，所有弹窗统一
             }
         }
         (function installModalFit() {
             if (window.__modalFit) return;
             window.__modalFit = true;
-            // 窗口尺寸变化（旋屏/视口宽变化）：重算弹窗几何，使弹窗宽/高跟随视口与 xterm 比例。
+            // 窗口尺寸变化（旋屏/视口宽变化）：重算弹窗几何。
             const onLayoutResize = () => { fitModalsToTerminal(); };
             window.addEventListener('resize', onLayoutResize);
+            // 键盘弹起/收起时视觉视口高度变化：重算上限，盒子跟着缩，避免藏到键盘下。
+            if (window.visualViewport) window.visualViewport.addEventListener('resize', onLayoutResize);
             // 弹窗插入 DOM 时按当前内容重算几何。
             const onMut = () => { if (document.querySelector('.modal-box')) fitModalsToTerminal(); };
             if (document.body) {
@@ -260,7 +234,7 @@
         function openSettingsModal() {
             if (settingsDiv) { settingsDiv.remove(); settingsDiv = null; }
             let html = '<div class="modal-overlay" onclick="if(event.target===this)closeSettingsModal()">';
-            html += '<div class="modal-box modal-box--narrow">';
+            html += '<div class="modal-box">';
             html += '<div class="modal-content">';
             html += '<h3>设置</h3>';
 
@@ -1961,7 +1935,7 @@ function showToast(message, type = 'success') {
             if (editorDiv) { editorDiv.remove(); editorDiv = null; }
             const names = Object.keys(hotkeys);
             let html = '<div class="modal-overlay" onclick="if(event.target===this)closeEditor()">';
-            html += '<div class="modal-box modal-box--narrow">';
+            html += '<div class="modal-box">';
             html += '<h3>编辑快捷键</h3>';
             // 列表区包进 .modal-content（overflow-y:auto），内容超出 70dvh 时可滚动，下方按钮不再被裁掉
             html += '<div class="modal-content">';

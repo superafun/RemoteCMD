@@ -37,7 +37,8 @@
             left: 50%;
             transform: translateX(-50%);
             z-index: 999;
-            max-height: var(--ph, 70vh);  /* 主尺寸来自 --ph（页宽×xterm 比例，JS 设）；100vh-16px 仅作超高时可达性兜底，不参与正常尺寸 */
+            box-sizing: border-box;  /* max-height 含 padding，否则盒子被上下 padding 撑高、超出上限藏到键盘下 */
+            max-height: var(--ph, 70vh);  /* 主尺寸来自 --ph（JS 按可见屏幕高度设），内容多则内部滚动；不设地板、不强行加高 */
             zoom: var(--page-zoom, 1);  /* 与 #page 同一缩放系数，避免弹窗（挂在 body 外）比缩小的页面显得更大 */
             background: #1e1e1e;
             color: #d4d4d4;
@@ -57,12 +58,6 @@
             flex: 1 1 auto;
             min-height: 0;
             overflow-y: auto;
-        }
-        /* 窄弹窗：设置弹窗 / 快捷键编辑弹窗共用，替代三处重复的内联 width 串 */
-        .modal-box--narrow {
-            min-width: 0;
-            max-width: 360px;
-            width: min(360px, calc(100vw - 24px));
         }
         .modal-box h3 {
             margin: 0 0 14px;
