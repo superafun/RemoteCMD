@@ -68,7 +68,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 48;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
+        const APP_VERSION = 50;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -1012,8 +1012,10 @@
             const hotkeys = document.getElementById('hotkeys-bar');
             if (toolbar) toolbar.style.width = w;   // 工具条按下层终端宽裁剪：其按钮不换行时的固有宽可能 > 终端宽（窄屏/手机），须显式写死，否则溢出终端
             if (hotkeys) hotkeys.style.width = w;
-            fitPageZoom();             // 先算 zoom（反推法：自然宽 = 当前屏上宽 / 当前 zoom），确定 window.__pageZoom
+            computePageHeight();       // 先算页面高度基准（bootstrap 时终端高度为0，会返回兜底值，这里补算正确值）
+            fitPageZoom();             // 再算 zoom（反推法：自然宽 = 当前屏上宽 / 当前 zoom），确定 window.__pageZoom
             positionInputBarText();    // 再按 zoom 对齐输入条文本框（内部除 zoom，见下）
+            fitModalsToViewport();     // 最后按新高度/zoom 重算弹窗限高
         }
         // 输入条文本框相对 #page 绝对定位，需与底部栏内按钮对齐：
         // left = 发按键左缘相对 #page 的偏移，right = #page 右缘到「换行」按钮左缘的距离。
