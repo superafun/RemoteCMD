@@ -22,17 +22,17 @@
             height: 0;
             display: none;
         }
-        /* 覆盖 xterm.js 内部滚动容器 */
+        /* xterm.js 终端保留原生滚动条 */
         .xterm-viewport::-webkit-scrollbar,
         .xterm-screen::-webkit-scrollbar,
         .xterm::-webkit-scrollbar {
-            width: 0;
-            height: 0;
-            display: none;
+            width: auto;
+            height: auto;
+            display: block;
         }
         .xterm-viewport,
         .xterm-screen {
-            scrollbar-width: none;
+            scrollbar-width: auto;
         }
         .glass,
         button,
