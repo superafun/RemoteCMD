@@ -289,7 +289,12 @@
             gap: 0;
             align-items: center;
             /* width 由 #page flex 列布局默认 stretch 提供 */
-            background: #1e1e1e;  /* 顶栏底色：与 html 同色，避免顶部状态栏区域露出底层白/黑 */
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 10;
+            background: rgba(30, 30, 30, 0.85);  /* 半透明覆盖在 xterm 上 */
             padding-top: env(safe-area-inset-top, 0);  /* 顶栏下移避开系统状态栏（普通手机有效；桌面无 inset 无影响） */
         }
         .toolbar-left, .toolbar-right {
