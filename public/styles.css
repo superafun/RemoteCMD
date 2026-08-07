@@ -22,18 +22,6 @@
             height: 0;
             display: none;
         }
-        /* xterm.js 终端保留原生滚动条 */
-        .xterm-viewport::-webkit-scrollbar,
-        .xterm-screen::-webkit-scrollbar,
-        .xterm::-webkit-scrollbar {
-            width: auto;
-            height: auto;
-            display: block;
-        }
-        .xterm-viewport,
-        .xterm-screen {
-            scrollbar-width: auto;
-        }
         .glass,
         button,
         .modal-box,
