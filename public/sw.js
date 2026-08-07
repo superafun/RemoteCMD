@@ -5,7 +5,7 @@
 // 缓存策略 stale-while-revalidate：先吐缓存保证秒开，同时后台回源刷新，下次冷启动即为最新。
 // v1 曾用纯 cache-first，命中就永不回源，前端改动永远到不了客户端（改了像没改），已废弃。
 
-const CACHE = 'remote-cmd-shell-v54';  // 须与 index.html 的 APP_VERSION 保持一致（同源单用户，统一一个版本号便于管理）
+const CACHE = 'remote-cmd-shell-v55';  // 须与 index.html 的 APP_VERSION 保持一致（同源单用户，统一一个版本号便于管理）
 const SHELL = [
   './',
   './index.html',

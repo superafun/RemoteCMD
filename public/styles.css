@@ -508,8 +508,6 @@
     justify-content: center;
     border: none;
     background: transparent;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
     color: #999;
     cursor: pointer;
     font-size: 13px;
