@@ -68,7 +68,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 22;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
+        const APP_VERSION = 23;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -185,6 +185,20 @@
         // （键盘/地址栏只动高度，竖屏 innerWidth 恒定），故面板永不因键盘开合而跳动。
         // 遮罩(overlay)高度则必须取「真实可见高度」visualViewport.height（已排除键盘/地址栏），
         // 而非布局视口 realH——键盘打开时 realH 含键盘后区域，fixed 遮罩会超出可见区→页面被撑高可滚动。
+        // 整页缩放适配屏宽（纯视觉/布局缩放，终端列数/字号一行不改）。
+        // 页面自然宽 = #page(max-content) = 终端自然宽(120 列)，窄屏下 > 屏宽 → 整页略放大、放不下。
+        // 用 CSS zoom 把整页缩到屏宽，终端原样渲染只是视觉变小，整页完整显示。仅缩小不放大。
+        function applyPageZoom() {
+            const page = document.getElementById('page');
+            if (!page) return;
+            page.style.zoom = '1';
+            const natural = page.getBoundingClientRect().width;
+            const target = window.screen.width || window.innerWidth;
+            let z = target / natural;
+            if (!(z > 0) || !isFinite(z)) return;
+            if (z > 1) z = 1;  // 只缩小，不放大
+            page.style.zoom = String(z);
+        }
         function fitModalsToTerminal() {
             const pageW = window.innerWidth || document.documentElement.clientWidth || 360;
             const Pw = Math.min(pageW - 24, 560);
@@ -227,7 +241,23 @@
         (function installModalFit() {
             if (window.__modalFit) return;
             window.__modalFit = true;
-            window.addEventListener('resize', fitModalsToTerminal);
+            // 窗口尺寸变化：先整页缩放适配屏宽，再算弹窗几何（读的是 zoom 后的坐标系，一致）。
+            const onLayoutResize = () => { applyPageZoom(); fitModalsToTerminal(); };
+            window.addEventListener('resize', onLayoutResize);
+            // 终端列数/字号变化（大/小尺寸切换、FitAddon 重排）会改变 #terminal-container 自然宽，
+            // 用 ResizeObserver 事件驱动重算整页缩放（不轮询）。zoom 自身复位到 1 再量自然宽，幂等无反馈环。
+            const termWrap = document.getElementById('terminal-container');
+            if (termWrap && typeof ResizeObserver !== 'undefined') {
+                let lastZ = null;
+                const ro = new ResizeObserver(() => {
+                    applyPageZoom();
+                    const z = document.getElementById('page').style.zoom;
+                    if (z === lastZ) return;  // 缩放未变，跳过后续，防 ResizeObserver 因 zoom 改变布局而循环
+                    lastZ = z;
+                    fitModalsToTerminal();
+                });
+                ro.observe(termWrap);
+            }
             const onMut = () => { if (document.querySelector('.modal-box')) fitModalsToTerminal(); };
             if (document.body) {
                 new MutationObserver(onMut).observe(document.body, { childList: true, subtree: true });
@@ -236,7 +266,7 @@
                     new MutationObserver(onMut).observe(document.body, { childList: true, subtree: true });
                 });
             }
-            fitModalsToTerminal();
+            onLayoutResize();
         })();
 
         // === 设置弹窗 ===
