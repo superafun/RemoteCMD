@@ -16,7 +16,7 @@
             display: flex;
             flex-direction: column;
             width: max-content;  /* = #terminal-container 宽度 */
-            min-width: 100%;  /* 不窄于 body */
+            min-width: 100%;  /* 不窄于 body；配合 JS 把工具条宽写死为终端宽，避免工具条按钮固有宽溢出终端 */
             position: relative;  /* 输入条文本框定位参照：相对整个页面，绕开 #hotkeys-bar 的 overflow 裁剪 */
         }
         #terminal-container {
@@ -38,7 +38,7 @@
             transform: translateX(-50%);
             z-index: 999;
             box-sizing: border-box;  /* max-height 含 padding，否则盒子被上下 padding 撑高、超出上限藏到键盘下 */
-            max-height: var(--ph, 70vh);  /* 主尺寸来自 --ph（JS 按可见屏幕高度设），内容多则内部滚动；不设地板、不强行加高 */
+            max-height: var(--ph, 70vh);  /* 主尺寸上限来自 --ph（JS 按布局视口 window.innerHeight 设，键盘开合不变 → 不弹跳）；内容多则内部滚动；不设地板、不强行加高 */
             zoom: var(--page-zoom, 1);  /* 与 #page 同一缩放系数，避免弹窗（挂在 body 外）比缩小的页面显得更大 */
             background: #1e1e1e;
             color: #d4d4d4;
