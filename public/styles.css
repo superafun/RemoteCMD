@@ -1,4 +1,36 @@
 
+        :root {
+            --glass-blur: 8px;
+            --glass-saturate: 140%;
+            --glass-bg: rgba(30,30,30,0.55);
+            --glass-border: rgba(255,255,255,0.10);
+            --glass-bg-hover: rgba(60,60,60,0.65);
+            --glass-active-bg: rgba(45,108,223,0.75);
+        }
+        .glass,
+        button,
+        .modal-box,
+        .modal-overlay,
+        .dropdown-menu,
+        .toast,
+        .info-tip,
+        #info-tip-portal,
+        #hotkeys-bar,
+        .hotkey-item,
+        .hotkey-item .btn-group button,
+        .hotkey-item .move-group button {
+            background: var(--glass-bg);
+            backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+            -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+            border-color: var(--glass-border);
+        }
+        .glass:hover,
+        button:hover,
+        .dropdown-menu button:hover {
+            background: var(--glass-bg-hover);
+            border-color: var(--glass-border);
+        }
+
         html {
             background: #1e1e1e;  /* 深色底：整页重载时第一帧即为深色，消除白闪（与 .toolbar 同色） */
             overflow-x: auto;  /* 兜底：xterm 本身比视口宽时滚动 */
@@ -26,10 +58,12 @@
         /* ===== 通用弹窗遮罩 ===== */
         .modal-overlay {
             position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;  /* inset:0：覆盖整个初始包含块，backdrop 完整 */
+            top: 0; left: 0; right: 0; bottom: 0;
             z-index: 998;
             background: rgba(0,0,0,0.55);
-            overflow: hidden;  /* 遮罩自身不滚动 */
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            overflow: hidden;
         }
         .modal-box {
             position: fixed;
@@ -37,10 +71,9 @@
             left: 50%;
             transform: translateX(-50%);
             z-index: 999;
-            box-sizing: border-box;  /* max-height 含 padding，否则盒子被上下 padding 撑高、超出上限藏到键盘下 */
-            max-height: var(--ph, 70vh);  /* 主尺寸上限来自 --ph（JS 按内容边界法 computePageHeight 设）；内容多则内部滚动；不设地板、不强行加高 */
-            zoom: var(--page-zoom, 1);  /* 与 #page 同一缩放系数，避免弹窗（挂在 body 外）比缩小的页面显得更大 */
-            background: #1e1e1e;
+            box-sizing: border-box;
+            max-height: var(--ph, 70vh);
+            zoom: var(--page-zoom, 1);
             color: #d4d4d4;
             padding: 20px 24px;
             border-radius: 8px;
@@ -67,8 +100,10 @@
             padding-bottom: 10px;
         }
         .modal-box input, .modal-box select {
-            background: #2d2d2d;
-            border: 1px solid #3c3c3c;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
             color: #d4d4d4;
             padding: 6px 10px;
             border-radius: 4px;
@@ -82,40 +117,40 @@
         /* ===== 通用按钮基础样式 ===== */
         button {
             padding: 6px 14px;
-            background: #3c3c3c;
             border: 1px solid #555;
             color: #d4d4d4;
             border-radius: 4px;
             font-size: 13px;
-            line-height: 1.4;  /* 固定行高，避免中英文切换时按钮高度变化 */
+            line-height: 1.4;
             cursor: pointer;
-            touch-action: manipulation;  /* 移动端：只处理点击手势，不触发双击缩放/长按菜单 */
-            user-select: none;  /* 防止文本被选中 */
-            -webkit-user-select: none;  /* 兼容 Safari */
-        }
-        button:hover {
-            background: #505050;
-            border-color: #6a6a6a;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
         }
         .modal-box button {
             transition: background 0.15s, border-color 0.15s;
         }
         .modal-box .btn-primary {
-            background: #0078d4;
-            border-color: #0078d4;
+            background: rgba(0,120,212,0.75);
+            backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+            -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+            border-color: rgba(0,120,212,0.75);
             color: #fff;
         }
         .modal-box .btn-primary:hover {
-            background: #1a8ae8;
-            border-color: #1a8ae8;
+            background: rgba(26,138,232,0.85);
+            border-color: rgba(26,138,232,0.85);
         }
         .modal-box .btn-danger {
-            background: #5a1d1d;
-            border-color: #7a2a2a;
+            background: rgba(90,29,29,0.75);
+            backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+            -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+            border-color: rgba(90,29,29,0.75);
             color: #e0a0a0;
         }
         .modal-box .btn-danger:hover {
-            background: #7a2a2a;
+            background: rgba(122,42,42,0.85);
+            border-color: rgba(122,42,42,0.85);
         }
         .modal-row {
             display: flex;
@@ -174,7 +209,6 @@
             left: 50%;
             top: 140%;
             transform: translateX(-50%);
-            background: #1b1b1b;
             color: #e6e6e6;
             border: 1px solid #444;
             padding: 6px 8px;
@@ -194,7 +228,6 @@
         }
         #info-tip-portal {
             position: fixed;
-            background: #1b1b1b;
             color: #e6e6e6;
             border: 1px solid #444;
             padding: 6px 8px;
@@ -210,18 +243,16 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.4);
         }
 
-        /* 修饰键勾选高亮（发按键面板，方案A） */
         .mod-active,
         .mod-active:hover {
-            background: #2d6cdf;
+            background: var(--glass-active-bg);
             color: #fff;
-            border-color: #2d6cdf;
+            border-color: var(--glass-active-bg);
         }
         .hotkey-item {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            background: #2a2a2a;
             padding: 6px 10px;
             border-radius: 4px;
             margin-top: 6px;
@@ -330,12 +361,11 @@
         .toolbar-right { margin-left: auto; }   /* 弹性撑杆：将图标推向中间，与左侧 margin-right:auto 平衡 */
         #hotkeys-bar {
             display: flex;
-            flex-wrap: nowrap;       /* 不换行，单行 */
-            overflow-x: auto;        /* 超宽横向溢出可滚动 */
+            flex-wrap: nowrap;
+            overflow-x: auto;
             gap: 0;
-            align-items: flex-end;   /* 输入条变高时按钮贴底、文本框向上长 */
-            background: #1e1e1e;     /* 吸底后盖住终端，必须不透明，否则终端文字透出 */
-            touch-action: pan-x;     /* 移动端授权横向 pan，禁掉竖向误滚 */
+            align-items: flex-end;
+            touch-action: pan-x;
         }
         /* 发按键：独立组合器入口，与预设快捷键语义不同，保持为 #hotkeys-bar 直接子项
            flex-shrink:0 保证永不被压缩、始终独占最左 */
@@ -361,25 +391,22 @@
                才能绕开 #hotkeys-bar 的 overflow-x:auto 裁剪（containing block 在 bar 之外）。 */
         }
         #inputBarText {
-            /* 绝对定位相对 #page（#page position:relative），bottom 贴页底（=底部栏底）：
-               文本框变高时向上长（盖住 xterm），不撑高底部栏，左右按钮停在原位不移动。
-               left/right 由 JS 同步为「发按键右缘」与「换行按钮宽」（见 syncLayoutWidths/openInputBar）。
-               定位参照用 #page 而非 wrap：wrap 在 #hotkeys-bar 内，若相对 wrap 定位，
-               向上溢出部分会被 bar 的 overflow-x:auto 裁掉而不可见（2026-07-31 实测回归）。 */
             position: absolute;
             bottom: 0;
-            z-index: 1;            /* 盖 xterm 时保证在其上方绘制 */
+            z-index: 1;
             min-width: 0;
             resize: none;
             overflow: auto;
-            max-height: calc(var(--page-height, 600px) * 0.5);      /* 原为 50vh：改为统一页面高度基准的 50% */
-            background: #1e1e1e;
+            max-height: calc(var(--page-height, 600px) * 0.5);
+            background: var(--glass-bg);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
             color: #eee;
-            border: 1px solid #555;
-            outline: none;            /* 去掉 Chrome focus 默认白色焦点环,避免与相邻"发按键"按钮的 #555 右边框视觉冲突（焦点视觉改由 :focus 改 border-color 体现） */
+            border: 1px solid var(--glass-border);
+            outline: none;
             font: inherit;
             line-height: 1.4;
-            padding: 4px 6px 0;   /* 底部 0：文字贴框底，整体高度进一步贴近侧边按键 */
+            padding: 4px 6px 0;
         }
         #inputBarText:focus {
             border-color: #0078d4;  /* 与 .modal-box input:focus 一致的 focus 视觉反馈 */
@@ -395,11 +422,6 @@
             width: 100%;
             text-align: left;
             padding: 6px 14px;
-            /* 继承通用 button 的 background、border、color、font-size */
-        }
-        .dropdown-menu button:hover {
-            background: #505050;
-            border-color: #6a6a6a;
         }
         .toolbar button, #hotkeys-bar button {
             min-width: 60px;  /* 防止短文字按钮（如 ▲、编辑）被压缩到看不清 */
@@ -418,13 +440,15 @@
            用蓝色高亮,跟深灰色的快捷键/滚动按钮形成视觉区分 */
 /* 管理类按钮（编辑 / 设置）：同色高亮，与深灰快捷键/滚动按钮区分 */
 #editBtn, #openSettingsBtn {
-    background: #1e6fb8;
-    border-color: #4a9eff;
+    background: rgba(30,111,184,0.75);
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    border-color: rgba(74,158,255,0.75);
     color: #fff;
 }
 #editBtn:hover, #openSettingsBtn:hover {
-    background: #2680d4;
-    border-color: #6ab0ff;
+    background: rgba(38,128,212,0.85);
+    border-color: rgba(106,176,255,0.85);
 }
         #wsStatus {
             margin-left: 4px;
@@ -452,8 +476,8 @@
     transform: translateX(0);
     opacity: 0.95;
 }
-.toast-success { background: #2d6cdf; }
-.toast-error   { background: #d9534f; }
+.toast-success { background: rgba(45,108,223,0.85); }
+.toast-error   { background: rgba(217,83,79,0.85); }
 /* 右上角：top/right 16px，transform: translateX(120%) 初始在屏幕右侧外，加 .toast-show 滑入；停留 1.5s 后滑出，允许堆叠（每个偏移 40px） */
 .recent-path-item {
     padding: 6px 8px;
@@ -505,7 +529,6 @@
     display: none;
     position: fixed;
     z-index: 1000;
-    background: #1e1e1e;
     border: 1px solid #3a3a3a;
     border-radius: 6px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
@@ -513,9 +536,9 @@
     padding: 4px 0;
     font-size: 13px;
     color: #e0e0e0;
-    max-height: calc(var(--page-height, 600px) * 0.8);   /* 原为 60vh：改为统一页面高度基准的 80% */
-    overflow-y: auto;          /* 新增：超出则滚动 */
-    white-space: nowrap;       /* 保留迁移前会话下拉项不换行行为 */
+    max-height: calc(var(--page-height, 600px) * 0.8);
+    overflow-y: auto;
+    white-space: nowrap;
 }
 .dropdown-menu.open { display: block; }
 .dropdown-empty { padding: 6px 10px; color: #888; white-space: nowrap; }
@@ -530,8 +553,10 @@
 .rename-dropdown-input {
     flex: 1 1 auto;
     min-width: 0;
-    background: #262626;
-    border: 1px solid #3a3a3a;
+    background: var(--glass-bg);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    border: 1px solid var(--glass-border);
     border-radius: 4px;
     color: #e0e0e0;
     font-size: 13px;
@@ -613,9 +638,21 @@
     position: fixed !important;
     left: 0 !important;
     top: 0 !important;
-    width: 100px !important;   /* 视口内角落的小尺寸锚点，仅作键盘焦点归属；不参与防膨胀 */
+    width: 100px !important;
     height: 40px !important;
     opacity: 0 !important;
     pointer-events: none !important;
     z-index: 0 !important;
+}
+
+/* 毛玻璃关闭态 */
+html[data-glass="off"] .glass,
+html[data-glass="off"] button,
+html[data-glass="off"] .modal-box,
+html[data-glass="off"] .dropdown-menu,
+html[data-glass="off"] #hotkeys-bar,
+html[data-glass="off"] .hotkey-item,
+html[data-glass="off"] #inputBarText {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
 }
