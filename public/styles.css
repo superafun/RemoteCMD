@@ -387,13 +387,13 @@
             gap: 0;                /* 输入框右边缘紧贴换行按钮，不留空隙 */
             align-items: flex-end; /* 换行按钮贴底；高度由换行按钮决定，不随文本框变高 */
             justify-content: flex-end; /* 换行按钮靠右（文本框绝对定位，wrap 流内只剩按钮） */
-            /* 注意：不设 position:relative——文本框须相对 #page 定位，
-               才能绕开 #hotkeys-bar 的 overflow-x:auto 裁剪（containing block 在 bar 之外）。 */
+            /* 注意：文本框 #inputBarText 已移至 #page 直接子级（#hotkeys-bar 外部），
+               彻底避开 overflow-x:auto 对 position:absolute 后代的裁剪。 */
         }
         #inputBarText {
             position: absolute;
             bottom: 0;
-            z-index: 1;
+            z-index: 5;              /* 浮于终端之上、toolbar(z:10)之下 */
             min-width: 0;
             resize: none;
             overflow: auto;

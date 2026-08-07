@@ -52,7 +52,6 @@
             <button id="sendKeysBtn" onclick="openSendKeysPanel()">发按键</button>
             <button id="inputBarBtn" onclick="toggleInputBar()">输入条</button>
             <div id="inputBarWrap" style="display:none;">
-                <textarea id="inputBarText" placeholder="输入内容，回车发送，点换行键换一行" rows="1"></textarea>
                 <button id="inputBarSend" onclick="inputBarRightButton()">换行</button>
             </div>
             <div id="hotkeysList" style="display:flex;gap:0;flex-wrap:nowrap;">
@@ -64,11 +63,12 @@
                 </div>
             </div>
         </div>
+        <textarea id="inputBarText" placeholder="输入内容，回车发送，点换行键换一行" rows="1" style="display:none;"></textarea>
     </div>
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 47;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
+        const APP_VERSION = 48;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -1825,6 +1825,7 @@ function showToast(message, type = 'success') {
             inputBarBtn.style.display = 'none';      // 展开时连同输入条按钮一起隐藏
             hotkeysListEl.style.display = 'none';    // 展开时隐藏快捷键栏
             inputBarWrap.style.display = 'flex';     // 输入条独占整行
+            inputBarText.style.display = 'block';    // 文本框独立显隐（已移出 hotkeys-bar，不再被 wrap 控制）
             applyInputBarButtonLabel();              // 按当前设置刷新右侧按钮文字
             positionInputBarText();                  // 文本框对齐底部栏内按钮（wrap 显示后按钮尺寸才有效）
             // 不再清空 value：保留上次未发送草稿，autoGrow 按现有内容重算高度
@@ -1836,6 +1837,7 @@ function showToast(message, type = 'success') {
             // （与其他快捷键按钮一致：点完后焦点仍在终端输入框，键盘不收）
             sessions.get(activeId)?.focus();
             inputBarWrap.style.display = 'none';
+            inputBarText.style.display = 'none';     // 文本框独立显隐
             inputBarBtn.style.display = '';          // 恢复输入条按钮
             hotkeysListEl.style.display = 'flex';    // 恢复快捷键栏
             if (clear) { inputBarText.value = ''; }
@@ -1962,7 +1964,8 @@ function showToast(message, type = 'success') {
             if (inputBarWrap.style.display !== 'flex') return;   // 已关闭则忽略，防止程序化 close 后的二次触发
             if (!inputBarHideOnBlur) return;                     // 设置关闭：失焦不隐藏
             const r = e.relatedTarget;
-            if (r && inputBarWrap.contains(r)) return;            // 焦点仍在输入条内（如换行按钮），不关闭
+            // 焦点仍在输入条内（换行按钮 或 textarea 自身），不关闭
+            if (r && (inputBarWrap.contains(r) || r === inputBarText)) return;
             closeInputBarPreserve();                             // 点外部/终端：关闭但保留草稿
         });
 
