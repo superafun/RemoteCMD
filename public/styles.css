@@ -7,6 +7,33 @@
             --glass-border-hover: rgba(255,255,255,0.10);
             --glass-bg-hover: rgba(20,20,20,0.5);
         }
+
+        /* ===== 全局隐藏滚动条（方案三：极简无滚动条）===== */
+        /* Firefox 标准属性 */
+        *,
+        *::before,
+        *::after {
+            scrollbar-width: none;       /* Firefox */
+            -ms-overflow-style: none;    /* IE/Edge 旧内核 */
+        }
+        /* WebKit 内核（Chrome/Edge/Safari/Android）*/
+        *::-webkit-scrollbar {
+            width: 0;
+            height: 0;
+            display: none;
+        }
+        /* 覆盖 xterm.js 内部滚动容器 */
+        .xterm-viewport::-webkit-scrollbar,
+        .xterm-screen::-webkit-scrollbar,
+        .xterm::-webkit-scrollbar {
+            width: 0;
+            height: 0;
+            display: none;
+        }
+        .xterm-viewport,
+        .xterm-screen {
+            scrollbar-width: none;
+        }
         .glass,
         button,
         .modal-box,
@@ -95,7 +122,7 @@
             font-size: 16px;
             font-weight: 600;
             color: #e0e0e0;
-            border-bottom: 1px solid #333;
+            border-bottom: 1px solid var(--glass-border);
             padding-bottom: 10px;
         }
         .modal-box input, .modal-box select {
@@ -116,7 +143,7 @@
         /* ===== 通用按钮基础样式 ===== */
         button {
             padding: 6px 14px;
-            border: 1px solid #555;
+            border: 1px solid var(--glass-border);
             color: #d4d4d4;
             border-radius: 4px;
             font-size: 13px;
@@ -175,7 +202,7 @@
             letter-spacing: 1px;
             margin: 0 0 8px;
             padding-bottom: 4px;
-            border-bottom: 1px solid #333;
+            border-bottom: 1px solid var(--glass-border);
         }
         .modal-label {
             display: inline-block;
@@ -209,7 +236,7 @@
             top: 140%;
             transform: translateX(-50%);
             color: #e6e6e6;
-            border: 1px solid #444;
+            border: 1px solid var(--glass-border);
             padding: 6px 8px;
             border-radius: 6px;
             font-size: 12px;
@@ -228,7 +255,7 @@
         #info-tip-portal {
             position: fixed;
             color: #e6e6e6;
-            border: 1px solid #444;
+            border: 1px solid var(--glass-border);
             padding: 6px 8px;
             border-radius: 6px;
             font-size: 12px;
@@ -255,7 +282,7 @@
             padding: 6px 10px;
             border-radius: 4px;
             margin-top: 6px;
-            border: 1px solid #333;
+            border: 1px solid var(--glass-border);
         }
         .hotkey-item span {
             font-family: Consolas, 'Courier New', monospace;
@@ -295,7 +322,7 @@
             gap: 8px;
             margin-top: 12px;
             padding-top: 12px;
-            border-top: 1px solid #333;
+            border-top: 1px solid var(--glass-border);
         }
         .empty-hint {
             color: #888;
@@ -523,7 +550,7 @@
     display: none;
     position: fixed;
     z-index: 1000;
-    border: 1px solid #3a3a3a;
+    border: 1px solid var(--glass-border);
     border-radius: 6px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
     min-width: 160px;
@@ -541,7 +568,7 @@
     align-items: center;
     gap: 6px;
     padding: 6px 8px;
-    border-bottom: 1px solid #3a3a3a;
+    border-bottom: 1px solid var(--glass-border);
     margin-bottom: 2px;
 }
 .rename-dropdown-input {
