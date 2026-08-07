@@ -68,7 +68,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 48;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
+        const APP_VERSION = 49;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -176,9 +176,11 @@
             const tRect = toolbar.getBoundingClientRect();
             const hRect = hotkeys.getBoundingClientRect();
             const screenH = Math.max(200, hRect.bottom - tRect.top);
-            window.__pageHeight = screenH;
-            document.documentElement.style.setProperty('--page-height', screenH + 'px');
-            return screenH;
+            const z = window.__pageZoom || 1;
+            const preZoomH = screenH / z;
+            window.__pageHeight = preZoomH;
+            document.documentElement.style.setProperty('--page-height', preZoomH + 'px');
+            return preZoomH;
         }
         // === 弹窗尺寸（所有 .modal-box 通用）===
         // 高度上限改用「内容边界法」统一基准 computePageHeight()，与页面其他高度计算保持一致。
@@ -186,9 +188,8 @@
         function fitModalsToViewport() {
             const pageW = window.innerWidth || document.documentElement.clientWidth || 360;
             const Pw = Math.min(pageW - 24, 560);
-            const z = window.__pageZoom || 1;
             const h = window.__pageHeight || computePageHeight();
-            const cap = Math.max(120, Math.round(h / z - 16 / z));
+            const cap = Math.max(120, Math.round(h - 16));
             const boxes = document.querySelectorAll('.modal-box');
             for (const box of boxes) {
                 box.style.width = Pw + 'px';
@@ -198,13 +199,13 @@
             }
         }
         // 三个尺寸计算的统一入口；旋屏/视口宽变化时必须按此顺序执行：
-        //   0) computePageHeight — 重算统一页面高度基准（内容边界法）
-        //   1) fitPageZoom        — 重算整页 zoom（zoom 变化不触发 ResizeObserver，不在此显式重算则旋转后 zoom 陈旧 → 页面高度跳变 B2）
-        //   2) positionInputBarText — 必须排在 fitPageZoom 之后，它按 zoom 还原坐标，zoom 变了不重算会错位
-        //   3) fitModalsToViewport  — 弹窗限高依赖 zoom 与页面高度基准，最后算
+        //   0) fitPageZoom        — 先算 zoom 系数（否则 computePageHeight 除 z 还原时拿到旧值）
+        //   1) computePageHeight  — 用最新 zoom 把 post-zoom 测量值还原为 pre-zoom 存储
+        //   2) positionInputBarText — 必须排在 fitPageZoom 之后，它按 zoom 还原坐标
+        //   3) fitModalsToViewport  — 弹窗限高依赖 pre-zoom 页面高度，最后算
         function handleResize() {
-            computePageHeight();
             fitPageZoom();
+            computePageHeight();
             positionInputBarText();
             fitModalsToViewport();
         }
@@ -657,11 +658,13 @@
                 sel.style.height = ((r2 - r1 + 1) * cell.height) + 'px';
             }
             // loupe 屏幕位置：手指上方 LOUPE_GAP；上方放不下则翻到下方；边界 clamp
+            // __pageHeight 为 pre-zoom 值，此处除以 pageZoom 转为 post-zoom 屏幕坐标做边界限制
             let lx = t.clientX - LOUPE_SIZE / 2;
             let ly = t.clientY - LOUPE_GAP - LOUPE_SIZE;
             if (ly < 4) ly = t.clientY + LOUPE_GAP;
             lx = Math.max(4, Math.min(window.innerWidth  - LOUPE_SIZE - 4, lx));
-            ly = Math.max(4, Math.min((window.__pageHeight || 800) - LOUPE_SIZE - 4, ly));
+            const postZoomH = (window.__pageHeight || 800) / (window.__pageZoom || 1);
+            ly = Math.max(4, Math.min(postZoomH - LOUPE_SIZE - 4, ly));
             loupeEl.style.left = lx + 'px';
             loupeEl.style.top  = ly + 'px';
         }
@@ -1408,7 +1411,8 @@
             infoPortal.style.top = (rect.bottom + 6) + 'px';
             infoPortal.style.display = 'block';
             var ph = infoPortal.offsetHeight || 80;
-            if (rect.bottom + 6 + ph > (window.__pageHeight || 800)) {
+            const postZoomH = (window.__pageHeight || 800) / (window.__pageZoom || 1);
+            if (rect.bottom + 6 + ph > postZoomH) {
                 infoPortal.style.top = (rect.top - ph - 6) + 'px';
             }
         }
