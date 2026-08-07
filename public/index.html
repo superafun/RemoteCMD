@@ -1885,6 +1885,14 @@ function showToast(message, type = 'success') {
         // 点主键：与当前勾选的修饰键拼成组合名，当场发送并关闭面板（一次一个）
         function pickAndSend(btn) {
             const name = [...activeMods, btn.textContent].join('+');
+            // 输入条展开时，↑/↓ 应浏览输入条命令历史，而非发到终端驱动 shell 历史
+            // （手机端无物理上下键，只能经「发按键」面板点按；此前误把 \x1b[A/B 发到 PTY）
+            if (inputBarWrap.style.display === 'flex'
+                && (name === '↑' || name === 'Up' || name === '↓' || name === 'Down')) {
+                navigateCmdHistory(name === '↑' || name === 'Up' ? 'up' : 'down');
+                closeSendKeysPanel();
+                return;
+            }
             sendInputMaybeCopy(parseHotkey(name));
             addFrontendLog('直接发送: ' + name, 'out');
             closeSendKeysPanel();
@@ -1994,9 +2002,10 @@ function showToast(message, type = 'success') {
             wsSend({ type: 'input', id: targetId, data: '\r' });     // 单独发回车 = 确认/执行
         }
         inputBarText.addEventListener('input', () => autoGrow(inputBarText));
-        inputBarText.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowUp') {
-                e.preventDefault();
+        // 输入条命令历史上/下浏览：物理键盘(keydown) 与 「发按键」面板 共用同一份逻辑
+        // dir: 'up' | 'down'
+        function navigateCmdHistory(dir) {
+            if (dir === 'up') {
                 if (!cmdHistory.length) return;
                 if (cmdHistoryIdx === -1) {          // 首次按：保存当前草稿
                     cmdHistoryDraft = inputBarText.value;
@@ -2005,11 +2014,8 @@ function showToast(message, type = 'success') {
                     cmdHistoryIdx++;
                 }
                 inputBarText.value = cmdHistory[cmdHistoryIdx];
-                autoGrow(inputBarText);
-                inputBarText.selectionStart = inputBarText.selectionEnd = inputBarText.value.length;
             }
-            else if (e.key === 'ArrowDown') {
-                e.preventDefault();
+            else { // down
                 if (cmdHistoryIdx === -1) return;    // 未进入浏览状态
                 if (cmdHistoryIdx === 0) {           // 回到草稿
                     cmdHistoryIdx = -1;
@@ -2018,8 +2024,19 @@ function showToast(message, type = 'success') {
                     cmdHistoryIdx--;
                     inputBarText.value = cmdHistory[cmdHistoryIdx];
                 }
-                autoGrow(inputBarText);
-                inputBarText.selectionStart = inputBarText.selectionEnd = inputBarText.value.length;
+            }
+            autoGrow(inputBarText);
+            inputBarText.selectionStart = inputBarText.selectionEnd = inputBarText.value.length;
+            inputBarText.focus();   // 面板点按后焦点可能离开 textarea，回到输入条以保光标/软键盘
+        }
+        inputBarText.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                navigateCmdHistory('up');
+            }
+            else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                navigateCmdHistory('down');
             }
             else if (e.key === 'Escape') {
                 e.preventDefault();
