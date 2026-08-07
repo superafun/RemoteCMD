@@ -501,10 +501,10 @@
         }
 
         const GLASS_PRESETS = {
-            off:    { blur: '0px',    saturate: '100%', bg: '#1e1e1e',                         border: 'rgba(85,85,85,0)',  bgHover: '#3c3c3c' },
-            subtle: { blur: '8px',    saturate: '140%', bg: 'rgba(30,30,30,0.55)',             border: 'rgba(255,255,255,0.10)', bgHover: 'rgba(60,60,60,0.65)' },
-            strong: { blur: '16px',   saturate: '150%', bg: 'rgba(25,25,25,0.40)',             border: 'rgba(255,255,255,0.18)', bgHover: 'rgba(50,50,50,0.55)' },
-            ultra:  { blur: '24px',   saturate: '160%', bg: 'rgba(20,20,20,0.30)',             border: 'rgba(255,255,255,0.25)', bgHover: 'rgba(40,40,40,0.50)' }
+            off:    { blur: '0px',    saturate: '100%', bg: '#1e1e1e',              border: 'rgba(85,85,85,0)',  bgHover: '#3c3c3c' },
+            subtle: { blur: '5px',    saturate: '100%', bg: 'rgba(20,20,20,0.2)',  border: 'rgba(255,255,255,0.05)', bgHover: 'rgba(20,20,20,0.5)' },
+            strong: { blur: '4px',   saturate: '100%', bg: 'rgba(20,20,20,0.2)',   border: 'rgba(255,255,255,0.05)', bgHover: 'rgba(20,20,20,0.5)' },
+            ultra:  { blur: '3px',   saturate: '100%', bg: 'rgba(20,20,20,0.2)',   border: 'rgba(255,255,255,0.05)', bgHover: 'rgba(20,20,20,0.5)' }
         };
         function applyGlassMode(mode) {
             const p = GLASS_PRESETS[mode] || GLASS_PRESETS.subtle;
