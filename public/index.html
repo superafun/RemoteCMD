@@ -68,7 +68,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 38;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
+        const APP_VERSION = 39;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -191,7 +191,7 @@
             const Pw = Math.min(pageW - 24, 560);
             const ratio = terminalAspect();
             const Ph = Math.round(Pw * ratio);
-            // real page height: #page top to #hotkeys-bar bottom (布局视口，键盘打开时会含键盘后区域)
+            // real page height: #page top to #hotkeys-bar bottom（gBCR 取的是 #page 经 zoom 后的【屏幕px】）
             let pageTop = 0, realH = window.innerHeight || 640;
             const vv = window.visualViewport;
             const vvHeight = (vv && vv.height) ? vv.height : (window.innerHeight || 640);
@@ -203,10 +203,16 @@
                 pageTop = pr.top;
                 realH = Math.max(0, hr.bottom - pr.top);
             }
-            // 遮罩取「内容高度」与「可见高度」较小者 —— 键盘打开时 vvHeight<realH，故遮罩=可见高度，绝不超出可见区
-            const visH = Math.max(0, Math.min(realH, vvHeight));
-            const boxCap = Math.max(120, Math.round(visH - 16));
-            window.__modalGeom = { pageTop: Math.round(pageTop), realH: Math.round(realH), vvHeight: Math.round(vvHeight), visH: Math.round(visH), boxCap };
+            // 可见高度（屏幕px）：以【视觉视口高度】为准（键盘打开时它已自动排除键盘，无需再 min 页面内容高度）。
+            // 注意：不能用 #page 内容高度(realH) 当基准——它只是终端+工具条的高度，远小于整块屏幕，
+            // 用它会把弹窗算矮。弹窗该占的是「用户看到的屏幕高度」。
+            const visHScreen = vvHeight > 0 ? vvHeight : (realH || (window.innerHeight || 640));
+            // 关键：box 挂在 body 层，其 min-height 用的是【布局px】、会被 --page-zoom 再缩一次；
+            // 而 visHScreen/realH 已是 zoom 后的屏幕px，必须除 zoom 换算回布局px，否则高度会再被缩 1/zoom 反而变矮。
+            const z = window.__pageZoom || 1;
+            const visHLayout = visHScreen / z;
+            const boxCap = Math.max(120, Math.round(visHLayout - 16 / z));
+            window.__modalGeom = { pageTop: Math.round(pageTop), realH: Math.round(realH), vvHeight: Math.round(vvHeight), visHScreen: Math.round(visHScreen), visHLayout: Math.round(visHLayout), boxCap, zoom: z };
             // 遮罩尺寸交给 CSS（position:fixed; inset:0 覆盖整个初始包含块），不再用 JS 设 top/height。
             // 否则高度按布局视口算，安卓软键盘打开时布局视口膨胀、遮罩被撑高；改由 syncModalScrollLock 冻结 body(position:fixed) 锁定滚动，页面不可滚动即不显撑高。
             const overlays = document.querySelectorAll('.modal-overlay');
@@ -222,7 +228,14 @@
                 box.style.width = Pw + 'px';
                 box.style.maxWidth = Pw + 'px';
                 box.style.minWidth = '0';
-                box.style.setProperty('--ph', Math.min(Ph, boxCap) + 'px');
+                // 高度：常规弹窗用「页宽×终端比例」作天花板（内容超出才滚动）；
+                // 窄弹窗（设置/编辑快捷键）内容行数有限，若只按内容高度会又矮又挤在顶部，
+                // 故改用「可视高度×0.7」把盒子撑高到约占屏 70%，min-height 保证真正撑满（不只天花板）。
+                // 上限仍由 boxCap(可视高度-16) 兜着，键盘打开时不溢出、仍稳。
+                const narrow = box.classList.contains('modal-box--narrow');
+                const targetH = narrow ? Math.round(boxCap * 0.7) : Math.min(Ph, boxCap);
+                box.style.setProperty('--ph', targetH + 'px');
+                box.style.minHeight = targetH + 'px';
             }
         }
         (function installModalFit() {
