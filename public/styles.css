@@ -536,7 +536,7 @@
     padding: 4px 0;
     font-size: 13px;
     color: #e0e0e0;
-    max-height: calc(var(--page-height, 600px) / var(--page-zoom, 1) * 0.8);
+    max-height: calc(var(--page-height, 600px) * 0.8);
     overflow-y: auto;
     white-space: nowrap;
 }
