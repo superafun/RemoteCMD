@@ -280,7 +280,7 @@ app.post('/api/login', loginRateLimiter, (req, res) => {
         const cookieOpts = {
             httpOnly: true,
             sameSite: 'lax',
-            secure: 'auto',
+            secure: req.secure,
             maxAge: maxAgeMs,
             path: '/'
         };
@@ -293,7 +293,7 @@ app.post('/api/login', loginRateLimiter, (req, res) => {
     }
 });
 app.post('/api/logout', (req, res) => {
-    res.clearCookie(SESSION_COOKIE, { path: '/', httpOnly: true, sameSite: 'lax', secure: 'auto' });
+    res.clearCookie(SESSION_COOKIE, { path: '/', httpOnly: true, sameSite: 'lax', secure: req.secure });
     res.json({ ok: true });
 });
 app.get('/api/auth-check', (req, res) => {
