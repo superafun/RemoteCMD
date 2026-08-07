@@ -487,6 +487,9 @@
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
+    direction: ltr;
+}
+#recentPathsDropdown .dropdown-row-label {
     direction: rtl;
 }
 .dropdown-row.expanded .dropdown-row-label {
