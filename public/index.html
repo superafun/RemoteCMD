@@ -68,7 +68,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 52;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
+        const APP_VERSION = 53;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -1111,14 +1111,18 @@
             btn.textContent = sessions.get(activeId)?.name || (activeId != null ? 'Shell #' + activeId : '选择终端');
             const dd = document.getElementById('sessionDropdown');
             dd.innerHTML = '';
+            if (!sessions.size) {
+                appendEmpty(dd, '暂无终端');
+                return;
+            }
             sessions.forEach((s, id) => {
-                const optBtn = document.createElement('button');
-                optBtn.textContent = s.name || ('Shell #' + id);
-                optBtn.addEventListener('click', () => {
-                    switchSession(id);
-                    dd.classList.remove('open');
+                const item = makeDropdownRow(s.name || ('Shell #' + id), {
+                    onApply: () => {
+                        switchSession(id);
+                        dd.classList.remove('open');
+                    }
                 });
-                dd.appendChild(optBtn);
+                dd.appendChild(item);
             });
         }
         // 顶栏图标加载态：只在【当前前台终端】等 buffer 响应时把 logo 换成转圈。
@@ -1192,25 +1196,38 @@
             pendingCreate = true;
             wsSend({ type: 'create' });
         }
-        // 渲染「最近路径」下拉内容
-        // 最近路径 / 历史命名 列表项共用：构建一行 .recent-path-item（label + 可选 ✕删除 + 整行点击应用）
-        function makeRecentPathRow(label, opts) {
+        // 通用下拉行构建：统一三处理（选择终端 / 重命名 / 最近路径）的列表项 DOM 结构
+        // 结构: dropdown-row > [dropdown-row-action(展开)] + dropdown-row-label + [dropdown-row-action.danger(删除)]
+        function makeDropdownRow(label, opts) {
             opts = opts || {};
             const item = document.createElement('div');
-            item.className = 'recent-path-item';
+            item.className = 'dropdown-row';
             item.title = label;
+            if (opts.expandable) {
+                const expand = document.createElement('button');
+                expand.className = 'dropdown-row-action';
+                expand.type = 'button';
+                expand.textContent = '▸';
+                expand.title = '展开/收起';
+                expand.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const on = item.classList.toggle('expanded');
+                    expand.textContent = on ? '▾' : '▸';
+                });
+                item.appendChild(expand);
+            }
             const labelEl = document.createElement('span');
-            labelEl.className = 'recent-path-label';
-            labelEl.textContent = label;   // textContent 防路径特殊字符破坏 DOM
+            labelEl.className = 'dropdown-row-label';
+            labelEl.textContent = label;
             item.appendChild(labelEl);
             if (opts.onDelete) {
                 const del = document.createElement('button');
-                del.className = 'recent-path-del';
+                del.className = 'dropdown-row-action danger';
                 del.type = 'button';
-                del.textContent = '✕';   // ✕ (U+2715)
+                del.textContent = '✕';
                 del.title = opts.delTitle || '删除';
                 del.addEventListener('click', (e) => {
-                    e.stopPropagation();   // 避免触发整行应用
+                    e.stopPropagation();
                     opts.onDelete();
                     showToast('已删除', 'success');
                 });
@@ -1234,7 +1251,8 @@
                 return;
             }
             recentPaths.forEach(p => {
-                const item = makeRecentPathRow(p, {
+                const item = makeDropdownRow(p, {
+                    expandable: true,
                     delTitle: '删除该路径',
                     onDelete: () => wsSend({ type: 'recent_paths_delete', data: p }),
                     onApply: () => {
@@ -1250,18 +1268,6 @@
                         restoreKeyboardFocus();   // 交还键盘焦点，避免安卓软键盘收回
                     }
                 });
-                // 展开/收起完整路径按钮（仅最近路径有）
-                const expandBtn = document.createElement('button');
-                expandBtn.className = 'recent-path-expand';
-                expandBtn.type = 'button';
-                expandBtn.textContent = '▸';   // ▸ (U+25B8)
-                expandBtn.title = '展开/收起完整路径';
-                expandBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();                       // 避免触发整行复制
-                    const on = item.classList.toggle('expanded');
-                    expandBtn.textContent = on ? '▾' : '▸';    // ▾ (U+25BE)
-                });
-                item.insertBefore(expandBtn, item.firstChild);
                 dd.appendChild(item);
             });
         }
@@ -1310,7 +1316,7 @@
                 return;
             }
             recentNames.forEach(n => {
-                const item = makeRecentPathRow(n, {
+                const item = makeDropdownRow(n, {
                     delTitle: '删除该历史命名',
                     onDelete: () => wsSend({ type: 'recent_names_delete', data: n }),
                     onApply: () => {

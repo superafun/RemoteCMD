@@ -26,7 +26,8 @@
         }
         .glass:hover,
         button:hover,
-        .dropdown-menu button:hover {
+        .dropdown-row:hover { background: rgba(255, 255, 255, 0.08); }
+        .dropdown-row-action:hover {
             background: var(--glass-bg-hover);
             border-color: var(--glass-border-hover);
         }
@@ -419,12 +420,6 @@
                                       right，文本框不会覆盖到换行按钮 */
             box-sizing: border-box;/* width 含 padding/border，保证实际渲染宽 = 60px */
         }
-        .dropdown-menu button {
-            display: block;
-            width: 100%;
-            text-align: left;
-            padding: 6px 14px;
-        }
         .toolbar button, #hotkeys-bar button {
             min-width: 60px;  /* 防止短文字按钮（如 ▲、编辑）被压缩到看不清 */
         }
@@ -481,7 +476,7 @@
 .toast-success { background: rgba(45,108,223,0.85); }
 .toast-error   { background: rgba(217,83,79,0.85); }
 /* 右上角：top/right 16px，transform: translateX(120%) 初始在屏幕右侧外，加 .toast-show 滑入；停留 1.5s 后滑出，允许堆叠（每个偏移 40px） */
-.recent-path-item {
+.dropdown-row {
     padding: 6px 8px;
     cursor: pointer;
     white-space: nowrap;
@@ -491,15 +486,21 @@
     align-items: center;
     gap: 8px;
 }
-.recent-path-label {
+.dropdown-row-label {
     flex: 1 1 auto;
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
     direction: rtl;
 }
-.dropdown-menu .recent-path-expand,
-.dropdown-menu .recent-path-del {
+.dropdown-row.expanded .dropdown-row-label {
+    white-space: normal;
+    word-break: break-all;
+    overflow: visible;
+    text-overflow: clip;
+    direction: ltr;
+}
+.dropdown-row-action {
     flex: 0 0 auto;
     width: 22px;
     height: 22px;
@@ -517,16 +518,8 @@
     line-height: 1;
     border-radius: 4px;
 }
-.dropdown-menu .recent-path-expand:hover { background: rgba(255, 255, 255, 0.12); color: #e0e0e0; }
-.dropdown-menu .recent-path-item.expanded .recent-path-label {
-    white-space: normal;
-    word-break: break-all;
-    overflow: visible;
-    text-overflow: clip;
-    direction: ltr;
-}
-.dropdown-menu .recent-path-del:hover { background: rgba(255, 80, 80, 0.18); color: #ff6b6b; }
-.recent-path-item:hover { background: rgba(255, 255, 255, 0.08); }
+.dropdown-row-action:hover { background: rgba(255, 255, 255, 0.12); color: #e0e0e0; }
+.dropdown-row-action.danger:hover { background: rgba(255, 80, 80, 0.18); color: #ff6b6b; }
 .dropdown-menu {
     display: none;
     position: fixed;
