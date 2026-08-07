@@ -363,6 +363,22 @@
 
             html += '</div>'; // end 缓冲区
 
+            // === 界面外观 ===
+            html += '<div class="modal-group">';
+            html += '<div class="modal-group-title">界面外观</div>';
+            html += '<div class="modal-row">';
+            html += '<label class="modal-label">毛玻璃效果</label>';
+            html += '<select id="settingsGlassModeInput">'
+                + '<option value="off">关闭（实色）</option>'
+                + '<option value="subtle">微光（默认）</option>'
+                + '<option value="strong">水晶</option>'
+                + '<option value="ultra">超玻璃</option>'
+                + '</select>';
+            html += '<button id="btn-apply-glassMode" onclick="applySettingsGlassMode()">应用</button>';
+            html += '<span class="apply-hint" id="hint-glassMode"></span>';
+            html += '</div>';
+            html += '</div>';
+
             // 当前版本号（每次代码改动 +1，须与 sw.js CACHE 同步）
             html += '<div class="modal-row" style="margin-top:10px;color:#888;font-size:12px;">当前版本：<span>' + APP_VERSION + '</span></div>';
 
@@ -403,6 +419,7 @@
             document.getElementById('settingsMaxFrontendLogsInput').value = maxFrontendLogs;
             document.getElementById('settingsSessionDurationInput').value = sessionDurationHours;
             document.getElementById('settingsRecentPathsLimitInput').value = recentPathsLimit;
+            document.getElementById('settingsGlassModeInput').value = glassMode;
 
         }
 
@@ -535,6 +552,9 @@
 
         function applySettingsRecentPathsLimit() { applyNumericSetting('settingsRecentPathsLimitInput', 'recent_paths_limit', 1, 100, 'btn-apply-recentPathsLimit'); }
 
+        function applySettingsGlassMode() {
+            applyChoiceSetting('settingsGlassModeInput', 'glass_mode', 'btn-apply-glassMode', ['off','subtle','strong','ultra']);
+        }
 
 
         // === 大/小尺寸槽位应用（2026-07-01 引入） ===
