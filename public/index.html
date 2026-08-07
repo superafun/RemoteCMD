@@ -68,7 +68,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 42;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
+        const APP_VERSION = 43;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -1118,19 +1118,37 @@
             if (sizeFn) sizeFn(rect, dd, z);
             dd.classList.toggle('open');
         }
-        function registerDropdownOutsideClose(btnId, ddId) {
-            document.addEventListener('click', (e) => {
+        // === 统一 document.click 处理：下拉菜单外部关闭 + info-tip 切换 ===
+        const _dropdownPairs = [
+            ['sessionSelectBtn', 'sessionDropdown'],
+            ['recentPathsBtn', 'recentPathsDropdown'],
+            ['renameBtn', 'renameDropdown']
+        ];
+        document.addEventListener('click', function (e) {
+            // 1. 下拉菜单外部关闭
+            for (const [btnId, ddId] of _dropdownPairs) {
                 const btn = document.getElementById(btnId);
                 const dd = document.getElementById(ddId);
                 if (btn && !btn.contains(e.target) && !dd.contains(e.target)) {
                     dd.classList.remove('open');
                 }
+            }
+            // 2. info-tip 切换
+            var t = (e.target && e.target.closest) ? e.target.closest('.info') : null;
+            document.querySelectorAll('.info.active').forEach(function (el) {
+                if (el !== t) el.classList.remove('active');
             });
-        }
+            if (t) {
+                t.classList.toggle('active');
+                if (t.classList.contains('active')) showInfoTip(t);
+                else hideInfoTip();
+            } else {
+                hideInfoTip();
+            }
+        });
         document.getElementById('sessionSelectBtn').addEventListener('click', (e) => {
             openDropdownBelow('sessionSelectBtn', 'sessionDropdown');
         });
-        registerDropdownOutsideClose('sessionSelectBtn', 'sessionDropdown');
         function createNew() {
             addFrontendLog('新建终端', 'out');
             pendingCreate = true;
@@ -1215,7 +1233,6 @@
             renderRecentPathsDropdown();
             openDropdownBelow('recentPathsBtn', 'recentPathsDropdown', (r, dd) => { dd.style.minWidth = Math.max(r.width, 200) + 'px'; });
         });
-        registerDropdownOutsideClose('recentPathsBtn', 'recentPathsDropdown');
 
         // 渲染「历史命名」下拉内容（打开面板时 + 收到同步时调用）
         function renderRenameDropdown() {
@@ -1272,7 +1289,6 @@
 
         // 「重命名」按钮：定位 + 展开/收起
         document.getElementById('renameBtn').addEventListener('click', renameCurrent);
-        registerDropdownOutsideClose('renameBtn', 'renameDropdown');
 
         function killCurrent() {
             if (activeId == null) return;
@@ -1350,22 +1366,6 @@
                 if (!to || !(to.closest && to.closest('.info') === ic)) hideInfoTip();
             }
         });
-        var infoScrollEl = document.querySelector('.modal-content');
-        if (infoScrollEl) infoScrollEl.addEventListener('scroll', hideInfoTip);
-        window.addEventListener('scroll', hideInfoTip, true);
-    document.addEventListener('click', function (e) {
-        var t = (e.target && e.target.closest) ? e.target.closest('.info') : null;
-        document.querySelectorAll('.info.active').forEach(function (el) {
-            if (el !== t) el.classList.remove('active');
-        });
-        if (t) {
-            t.classList.toggle('active');
-            if (t.classList.contains('active')) showInfoTip(t);
-            else hideInfoTip();
-        } else {
-            hideInfoTip();
-        }
-    });
 function showToast(message, type = 'success') {
             const div = document.createElement('div');
             div.textContent = message;
