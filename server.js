@@ -32,6 +32,7 @@ function loadConfig() {
             inputBarCloseAfterSend: false,
             enterDelayMs: 300,
             inputBarHideOnBlur: true,
+            glassMode: 'subtle',
             recentPaths: [],
             recentNames: [],
             recentPathsLimit: 10,
@@ -80,6 +81,7 @@ function loadConfig() {
     if (typeof cfg.sessionDurationHours !== 'number' || !isFinite(cfg.sessionDurationHours) || cfg.sessionDurationHours <= 0) cfg.sessionDurationHours = 24;
     if (!Number.isInteger(cfg.recentPathsLimit) || cfg.recentPathsLimit < 1 || cfg.recentPathsLimit > 100) cfg.recentPathsLimit = 10;
     if (typeof cfg.htpasswdPath !== 'string' || !cfg.htpasswdPath) cfg.htpasswdPath = './htpasswd';
+    if (!['off','subtle','strong','ultra'].includes(cfg.glassMode)) cfg.glassMode = 'subtle';
     // === shellPath 兜底：pty spawn 用的 shell 绝对路径（如 pwsh.exe）。
     // 手动在 config.json 里配置；空字符串时 spawn 会用空路径并报错（前端能看到清晰错误）。
     if (typeof cfg.shellPath !== 'string') cfg.shellPath = '';
@@ -627,6 +629,7 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'recent_paths', data: config.recentPaths }));
     ws.send(JSON.stringify({ type: 'recent_names', data: config.recentNames }));
     ws.send(JSON.stringify({ type: 'recent_paths_limit', data: config.recentPathsLimit }));
+    ws.send(JSON.stringify({ type: 'glass_mode', data: config.glassMode }));
     ws.on('message', (msg) => {
         const p = JSON.parse(msg.toString());
         const { type, id, data } = p;
@@ -805,6 +808,13 @@ wss.on('connection', (ws) => {
                 broadcast({ type: 'recent_names', data: config.recentNames });
             }
             broadcast({ type: 'recent_paths_limit', data: config.recentPathsLimit });
+            saveConfig(config);
+        }
+
+        else if (type === 'glass_mode') {
+            if (typeof data !== 'string' || !['off','subtle','strong','ultra'].includes(data)) return;
+            config.glassMode = data;
+            broadcast({ type: 'glass_mode', data: config.glassMode });
             saveConfig(config);
         }
 
