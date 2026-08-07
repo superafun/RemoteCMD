@@ -68,7 +68,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 51;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
+        const APP_VERSION = 52;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -86,7 +86,7 @@
         let inputBarButtonAction = 'newline';
         let inputBarEnterAction = 'send';
         let inputBarCloseAfterSend = false;
-        let glassMode = 'subtle';
+        let glassConfig = { blur: '4px', saturate: '100%', bg: 'rgba(20,20,20,0.2)', border: 'rgba(255,255,255,0.05)', borderHover: 'rgba(255,255,255,0.10)', bgHover: 'rgba(20,20,20,0.5)' };
         let enterDelayMs = 300;   // 输入条回车停顿(ms)，设置可改、多端同步
         let inputBarHideOnBlur = true;
         // === 输入条命令历史（localStorage 纯前端，各设备独立）===
@@ -348,15 +348,10 @@
             html += '<div class="modal-group">';
             html += '<div class="modal-group-title">界面外观</div>';
             html += '<div class="modal-row">';
-            html += '<label class="modal-label">毛玻璃效果</label>';
-            html += '<select id="settingsGlassModeInput">'
-                + '<option value="off">关闭（实色）</option>'
-                + '<option value="subtle">微光（默认）</option>'
-                + '<option value="strong">水晶</option>'
-                + '<option value="ultra">超玻璃</option>'
-                + '</select>';
-            html += '<button id="btn-apply-glassMode" onclick="applySettingsGlassMode()">应用</button>';
-            html += '<span class="apply-hint" id="hint-glassMode"></span>';
+            html += '<label class="modal-label">毛玻璃配置</label>';
+            html += '<textarea id="settingsGlassConfigInput" rows="6" style="flex:1;min-width:300px;font-family:Consolas,monospace;font-size:12px;background:var(--glass-bg);border:1px solid var(--glass-border);color:#d4d4d4;border-radius:4px;padding:6px 10px;resize:vertical;" spellcheck="false"></textarea>';
+            html += '<button id="btn-apply-glassConfig" onclick="applySettingsGlassConfig()">应用</button>';
+            html += '<span class="apply-hint" id="hint-glassConfig"></span>';
             html += '</div>';
             html += '</div>';
 
@@ -399,7 +394,7 @@
             document.getElementById('settingsMaxFrontendLogsInput').value = maxFrontendLogs;
             document.getElementById('settingsSessionDurationInput').value = sessionDurationHours;
             document.getElementById('settingsRecentPathsLimitInput').value = recentPathsLimit;
-            document.getElementById('settingsGlassModeInput').value = glassMode;
+            document.getElementById('settingsGlassConfigInput').value = JSON.stringify(glassConfig, null, 2);
 
         }
 
@@ -479,22 +474,15 @@
             flashHint(hintId);
         }
 
-        const GLASS_PRESETS = {
-            off:    { blur: '0px',    saturate: '100%', bg: '#1e1e1e',              border: 'rgba(85,85,85,0)',  bgHover: '#3c3c3c' },
-            subtle: { blur: '5px',    saturate: '100%', bg: 'rgba(20,20,20,0.2)',  border: 'rgba(255,255,255,0.05)', bgHover: 'rgba(20,20,20,0.5)' },
-            strong: { blur: '4px',   saturate: '100%', bg: 'rgba(20,20,20,0.2)',   border: 'rgba(255,255,255,0.05)', bgHover: 'rgba(20,20,20,0.5)' },
-            ultra:  { blur: '3px',   saturate: '100%', bg: 'rgba(20,20,20,0.2)',   border: 'rgba(255,255,255,0.05)', bgHover: 'rgba(20,20,20,0.5)' }
-        };
-        function applyGlassMode(mode) {
-            const p = GLASS_PRESETS[mode] || GLASS_PRESETS.subtle;
-            glassMode = mode in GLASS_PRESETS ? mode : 'subtle';
+        function applyGlassConfig(cfg) {
+            glassConfig = cfg;
             const r = document.documentElement.style;
-            r.setProperty('--glass-blur', p.blur);
-            r.setProperty('--glass-saturate', p.saturate);
-            r.setProperty('--glass-bg', p.bg);
-            r.setProperty('--glass-border', p.border);
-            r.setProperty('--glass-bg-hover', p.bgHover);
-            r.setProperty('--glass-active-bg', mode === 'off' ? '#2d6cdf' : 'rgba(45,108,223,0.75)');
+            r.setProperty('--glass-blur', cfg.blur);
+            r.setProperty('--glass-saturate', cfg.saturate);
+            r.setProperty('--glass-bg', cfg.bg);
+            r.setProperty('--glass-border', cfg.border);
+            r.setProperty('--glass-border-hover', cfg.borderHover || cfg.border);
+            r.setProperty('--glass-bg-hover', cfg.bgHover);
         }
 
         function applySettingsScrollIntervalTerminal() { applyNumericSetting('settingsScrollIntervalTerminalInput', 'scroll_interval_terminal', 1, 1000, 'btn-apply-scrollIntervalTerminal'); }
@@ -531,8 +519,19 @@
 
         function applySettingsRecentPathsLimit() { applyNumericSetting('settingsRecentPathsLimitInput', 'recent_paths_limit', 1, 100, 'btn-apply-recentPathsLimit'); }
 
-        function applySettingsGlassMode() {
-            applyChoiceSetting('settingsGlassModeInput', 'glass_mode', 'btn-apply-glassMode', ['off','subtle','strong','ultra']);
+        function applySettingsGlassConfig() {
+            const raw = document.getElementById('settingsGlassConfigInput').value.trim();
+            try {
+                const cfg = JSON.parse(raw);
+                const required = ['blur', 'saturate', 'bg', 'border', 'bgHover'];
+                const ok = required.every(k => typeof cfg[k] === 'string');
+                if (!ok) { fbBtn('btn-apply-glassConfig', false); return; }
+                if (!cfg.borderHover) cfg.borderHover = cfg.border;
+                wsSend({ type: 'glass_mode', data: cfg });
+                flashHint('hint-glassConfig');
+            } catch (e) {
+                fbBtn('btn-apply-glassConfig', false);
+            }
         }
 
 
@@ -887,9 +886,8 @@
                         maxFrontendLogs = msg.data;
                         addFrontendLog('日志上限同步为 ' + maxFrontendLogs + ' 条', 'in');
                     } else if (msg.type === 'glass_mode') {
-                        if (['off','subtle','strong','ultra'].includes(msg.data)) {
-                            glassMode = msg.data;
-                            applyGlassMode(msg.data);
+                        if (msg.data && typeof msg.data === 'object' && typeof msg.data.blur === 'string') {
+                            applyGlassConfig(msg.data);
                         }
                     } else if (msg.type === 'screen_history_lines') {
                         screenHistoryLines = msg.data;
@@ -1040,7 +1038,7 @@
 
         // 初始渲染会话选择按钮文本
         renderSessionSelect();
-        applyGlassMode('subtle');
+        applyGlassConfig(glassConfig);
 
         function logout() {
             fetch('api/logout', { method: 'POST' })

@@ -1,11 +1,11 @@
 
         :root {
-            --glass-blur: 8px;
-            --glass-saturate: 140%;
-            --glass-bg: rgba(30,30,30,0.55);
-            --glass-border: rgba(255,255,255,0.10);
-            --glass-bg-hover: rgba(60,60,60,0.65);
-            --glass-active-bg: rgba(45,108,223,0.75);
+            --glass-blur: 4px;
+            --glass-saturate: 100%;
+            --glass-bg: rgba(20,20,20,0.2);
+            --glass-border: rgba(255,255,255,0.05);
+            --glass-border-hover: rgba(255,255,255,0.10);
+            --glass-bg-hover: rgba(20,20,20,0.5);
         }
         .glass,
         button,
@@ -28,7 +28,7 @@
         button:hover,
         .dropdown-menu button:hover {
             background: var(--glass-bg-hover);
-            border-color: var(--glass-border);
+            border-color: var(--glass-border-hover);
         }
 
         html {
@@ -247,9 +247,9 @@
 
         .mod-active,
         .mod-active:hover {
-            background: var(--glass-active-bg);
+            background: rgba(45,108,223,0.75);
             color: #fff;
-            border-color: var(--glass-active-bg);
+            border-color: rgba(45,108,223,0.75);
         }
         .hotkey-item {
             display: flex;
@@ -648,44 +648,4 @@
     opacity: 0 !important;
     pointer-events: none !important;
     z-index: 0 !important;
-}
-
-/* 毛玻璃关闭态 */
-html[data-glass="off"] .glass,
-html[data-glass="off"] button,
-html[data-glass="off"] .modal-box,
-html[data-glass="off"] .dropdown-menu,
-html[data-glass="off"] #hotkeys-bar,
-html[data-glass="off"] .hotkey-item,
-html[data-glass="off"] #inputBarText,
-html[data-glass="off"] .toast,
-html[data-glass="off"] .info-tip,
-html[data-glass="off"] #info-tip-portal,
-html[data-glass="off"] .modal-overlay,
-html[data-glass="off"] .hotkey-item .btn-group button,
-html[data-glass="off"] .hotkey-item .move-group button,
-html[data-glass="off"] .modal-box input,
-html[data-glass="off"] .modal-box select,
-html[data-glass="off"] .rename-dropdown-input,
-html[data-glass="off"] .rename-dropdown-top .rename-dropdown-ok,
-html[data-glass="off"] .modal-box .btn-primary,
-html[data-glass="off"] .modal-box .btn-danger,
-html[data-glass="off"] #editBtn,
-html[data-glass="off"] #openSettingsBtn {
-    background: #1e1e1e !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-}
-html[data-glass="off"] .modal-box .btn-primary {
-    background: #0078d4 !important;
-}
-html[data-glass="off"] .modal-box .btn-danger {
-    background: #5a1d1d !important;
-}
-html[data-glass="off"] #editBtn,
-html[data-glass="off"] #openSettingsBtn {
-    background: #1e6fb8 !important;
-}
-html[data-glass="off"] .rename-dropdown-top .rename-dropdown-ok {
-    background: #1e6fb8 !important;
 }

@@ -32,7 +32,7 @@ function loadConfig() {
             inputBarCloseAfterSend: false,
             enterDelayMs: 300,
             inputBarHideOnBlur: true,
-            glassMode: 'subtle',
+            glassConfig: { blur: '4px', saturate: '100%', bg: 'rgba(20,20,20,0.2)', border: 'rgba(255,255,255,0.05)', borderHover: 'rgba(255,255,255,0.10)', bgHover: 'rgba(20,20,20,0.5)' },
             recentPaths: [],
             recentNames: [],
             recentPathsLimit: 10,
@@ -81,7 +81,9 @@ function loadConfig() {
     if (typeof cfg.sessionDurationHours !== 'number' || !isFinite(cfg.sessionDurationHours) || cfg.sessionDurationHours <= 0) cfg.sessionDurationHours = 24;
     if (!Number.isInteger(cfg.recentPathsLimit) || cfg.recentPathsLimit < 1 || cfg.recentPathsLimit > 100) cfg.recentPathsLimit = 10;
     if (typeof cfg.htpasswdPath !== 'string' || !cfg.htpasswdPath) cfg.htpasswdPath = './htpasswd';
-    if (!['off','subtle','strong','ultra'].includes(cfg.glassMode)) cfg.glassMode = 'subtle';
+    if (typeof cfg.glassConfig !== 'object' || !cfg.glassConfig || typeof cfg.glassConfig.blur !== 'string') {
+        cfg.glassConfig = { blur: '4px', saturate: '100%', bg: 'rgba(20,20,20,0.2)', border: 'rgba(255,255,255,0.05)', borderHover: 'rgba(255,255,255,0.10)', bgHover: 'rgba(20,20,20,0.5)' };
+    }
     // === shellPath 兜底：pty spawn 用的 shell 绝对路径（如 pwsh.exe）。
     // 手动在 config.json 里配置；空字符串时 spawn 会用空路径并报错（前端能看到清晰错误）。
     if (typeof cfg.shellPath !== 'string') cfg.shellPath = '';
@@ -629,7 +631,7 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'recent_paths', data: config.recentPaths }));
     ws.send(JSON.stringify({ type: 'recent_names', data: config.recentNames }));
     ws.send(JSON.stringify({ type: 'recent_paths_limit', data: config.recentPathsLimit }));
-    ws.send(JSON.stringify({ type: 'glass_mode', data: config.glassMode }));
+    ws.send(JSON.stringify({ type: 'glass_mode', data: config.glassConfig }));
     ws.on('message', (msg) => {
         const p = JSON.parse(msg.toString());
         const { type, id, data } = p;
@@ -812,9 +814,9 @@ wss.on('connection', (ws) => {
         }
 
         else if (type === 'glass_mode') {
-            if (typeof data !== 'string' || !['off','subtle','strong','ultra'].includes(data)) return;
-            config.glassMode = data;
-            broadcast({ type: 'glass_mode', data: config.glassMode });
+            if (typeof data !== 'object' || !data || typeof data.blur !== 'string') return;
+            config.glassConfig = data;
+            broadcast({ type: 'glass_mode', data: config.glassConfig });
             saveConfig(config);
         }
 
