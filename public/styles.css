@@ -508,7 +508,7 @@
     padding: 4px 0;
     font-size: 13px;
     color: #e0e0e0;
-    max-height: calc(var(--page-height, 600px) * 0.6);   /* 原为 60vh：改为统一页面高度基准的 60% */
+    max-height: calc(var(--page-height, 600px) * 0.8);   /* 原为 60vh：改为统一页面高度基准的 80% */
     overflow-y: auto;          /* 新增：超出则滚动 */
     white-space: nowrap;       /* 保留迁移前会话下拉项不换行行为 */
 }
