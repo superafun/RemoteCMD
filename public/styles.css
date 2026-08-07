@@ -1,6 +1,6 @@
 
         html {
-            background: #1e1e1e;  /* 深色底：整页重载时第一帧即为深色，消除 TWA 冷启动白闪（与 .toolbar 同色） */
+            background: #1e1e1e;  /* 深色底：整页重载时第一帧即为深色，消除白闪（与 .toolbar 同色） */
             overflow-x: auto;  /* 兜底：xterm 本身比视口宽时滚动 */
             /* 注：曾加 interactive-widget:resizes-content 想根治 fixed+IME 布局视口膨胀(→1392)，
                但荣耀真机实测该属性被完全无视（iwMode=na、键盘开 innerH 仍膨胀），故删除。
@@ -26,7 +26,7 @@
         /* ===== 通用弹窗遮罩 ===== */
         .modal-overlay {
             position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;  /* inset:0：覆盖整个初始包含块，backdrop 完整；用户荣耀机 WebView 最新、inset 正常 */
+            top: 0; left: 0; right: 0; bottom: 0;  /* inset:0：覆盖整个初始包含块，backdrop 完整 */
             z-index: 998;
             background: rgba(0,0,0,0.55);
             overflow: hidden;  /* 遮罩自身不滚动 */
@@ -46,7 +46,6 @@
             border-radius: 8px;
             box-shadow: 0 8px 32px rgba(0,0,0,0.5);
             min-width: 0;
-            max-width: 560px;
             display: flex;
             flex-direction: column;
             overflow: hidden;
@@ -290,8 +289,8 @@
             gap: 0;
             align-items: center;
             /* width 由 #page flex 列布局默认 stretch 提供 */
-            background: #1e1e1e;  /* 顶栏底色：配合 viewport-fit=cover，TWA 沉浸态下铺满顶部状态栏原区域，避免露出底层白/黑 */
-            padding-top: env(safe-area-inset-top, 0);  /* 普通手机浏览器：顶栏下移避开系统状态栏；TWA 沉浸(inset=0)与桌面(无 inset)无影响 */
+            background: #1e1e1e;  /* 顶栏底色：与 html 同色，避免顶部状态栏区域露出底层白/黑 */
+            padding-top: env(safe-area-inset-top, 0);  /* 顶栏下移避开系统状态栏（普通手机有效；桌面无 inset 无影响） */
         }
         .toolbar-left, .toolbar-right {
             display: flex;

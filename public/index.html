@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <style>html,body{background:#1e1e1e}</style><!-- 关键 CSS：首帧直接画深色，消除 TWA 冷启动/重载时的白闪（外部 styles.css 加载前 html 无背景会露白底） -->
+    <style>html,body{background:#1e1e1e}</style><!-- 关键 CSS：首帧直接画深色，消除重载时的白闪（外部 styles.css 加载前 html 无背景会露白底） -->
     <link rel="stylesheet" href="./xterm/css/xterm.css">
     <link rel="stylesheet" href="./styles.css">
     <link rel="manifest" href="manifest.webmanifest">
@@ -68,7 +68,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 41;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
+        const APP_VERSION = 42;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -169,7 +169,7 @@
         // 所以 window.innerHeight 在键盘弹起/缩回时恒定 → 弹窗高度不弹跳。
         // 绝不读 visualViewport.height：那正是「键盘一开面板限高就被缩一圈」反复弹跳的旧根因，已移除。
         // 只有旋屏/窗口宽度变化(window.resize)才重算几何。盒子在 body 层、px 会被 --page-zoom 再缩，故除 z 还原。
-        function fitModalsToTerminal() {
+        function fitModalsToViewport() {
             const pageW = window.innerWidth || document.documentElement.clientWidth || 360;
             const Pw = Math.min(pageW - 24, 560);
             const z = window.__pageZoom || 1;
@@ -180,17 +180,24 @@
                 box.style.width = Pw + 'px';
                 box.style.maxWidth = Pw + 'px';
                 box.style.minWidth = '0';
-                box.style.minHeight = '';
                 box.style.setProperty('--ph', cap + 'px');  // 仅当天花板(max-height)，所有弹窗统一
             }
+        }
+        // 三个尺寸计算的统一入口；旋屏/视口宽变化时必须按此顺序执行：
+        //   1) fitPageZoom        —— 重算整页 zoom（zoom 变化不触发 ResizeObserver，不在此显式重算则旋转后 zoom 陈旧 → 页面高度跳变 B2）
+        //   2) positionInputBarText —— 必须排在 fitPageZoom 之后，它按 zoom 还原坐标，zoom 变了不重算会错位
+        //   3) fitModalsToViewport  —— 弹窗限高依赖 zoom 与布局视口，最后算
+        // 键盘开合不触发 window.resize，故弹窗高度恒定不弹跳（见上方 fitModalsToViewport 注释）。
+        function handleResize() {
+            fitPageZoom();
+            positionInputBarText();
+            fitModalsToViewport();
         }
         (function installModalFit() {
             if (window.__modalFit) return;
             window.__modalFit = true;
-            // 仅窗口尺寸变化（旋屏/视口宽变化）时重算；键盘开合不触发、不重算 → 高度恒定不弹跳。
-            // 弹窗几何在各自「打开函数」里显式调用一次 fitModalsToTerminal()，无需全局 MutationObserver 监听整页 DOM 变动。
-            window.addEventListener('resize', () => { fitModalsToTerminal(); });
-            fitModalsToTerminal();
+            // 弹窗几何在各自「打开函数」里显式调用一次 fitModalsToViewport()，无需全局 MutationObserver 监听整页 DOM 变动。
+            fitModalsToViewport();
         })();
 
         // === 设置弹窗 ===
@@ -359,7 +366,7 @@
             div.innerHTML = html;
             settingsDiv = div.firstElementChild;
             document.body.appendChild(settingsDiv);
-            fitModalsToTerminal();
+            fitModalsToViewport();
 
             // 同步当前值到弹窗
             document.getElementById('settingsLargeRowsInput').value = sizeSlots.large?.rows ?? 60;
@@ -421,7 +428,7 @@
             const div = document.createElement('div');
             div.innerHTML = html;
             document.body.appendChild(div.firstElementChild);
-            fitModalsToTerminal();
+            fitModalsToViewport();
         }
 
 
@@ -938,7 +945,6 @@
             if (Math.abs(zoom - cur) < 0.005) return;   // 幂等：缩放未变不写 DOM，杜绝观察者循环；即便触发观察者下一轮也是 no-op
             page.style.zoom = String(zoom);
             window.__pageZoom = zoom;
-            window.__pageNaturalW = Math.round(naturalW);
         }
         function syncLayoutWidths() {
             const term = document.getElementById('terminal-container');
@@ -948,7 +954,7 @@
             const hotkeys = document.getElementById('hotkeys-bar');
             if (toolbar) toolbar.style.width = w;   // 工具条按下层终端宽裁剪：其按钮不换行时的固有宽可能 > 终端宽（窄屏/手机），须显式写死，否则溢出终端
             if (hotkeys) hotkeys.style.width = w;
-            fitPageZoom();             // 先算 zoom（内部临时归零测自然宽），确定 window.__pageZoom
+            fitPageZoom();             // 先算 zoom（反推法：自然宽 = 当前屏上宽 / 当前 zoom），确定 window.__pageZoom
             positionInputBarText();    // 再按 zoom 对齐输入条文本框（内部除 zoom，见下）
         }
         // 输入条文本框相对 #page 绝对定位，需与底部栏内按钮对齐：
@@ -976,9 +982,9 @@
         } else {
             syncLayoutWidths();
         }
-        // 窗口 resize 时重算输入条文本框定位：#page min-width:100% 随视口变宽，而底部栏固定为
-        // xterm 宽，视口跨过 xterm 宽时两者错位，不重算会盖住右侧换行按钮（2026-07-31 final review）
-        window.addEventListener('resize', positionInputBarText);
+        // 窗口 resize（旋屏/视口宽变化）时统一重算：fitPageZoom→positionInputBarText→fitModalsToViewport
+        // 顺序很关键（见 handleResize 注释）。与 installModalFit 中注册的 handler 是同一个，只挂一次避免重复执行。
+        window.addEventListener('resize', handleResize);
         // xterm 尺寸变化时同步（设置弹窗改 rows/cols 后触发）
         if (typeof ResizeObserver !== 'undefined') {
             const term = document.getElementById('terminal-container');
@@ -1703,7 +1709,7 @@ function showToast(message, type = 'success') {
             div.innerHTML = html;
             sendKeysPanel = div.firstElementChild;
             document.body.appendChild(sendKeysPanel);
-            fitModalsToTerminal();
+            fitModalsToViewport();
         }
         function closeSendKeysPanel() {
             if (sendKeysPanel) { sendKeysPanel.remove(); sendKeysPanel = null; }
@@ -1944,7 +1950,7 @@ function showToast(message, type = 'success') {
             div.innerHTML = html;
             editorDiv = div.firstElementChild;
             document.body.appendChild(editorDiv);
-            fitModalsToTerminal();
+            fitModalsToViewport();
             // 排序由每个条目左侧的上下按钮处理
         }
 
@@ -2074,8 +2080,11 @@ function showToast(message, type = 'success') {
             b.position = 'fixed'; b.top = '0'; b.left = '0'; b.right = '0'; b.width = '100%';
             b.overflowX = 'auto';
         }
-        const _modalMo = new MutationObserver(syncModalScrollLock);
-        _modalMo.observe(document.body, { childList: true, subtree: true });
+        // 只初始化执行一次：把 body 钉成 fixed 抑制荣耀 IME 膨胀（见上方函数注释）。
+        // 不再用 MutationObserver 每帧重设——全项目唯一触碰 document.body.style 的就是本函数，
+        // 没有任何代码会在运行时把 body.position 改回 static，故「设一次」与「每帧重设」稳态等价，
+        // 而后者在 xterm 每帧输出 DOM 时被疯狂触发，纯属浪费（报告 R8）。
+        // ⚠️ 此改动无法在无头环境验证荣耀 1392 行为，须真机确认键盘弹出时页面不再放大。
         syncModalScrollLock();
     </script>
     <script>
