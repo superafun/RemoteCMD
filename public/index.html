@@ -68,7 +68,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 26;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
+        const APP_VERSION = 27;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -739,8 +739,11 @@
             const term = getActiveTerm();
             if (!term || !term.element) return;
             const rect = term.element.getBoundingClientRect();
-            const tx = t.clientX - rect.left;           // 手指在终端坐标内的位置
-            const ty = t.clientY - rect.top;
+            const loc = touchToLocal(t);
+            // 手指在终端「布局坐标」内的位置（已还原 zoom）；克隆的是未缩放终端，其坐标即布局坐标，
+            // 故 transformOrigin / 居中都必须用布局坐标，否则放大镜红点与文字错位（同源 bug）。
+            const tx = loc ? loc.x : (t.clientX - rect.left);
+            const ty = loc ? loc.y : (t.clientY - rect.top);
             const inner = loupeEl.querySelector('.loupe-inner');
             // 以手指点为 pivot 放大，并把该点对齐到 loupe 中心
             inner.style.transformOrigin = tx + 'px ' + ty + 'px';
@@ -1653,6 +1656,18 @@ function showToast(message, type = 'success') {
             const s = (typeof activeId !== 'undefined' && activeId != null) ? sessions.get(activeId) : null;
             return s ? s.term : null;
         }
+        // 把一次触摸点(client 坐标)换算成终端「布局(未缩放)」像素坐标。
+        // ⚠️ #page 可能带 CSS zoom 适配屏宽：getBoundingClientRect 返回的是「视觉(已缩放)」坐标，
+        // 而 xterm 的 css.cell 是「布局(未缩放)」尺寸。两者单位不同，必须把视觉偏移除以缩放比
+        // 还原成布局偏移，否则行/列号系统性偏小 → 选区比手指位置偏高/偏左（回归自整页 zoom 改造）。
+        // 缩放比 = 视觉宽(rect) / 布局宽(offsetWidth)，自带嵌套 zoom 鲁棒性；z=1 时退化为原公式。
+        function touchToLocal(t) {
+            const term = getActiveTerm();
+            if (!term || !term.element) return null;
+            const rect = term.element.getBoundingClientRect();
+            const scale = (term.element.offsetWidth > 0) ? (rect.width / term.element.offsetWidth) : 1;
+            return { x: (t.clientX - rect.left) / scale, y: (t.clientY - rect.top) / scale };
+        }
         // 把一次触摸点换算成单元格坐标（带视口滚动偏移 + clamp）。
         // cell 尺寸取内部 API，取值前守卫非空；任一依赖缺失则回退到 {col:0,row:0}。
         function cellOfTouch(t) {
@@ -1663,9 +1678,10 @@ function showToast(message, type = 'success') {
                 return { col: 0, row: 0 };
             }
             const cell = term._core._renderService.dimensions.css.cell;
-            const rect = term.element.getBoundingClientRect();
-            const col = Math.floor((t.clientX - rect.left) / cell.width);
-            const rowVisible = Math.floor((t.clientY - rect.top) / cell.height);
+            const loc = touchToLocal(t);
+            if (!loc) return { col: 0, row: 0 };
+            const col = Math.floor(loc.x / cell.width);
+            const rowVisible = Math.floor(loc.y / cell.height);
             const row = term.buffer.active.viewportY + rowVisible;
             return {
                 col: Math.max(0, Math.min(term.cols - 1, col)),
