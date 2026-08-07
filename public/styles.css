@@ -2,11 +2,12 @@
         html {
             background: #1e1e1e;  /* 深色底：整页重载时第一帧即为深色，消除 TWA 冷启动白闪（与 .toolbar 同色） */
             overflow-x: auto;  /* 兜底：xterm 本身比视口宽时滚动 */
-            /* 刻意不设置 interactive-widget:resizes-content：
-               设置弹窗/输入条避开软键盘都不靠它——
-               - 设置弹窗(.modal-box)限高由 index.html 的 fitAllModalsToViewport() 按 visualViewport.height 实时设置（键盘上方真实可见高度）；
-               - 输入条靠浏览器原生「聚焦输入框时自动滚到键盘上方」（荣耀真机验证：去掉 resizes-content 后输入条未被遮挡）。
-               设了 resizes-content 反而会让键盘弹出时布局视口 resize，给固定元素引入「打开瞬取值陈旧」的时序坑，且对键盘遮挡无额外帮助。 */
+            /* interactive-widget: resizes-content —— 根治「fixed 元素 + 软键盘」导致布局视口 innerHeight 膨胀(荣耀实测 1072→1392、整页被放大)。
+               默认 resizes-viewport 模式下，安卓在 position:fixed 元素(含 xterm-helper-textarea 常驻满屏、.modal-overlay、DBG 角标等)与 IME 共存时，
+               会把布局视口撑到(全屏+键盘)使页面可滚动=放大；resizes-content 改为让布局视口随键盘收缩到可见区，
+               固定元素不再触发膨胀（也顺带让底部输入条自然落在键盘上方）。此属性 Chrome94+ 支持，荣耀机满足。
+               注：曾因输入条顾虑移除，现膨胀为头号问题且 resizes-content 对输入条更合理，故恢复。 */
+            interactive-widget: resizes-content;
         }
         body {
             margin: 0;
