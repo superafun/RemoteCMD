@@ -86,6 +86,7 @@
         let inputBarButtonAction = 'newline';
         let inputBarEnterAction = 'send';
         let inputBarCloseAfterSend = false;
+        let glassMode = 'subtle';
         let enterDelayMs = 300;   // 输入条回车停顿(ms)，设置可改、多端同步
         let inputBarHideOnBlur = true;
         // === 输入条命令历史（localStorage 纯前端，各设备独立）===
@@ -482,6 +483,24 @@
             flashHint(hintId);
         }
 
+        const GLASS_PRESETS = {
+            off:    { blur: '0px',    saturate: '100%', bg: '#1e1e1e',                         border: 'rgba(85,85,85,0)',  bgHover: '#3c3c3c' },
+            subtle: { blur: '8px',    saturate: '140%', bg: 'rgba(30,30,30,0.55)',             border: 'rgba(255,255,255,0.10)', bgHover: 'rgba(60,60,60,0.65)' },
+            strong: { blur: '16px',   saturate: '150%', bg: 'rgba(25,25,25,0.40)',             border: 'rgba(255,255,255,0.18)', bgHover: 'rgba(50,50,50,0.55)' },
+            ultra:  { blur: '24px',   saturate: '160%', bg: 'rgba(20,20,20,0.30)',             border: 'rgba(255,255,255,0.25)', bgHover: 'rgba(40,40,40,0.50)' }
+        };
+        function applyGlassMode(mode) {
+            const p = GLASS_PRESETS[mode] || GLASS_PRESETS.subtle;
+            glassMode = mode in GLASS_PRESETS ? mode : 'subtle';
+            const r = document.documentElement.style;
+            r.setProperty('--glass-blur', p.blur);
+            r.setProperty('--glass-saturate', p.saturate);
+            r.setProperty('--glass-bg', p.bg);
+            r.setProperty('--glass-border', p.border);
+            r.setProperty('--glass-bg-hover', p.bgHover);
+            r.setProperty('--glass-active-bg', mode === 'off' ? '#2d6cdf' : 'rgba(45,108,223,0.75)');
+        }
+
         function applySettingsScrollIntervalTerminal() { applyNumericSetting('settingsScrollIntervalTerminalInput', 'scroll_interval_terminal', 1, 1000, 'btn-apply-scrollIntervalTerminal'); }
 
         function applySettingsScrollIntervalPage() { applyNumericSetting('settingsScrollIntervalPageInput', 'scroll_interval_page', 1, 1000, 'btn-apply-scrollIntervalPage'); }
@@ -868,6 +887,11 @@
                     } else if (msg.type === 'max_frontend_logs') {
                         maxFrontendLogs = msg.data;
                         addFrontendLog('日志上限同步为 ' + maxFrontendLogs + ' 条', 'in');
+                    } else if (msg.type === 'glass_mode') {
+                        if (['off','subtle','strong','ultra'].includes(data)) {
+                            glassMode = data;
+                            applyGlassMode(data);
+                        }
                     } else if (msg.type === 'screen_history_lines') {
                         screenHistoryLines = msg.data;
                         const inp = document.getElementById('settingsScreenHistoryLinesInput');
@@ -1016,6 +1040,8 @@
 
         // 初始渲染会话选择按钮文本
         renderSessionSelect();
+        applyGlassMode('subtle');
+
         function logout() {
             fetch('api/logout', { method: 'POST' })
                 .then(() => { location.href = 'login'; })
