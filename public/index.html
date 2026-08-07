@@ -201,8 +201,8 @@
             if (settingsDiv) { settingsDiv.remove(); settingsDiv = null; }
             let html = '<div class="modal-overlay" onclick="if(event.target===this)closeSettingsModal()">';
             html += '<div class="modal-box">';
-            html += '<div class="modal-content">';
             html += '<h3>设置</h3>';
+            html += '<div class="modal-content">';
 
             // === 终端尺寸 ===
             html += '<div class="modal-group">';
@@ -360,6 +360,8 @@
 
 
 
+            html += '</div>';  // .modal-content 结束
+
             html += '<div class="modal-actions">';
             html += '<button class="btn-danger" onclick="restartServer()">重启服务器</button>';
             html += '<button class="btn-danger" onclick="killCurrent()">关闭当前终端</button>';
@@ -367,7 +369,7 @@
             html += '<button onclick="openLogModal()">日志</button>';
             html += '<button onclick="closeSettingsModal()" style="margin-left:auto;">关闭</button>';
             html += '</div>';
-            html += '</div></div></div>';
+            html += '</div></div>';
 
             const div = document.createElement('div');
             div.innerHTML = html;
@@ -412,7 +414,8 @@
             html += '<span style="color:#4a9eff">→</span> 客户端→服务端 &nbsp; ';
             html += '<span style="color:#4caf50">←</span> 服务端→客户端';
             html += '</span></h3>';
-            html += '<div id="logContent" style="background:#0d0d0d;color:#c0c0c0;padding:10px;border-radius:4px;max-height:calc(var(--page-height, 600px) * 0.5);overflow-y:auto;font-family:Consolas,monospace;font-size:12px;line-height:1.6;">';
+            html += '<div class="modal-content" style="padding:0;">';
+            html += '<div id="logContent" style="background:#0d0d0d;color:#c0c0c0;padding:10px;border-radius:4px;height:100%;font-family:Consolas,monospace;font-size:12px;line-height:1.6;">';
             if (frontendLogs.length === 0) {
                 html += '暂无日志';
             } else {
@@ -429,6 +432,7 @@
                 });
             }
             html += '</div>';
+            html += '</div>';  // .modal-content 结束
             html += '<div class="modal-actions">';
             html += '<button onclick="this.closest(\'.modal-overlay\').remove()">关闭</button>';
             html += '</div></div></div>';
