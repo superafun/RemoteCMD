@@ -68,7 +68,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 24;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
+        const APP_VERSION = 25;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -191,12 +191,19 @@
         function applyPageZoom() {
             const page = document.getElementById('page');
             if (!page) return;
-            page.style.zoom = '1';
-            const natural = page.getBoundingClientRect().width;
+            // 用「当前渲染宽 / 当前 zoom」反推自然宽，**不要复位 zoom=1 再量**——复位会瞬间产生两次布局抖动，
+            // 而 ResizeObserver 正观察被 zoom 缩放的 #terminal-container，抖动会触发它再次回调 → 死循环
+            // （Chromium 报 "ResizeObserver loop completed with undelivered notifications"）。
+            const cur = page.style.zoom;
+            const z0 = (cur && cur !== 'none') ? parseFloat(cur) : 1;
+            if (!(z0 > 0) || !isFinite(z0)) return;
+            const rendered = page.getBoundingClientRect().width;
+            const natural = rendered / z0;
             const target = window.screen.width || window.innerWidth;
             let z = target / natural;
             if (!(z > 0) || !isFinite(z)) return;
             if (z > 1) z = 1;  // 只缩小，不放大
+            if (Math.abs(z - z0) < 0.005) return;  // 缩放未变 → 跳过，幂等、不产生布局变化、不触发观察者循环
             page.style.zoom = String(z);
         }
         function fitModalsToTerminal() {
@@ -245,16 +252,26 @@
             const onLayoutResize = () => { applyPageZoom(); fitModalsToTerminal(); };
             window.addEventListener('resize', onLayoutResize);
             // 终端列数/字号变化（大/小尺寸切换、FitAddon 重排）会改变 #terminal-container 自然宽，
-            // 用 ResizeObserver 事件驱动重算整页缩放（不轮询）。zoom 自身复位到 1 再量自然宽，幂等无反馈环。
+            // 用 ResizeObserver 事件驱动重算整页缩放（不轮询）。
+            // ⚠️ 关键：① 回调里**改 zoom 会缩放 termWrap 本身 → 又触发本观察者**，必须在 rAF 里写 DOM 断掉同步循环；
+            // ② 用「渲染宽 / 当前 zoom」反推未缩放的自然宽，仅当真实终端宽变化才重算，缩放引起的尺寸抖动直接忽略。
             const termWrap = document.getElementById('terminal-container');
             if (termWrap && typeof ResizeObserver !== 'undefined') {
-                let lastZ = null;
+                let lastUnzoomed = -1;
+                let scheduled = false;
                 const ro = new ResizeObserver(() => {
-                    applyPageZoom();
-                    const z = document.getElementById('page').style.zoom;
-                    if (z === lastZ) return;  // 缩放未变，跳过后续，防 ResizeObserver 因 zoom 改变布局而循环
-                    lastZ = z;
-                    fitModalsToTerminal();
+                    if (scheduled) return;
+                    scheduled = true;
+                    requestAnimationFrame(() => {
+                        scheduled = false;
+                        const page = document.getElementById('page');
+                        const z0 = (page && page.style.zoom && parseFloat(page.style.zoom)) || 1;
+                        const unzoomed = termWrap.getBoundingClientRect().width / z0;
+                        if (Math.abs(unzoomed - lastUnzoomed) < 0.5) return;  // 仅真实终端宽变化才重算（忽略缩放抖动）
+                        lastUnzoomed = unzoomed;
+                        applyPageZoom();
+                        fitModalsToTerminal();
+                    });
                 });
                 ro.observe(termWrap);
             }
