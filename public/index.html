@@ -163,18 +163,31 @@
         // 当前勾选的修饰键（方案A：勾选式组合，非物理按住）
         let activeMods = new Set();
 
+        // === 统一页面高度基准（方案A：内容边界法）===
+        // 不再使用 window.innerHeight / vh；统一测量页面实际内容边界：
+        // 从 .toolbar 顶部到 #hotkeys-bar 底部的屏幕像素距离。
+        // 键盘开合只影响 #terminal-container 高度，不改变 toolbar/hotkeys-bar 边界，
+        // 因此此值在键盘开合时天然稳定（与旧 innerHeight 行为等价，且语义更清晰）。
+        function computePageHeight() {
+            const toolbar = document.querySelector('.toolbar');
+            const hotkeys = document.getElementById('hotkeys-bar');
+            if (!toolbar || !hotkeys) return window.__pageHeight || 400;
+            const tRect = toolbar.getBoundingClientRect();
+            const hRect = hotkeys.getBoundingClientRect();
+            const screenH = Math.max(200, hRect.bottom - tRect.top);
+            window.__pageHeight = screenH;
+            document.documentElement.style.setProperty('--page-height', screenH + 'px');
+            return screenH;
+        }
         // === 弹窗尺寸（所有 .modal-box 通用）===
-        // 简单、固定：高度上限只用「布局视口」window.innerHeight 推导。
-        // 默认 resizes-visual 下软键盘开/合只缩「视觉视口」、不动布局视口，
-        // 所以 window.innerHeight 在键盘弹起/缩回时恒定 → 弹窗高度不弹跳。
-        // 绝不读 visualViewport.height：那正是「键盘一开面板限高就被缩一圈」反复弹跳的旧根因，已移除。
+        // 高度上限改用「内容边界法」统一基准 computePageHeight()，与页面其他高度计算保持一致。
         // 只有旋屏/窗口宽度变化(window.resize)才重算几何。盒子在 body 层、px 会被 --page-zoom 再缩，故除 z 还原。
         function fitModalsToViewport() {
             const pageW = window.innerWidth || document.documentElement.clientWidth || 360;
             const Pw = Math.min(pageW - 24, 560);
             const z = window.__pageZoom || 1;
-            // 仅用布局视口高度（键盘开合不影响它），上下各留 16px 边距；除 z 还原布局px。
-            const cap = Math.max(120, Math.round(window.innerHeight / z - 16 / z));
+            const h = window.__pageHeight || computePageHeight();
+            const cap = Math.max(120, Math.round(h / z - 16 / z));
             const boxes = document.querySelectorAll('.modal-box');
             for (const box of boxes) {
                 box.style.width = Pw + 'px';
@@ -184,11 +197,12 @@
             }
         }
         // 三个尺寸计算的统一入口；旋屏/视口宽变化时必须按此顺序执行：
-        //   1) fitPageZoom        —— 重算整页 zoom（zoom 变化不触发 ResizeObserver，不在此显式重算则旋转后 zoom 陈旧 → 页面高度跳变 B2）
-        //   2) positionInputBarText —— 必须排在 fitPageZoom 之后，它按 zoom 还原坐标，zoom 变了不重算会错位
-        //   3) fitModalsToViewport  —— 弹窗限高依赖 zoom 与布局视口，最后算
-        // 键盘开合不触发 window.resize，故弹窗高度恒定不弹跳（见上方 fitModalsToViewport 注释）。
+        //   0) computePageHeight — 重算统一页面高度基准（内容边界法）
+        //   1) fitPageZoom        — 重算整页 zoom（zoom 变化不触发 ResizeObserver，不在此显式重算则旋转后 zoom 陈旧 → 页面高度跳变 B2）
+        //   2) positionInputBarText — 必须排在 fitPageZoom 之后，它按 zoom 还原坐标，zoom 变了不重算会错位
+        //   3) fitModalsToViewport  — 弹窗限高依赖 zoom 与页面高度基准，最后算
         function handleResize() {
+            computePageHeight();
             fitPageZoom();
             positionInputBarText();
             fitModalsToViewport();
@@ -196,7 +210,7 @@
         (function installModalFit() {
             if (window.__modalFit) return;
             window.__modalFit = true;
-            // 弹窗几何在各自「打开函数」里显式调用一次 fitModalsToViewport()，无需全局 MutationObserver 监听整页 DOM 变动。
+            computePageHeight();
             fitModalsToViewport();
         })();
 
@@ -405,7 +419,7 @@
             html += '<span style="color:#4a9eff">→</span> 客户端→服务端 &nbsp; ';
             html += '<span style="color:#4caf50">←</span> 服务端→客户端';
             html += '</span></h3>';
-            html += '<div id="logContent" style="background:#0d0d0d;color:#c0c0c0;padding:10px;border-radius:4px;max-height:50vh;overflow-y:auto;font-family:Consolas,monospace;font-size:12px;line-height:1.6;">';
+            html += '<div id="logContent" style="background:#0d0d0d;color:#c0c0c0;padding:10px;border-radius:4px;max-height:calc(var(--page-height, 600px) * 0.5);overflow-y:auto;font-family:Consolas,monospace;font-size:12px;line-height:1.6;">';
             if (frontendLogs.length === 0) {
                 html += '暂无日志';
             } else {
@@ -608,7 +622,7 @@
             let ly = t.clientY - LOUPE_GAP - LOUPE_SIZE;
             if (ly < 4) ly = t.clientY + LOUPE_GAP;
             lx = Math.max(4, Math.min(window.innerWidth  - LOUPE_SIZE - 4, lx));
-            ly = Math.max(4, Math.min(window.innerHeight - LOUPE_SIZE - 4, ly));
+            ly = Math.max(4, Math.min((window.__pageHeight || 800) - LOUPE_SIZE - 4, ly));
             loupeEl.style.left = lx + 'px';
             loupeEl.style.top  = ly + 'px';
         }
@@ -1348,7 +1362,7 @@
             infoPortal.style.top = (rect.bottom + 6) + 'px';
             infoPortal.style.display = 'block';
             var ph = infoPortal.offsetHeight || 80;
-            if (rect.bottom + 6 + ph > window.innerHeight) {
+            if (rect.bottom + 6 + ph > (window.__pageHeight || 800)) {
                 infoPortal.style.top = (rect.top - ph - 6) + 'px';
             }
         }
@@ -1912,7 +1926,7 @@ function showToast(message, type = 'success') {
             let html = '<div class="modal-overlay" onclick="if(event.target===this)closeEditor()">';
             html += '<div class="modal-box">';
             html += '<h3>编辑快捷键</h3>';
-            // 列表区包进 .modal-content（overflow-y:auto），内容超出 70dvh 时可滚动，下方按钮不再被裁掉
+            // 列表区包进 .modal-content（overflow-y:auto），内容超出弹窗 max-height（基于页面内容高度基准）时可滚动，下方按钮不再被裁掉
             html += '<div class="modal-content">';
             html += '<div class="modal-row">';
             html += '<input id="hkName" placeholder="显示名称（如 Alt+M）" style="flex:1;min-width:0;">';

@@ -38,7 +38,7 @@
             transform: translateX(-50%);
             z-index: 999;
             box-sizing: border-box;  /* max-height 含 padding，否则盒子被上下 padding 撑高、超出上限藏到键盘下 */
-            max-height: var(--ph, 70vh);  /* 主尺寸上限来自 --ph（JS 按布局视口 window.innerHeight 设，键盘开合不变 → 不弹跳）；内容多则内部滚动；不设地板、不强行加高 */
+            max-height: var(--ph, 70vh);  /* 主尺寸上限来自 --ph（JS 按内容边界法 computePageHeight 设）；内容多则内部滚动；不设地板、不强行加高 */
             zoom: var(--page-zoom, 1);  /* 与 #page 同一缩放系数，避免弹窗（挂在 body 外）比缩小的页面显得更大 */
             background: #1e1e1e;
             color: #d4d4d4;
@@ -367,7 +367,7 @@
             min-width: 0;
             resize: none;
             overflow: auto;
-            max-height: 50vh;      /* 原为 160px：超半屏后内部滚动，盖住终端底部一部分 */
+            max-height: calc(var(--page-height, 600px) * 0.5);      /* 原为 50vh：改为统一页面高度基准的 50% */
             background: #1e1e1e;
             color: #eee;
             border: 1px solid #555;
@@ -508,7 +508,7 @@
     padding: 4px 0;
     font-size: 13px;
     color: #e0e0e0;
-    max-height: 60vh;          /* 新增：手机端展开多行后不溢出视口 */
+    max-height: calc(var(--page-height, 600px) * 0.6);   /* 原为 60vh：改为统一页面高度基准的 60% */
     overflow-y: auto;          /* 新增：超出则滚动 */
     white-space: nowrap;       /* 保留迁移前会话下拉项不换行行为 */
 }
