@@ -661,7 +661,29 @@ html[data-glass="off"] .info-tip,
 html[data-glass="off"] #info-tip-portal,
 html[data-glass="off"] .modal-overlay,
 html[data-glass="off"] .hotkey-item .btn-group button,
-html[data-glass="off"] .hotkey-item .move-group button {
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
+html[data-glass="off"] .hotkey-item .move-group button,
+html[data-glass="off"] .modal-box input,
+html[data-glass="off"] .modal-box select,
+html[data-glass="off"] .rename-dropdown-input,
+html[data-glass="off"] .rename-dropdown-top .rename-dropdown-ok,
+html[data-glass="off"] .modal-box .btn-primary,
+html[data-glass="off"] .modal-box .btn-danger,
+html[data-glass="off"] #editBtn,
+html[data-glass="off"] #openSettingsBtn {
+    background: #1e1e1e !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+html[data-glass="off"] .modal-box .btn-primary {
+    background: #0078d4 !important;
+}
+html[data-glass="off"] .modal-box .btn-danger {
+    background: #5a1d1d !important;
+}
+html[data-glass="off"] #editBtn,
+html[data-glass="off"] #openSettingsBtn {
+    background: #1e6fb8 !important;
+}
+html[data-glass="off"] .rename-dropdown-top .rename-dropdown-ok {
+    background: #1e6fb8 !important;
 }
