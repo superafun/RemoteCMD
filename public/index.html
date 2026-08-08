@@ -23,19 +23,6 @@
                 <button onclick="createNew()">新建终端</button>
                 <button id="recentPathsBtn">最近路径</button>
             </div>
-            <div class="toolbar-icon" onclick="hideToolbar()">
-                <svg viewBox="0 0 32 32" width="20" height="20">
-                    <defs>
-                        <linearGradient id="tbg" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stop-color="#6366f1"/>
-                            <stop offset="100%" stop-color="#8b5cf6"/>
-                        </linearGradient>
-                    </defs>
-                    <rect width="32" height="32" rx="6" fill="url(#tbg)"/>
-                    <path d="M11 11l8 5-8 5" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-                    <rect x="19" y="19" width="6" height="2" rx="1" fill="#fff" opacity="0.8"/>
-                </svg>
-            </div>
             <div class="toolbar-right">
                 <button id="sizeToggleBtn" onclick="toggleSize()">大</button>
                 <button id="selectModeBtn" onclick="toggleSelectMode()">选区模式</button>
@@ -68,7 +55,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 73;  // 纯递增整数，每次代码改动 +1，用于验证当前版本是否已生效
+        const APP_VERSION = 74;  // 纯递增整数，每次代码改动 +1，用于验证当前版本是否已生效
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -713,9 +700,8 @@
                 ws.onclose = () => {
                     addFrontendLog('连接已断开');
                     pendingCreate = false;
-                    // 断线时把所有 pendingBuffer 复位——否则 buffer 响应永不到达，图标会一直转
+                    // 断线时把所有 pendingBuffer 复位——否则 buffer 响应永不到达，data 消息会被 pendingBuffer 守卫永久丢弃
                     sessions.forEach(s => { s.pendingBuffer = false; });
-                    updateTopIconLoading();
                     updateWsStatus();
                     // pre-reconnect auth check: 401 -> login page
                     fetch('api/auth-check').then(r => {
@@ -778,8 +764,6 @@
                                         switchSession(currentIds.reduce((a, b) => a > b ? a : b));
                                     } else { activeId = null; }
                                 };
-                                // 删除会话后重算图标：被删的若是正在加载的前台终端，activeId 已改或为 null
-                                updateTopIconLoading();
                             }
                         });
 
@@ -1099,16 +1083,6 @@
                 dd.appendChild(item);
             });
         }
-        // 顶栏图标加载态：只在【当前前台终端】等 buffer 响应时把 logo 换成转圈。
-        // 集中式判定的原因：切换会话时需要重算（切到仍在排队等缓存的终端要开始转），
-        // 若让 TermSession 各自改图标 DOM 就漏掉了切换这条路径。
-        function updateTopIconLoading() {
-            const s = activeId != null ? sessions.get(activeId) : null;
-            const icon = document.querySelector('.toolbar-icon');
-            if (!icon) return;
-            icon.classList.toggle('loading', !!(s && s.pendingBuffer));
-        }
-        window.updateTopIconLoading = updateTopIconLoading;
         function switchSession(id) {
             const idNum = parseInt(id);
             if (selectionMode) { exitSelectMode(); }
@@ -1117,7 +1091,6 @@
             activeId = idNum;
             sessions.get(idNum)?.show();
             document.getElementById('sessionSelectBtn').textContent = sessions.get(activeId)?.name || ('Shell #' + activeId);
-            updateTopIconLoading();
         }
         // 点击按钮切换下拉菜单
         // 下拉定位(按钮正下方展开) 与 点击外部关闭 —— session/recentPaths/rename 三处共用
