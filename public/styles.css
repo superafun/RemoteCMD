@@ -341,7 +341,9 @@
             z-index: 10;
             background: transparent;  /* 全透明覆盖在 xterm 上 */
             padding-top: env(safe-area-inset-top, 0);  /* 顶栏下移避开系统状态栏（普通手机有效；桌面无 inset 无影响） */
+            transition: transform .25s ease-out;  /* 顶栏自动隐藏动画 */
         }
+        .toolbar.toolbar-hidden { transform: translateY(-100%); }
         .toolbar-left, .toolbar-right {
             display: flex;
             flex-wrap: wrap;
