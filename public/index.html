@@ -68,7 +68,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 71;  // 纯递增整数，每次代码改动 +1，用于验证当前版本是否已生效
+        const APP_VERSION = 72;  // 纯递增整数，每次代码改动 +1，用于验证当前版本是否已生效
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -1557,6 +1557,16 @@ function showToast(message, type = 'success') {
             document.addEventListener('touchmove',   onTouchScrollMove,  { capture: true });
             document.addEventListener('touchend',    onTouchScrollEnd,   { capture: true });
             document.addEventListener('touchcancel', onTouchScrollEnd,   { capture: true });
+            // 桌面端鼠标滚轮：复用移动端顶栏隐藏/恢复逻辑，保持两端一致
+            // 作用域限定 #terminal-container（与移动端 closest 过滤等价），
+            // 方向语义：deltaY>0（向下滚）≡ 手指下滑→隐藏；deltaY<0（向上滚）≡ 手指上滑→恢复
+            const termEl = document.getElementById('terminal-container');
+            if (termEl) {
+                termEl.addEventListener('wheel', (e) => {
+                    if (e.deltaY > 0) hideToolbar();
+                    else if (e.deltaY < 0 && toolbarHidden) restoreToolbar();
+                }, { passive: true });
+            }
         }
 
         function onTouchScrollStart(e) {
