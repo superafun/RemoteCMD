@@ -68,7 +68,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 67;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
+        const APP_VERSION = 68;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -607,10 +607,9 @@
             if (!loupeEl) return;
             const term = getActiveTerm();
             if (!term || !term.element) return;
-            const z = window.__pageZoom || 1;   // #page 已 zoom 缩放，gBCR 为屏上像素；克隆终端在未缩放空间，pivot 须还原到终端本地坐标（除 z）
             const rect = term.element.getBoundingClientRect();
-            const tx = (t.clientX - rect.left) / z;           // 手指在终端坐标内的位置（未缩放）
-            const ty = (t.clientY - rect.top) / z;
+            const tx = t.clientX - rect.left;           // 手指在终端坐标内的位置
+            const ty = t.clientY - rect.top;
             const inner = loupeEl.querySelector('.loupe-inner');
             // 以手指点为 pivot 放大，并把该点对齐到 loupe 中心
             inner.style.transformOrigin = tx + 'px ' + ty + 'px';
@@ -985,9 +984,8 @@
             const kr = sendKeysBtn.getBoundingClientRect();
             const sr = sendBtn.getBoundingClientRect();
             if (!(sr.width > 0)) return;   // 换行按钮不可见（输入条收起）时保持现值
-            const z = window.__pageZoom || 1;   // #page 已 zoom 缩放，gBCR 为屏上像素，换算回页内坐标须除 zoom
-            ta.style.left = ((kr.right - pr.left) / z) + 'px';   // 发按键右缘相对 #page
-            ta.style.right = ((pr.right - sr.left) / z) + 'px';  // #page 右缘 - 换行按钮左缘
+            ta.style.left = (kr.right - pr.left) + 'px';   // 发按键右缘相对 #page
+            ta.style.right = (pr.right - sr.left) + 'px';  // #page 右缘 - 换行按钮左缘
         }
         // DOM 加载完成后首次同步
         if (document.readyState === 'loading') {
@@ -1124,17 +1122,13 @@
         }
         // 点击按钮切换下拉菜单
         // 下拉定位(按钮正下方展开) 与 点击外部关闭 —— session/recentPaths/rename 三处共用
-        // ⚠️ 下拉菜单虽是 position:fixed，但 DOM 上挂在 .toolbar 内，处于 #page 的 zoom 子树中，
-        // 写进去的 px 会被 --page-zoom 再缩一次。而 getBoundingClientRect 给的已是缩放后的屏幕像素，
-        // 直接回写等于缩两次（实测 zoom .26 时下拉上移 7.3px 盖住按钮）。故写入前一律除 z 还原。
         function openDropdownBelow(btnId, ddId, sizeFn) {
             const btn = document.getElementById(btnId);
             const dd = document.getElementById(ddId);
             const rect = btn.getBoundingClientRect();
-            const z = window.__pageZoom || 1;
-            dd.style.top = (rect.bottom / z) + 'px';
-            dd.style.left = (rect.left / z) + 'px';
-            if (sizeFn) sizeFn(rect, dd, z);
+            dd.style.top = rect.bottom + 'px';
+            dd.style.left = rect.left + 'px';
+            if (sizeFn) sizeFn(rect, dd);
             dd.classList.toggle('open');
         }
         // === 统一 document.click 处理：下拉菜单外部关闭 + info-tip 切换 ===
@@ -1166,7 +1160,7 @@
             }
         });
         document.getElementById('sessionSelectBtn').addEventListener('click', (e) => {
-            openDropdownBelow('sessionSelectBtn', 'sessionDropdown', (r, dd, z) => { dd.style.width = (r.width / z) + 'px'; dd.style.minWidth = (r.width / z) + 'px'; });
+            openDropdownBelow('sessionSelectBtn', 'sessionDropdown', (r, dd) => { dd.style.width = r.width + 'px'; dd.style.minWidth = r.width + 'px'; });
         });
         function createNew() {
             addFrontendLog('新建终端', 'out');
@@ -1319,7 +1313,7 @@
         function renameCurrent() {
             if (activeId == null) return;
             renderRenameDropdown();
-            openDropdownBelow('renameBtn', 'renameDropdown', (r, dd, z) => { dd.style.width = (r.width / z) * 2.0 + 'px'; });
+            openDropdownBelow('renameBtn', 'renameDropdown', (r, dd) => { dd.style.width = (r.width * 2.0) + 'px'; });
         }
         function renameAll() {
             wsSend({ type: 'rename_all' });
@@ -1531,10 +1525,9 @@ function showToast(message, type = 'success') {
             const term = getActiveTerm();
             const cell = getCellDims(term);
             if (!cell) return { col: 0, row: 0 };
-            const z = window.__pageZoom || 1;   // #page 已 zoom 缩放，rect 为屏上像素、cell 为未缩放，除 zoom 还原到终端本地坐标
             const rect = term.element.getBoundingClientRect();
-            const col = Math.floor((t.clientX - rect.left) / (cell.width * z));
-            const rowVisible = Math.floor((t.clientY - rect.top) / (cell.height * z));
+            const col = Math.floor((t.clientX - rect.left) / cell.width);
+            const rowVisible = Math.floor((t.clientY - rect.top) / cell.height);
             const row = term.buffer.active.viewportY + rowVisible;
             return {
                 col: Math.max(0, Math.min(term.cols - 1, col)),
