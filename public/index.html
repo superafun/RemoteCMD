@@ -68,7 +68,6 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 68;  // 纯递增整数，每次代码改动 +1（须与 sw.js 的 CACHE 版本号同步 bump）
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -349,11 +348,6 @@
             html += '<span class="apply-hint" id="hint-glassConfig"></span>';
             html += '</div>';
             html += '</div>';
-
-            // 当前版本号（每次代码改动 +1，须与 sw.js CACHE 同步）
-            html += '<div class="modal-row" style="margin-top:10px;color:#888;font-size:12px;">当前版本：<span>' + APP_VERSION + '</span></div>';
-
-
 
             html += '</div>';  // .modal-content 结束
 
@@ -2082,18 +2076,6 @@ function showToast(message, type = 'success') {
         // 注：syncModalScrollLock()（body:fixed 抑制荣耀 IME 膨胀）经实测证实为过度设计，
         // 移除后页面正常，双指缩放恢复。若未来真机复现 IME 膨胀问题，可在此处恢复。
     </script>
-    <script>
-        // --- Service Worker 注册（PWA 安装前提） ---
-        // 调试期最小 SW：不缓存任何资源，仅满足 PWA 安装条件。
-        // 必须用相对路径 ./sw.js：nginx 剥离 /cmd/ 前缀后，绝对路径 /sw.js 会 404。
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                    .catch((err) => console.error('SW registration failed:', err));
-            });
-        }
-    </script>
-
-</body>
+    </body>
 
 </html>
