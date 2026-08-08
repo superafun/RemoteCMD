@@ -84,11 +84,10 @@
             transform: translateX(-50%);
             z-index: 999;
             box-sizing: border-box;
-            max-height: max(120px, calc((var(--page-height) - 16px) / var(--page-zoom, 1)));
+            max-height: max(120px, calc(var(--page-height) - 16px));
             width: min(calc(100vw - 24px), 560px);
             max-width: min(calc(100vw - 24px), 560px);
             min-width: 0;
-            zoom: var(--page-zoom, 1);
             color: #d4d4d4;
             padding: 20px 24px;
             border: 1px solid var(--glass-border);
