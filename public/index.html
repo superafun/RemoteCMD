@@ -884,6 +884,7 @@
                     } else if (msg.type === 'glass_mode') {
                         if (msg.data && typeof msg.data === 'object' && typeof msg.data.blur === 'string') {
                             applyGlassConfig(msg.data);
+                            addFrontendLog('毛玻璃配置同步为 blur:' + msg.data.blur + ' saturate:' + msg.data.saturate, 'in');
                         }
                     } else if (msg.type === 'screen_history_lines') {
                         screenHistoryLines = msg.data;
