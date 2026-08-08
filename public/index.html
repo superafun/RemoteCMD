@@ -68,7 +68,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 70;  // 纯递增整数，每次代码改动 +1，用于验证当前版本是否已生效
+        const APP_VERSION = 71;  // 纯递增整数，每次代码改动 +1，用于验证当前版本是否已生效
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -1644,6 +1644,7 @@ function showToast(message, type = 'success') {
                 if (Math.abs(dy) > swipeClassify && Math.abs(dy) > Math.abs(dx)) {
                     swipeActive = true; swipeAccum = 0; swipeLastY = t.clientY;  // 竖向占优→判定为滚动
                     if (dy > 0) hideToolbar();  // 下滑触发顶栏隐藏
+                    else if (toolbarHidden) restoreToolbar();  // 上滑恢复顶栏
                 } else {
                     return;  // 未达阈值 / 横滑 / 轻点：放行（已无 xterm 竞争，不会发垃圾）
                 }
