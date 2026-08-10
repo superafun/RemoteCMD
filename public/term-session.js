@@ -175,16 +175,18 @@ class TermSession {
         const doFix = () => {
             try {
                 const renderer = this.term._core._renderService._renderer;
-                if (!renderer) return;
-                // 触发 xterm 原生的 options 变更处理流程：
-                // _updateDimensions() → _widthCache.setFont() → _setDefaultSpacing()
-                // 这会用当前已加载的字体重新设置 canvas 字体并重算 letter-spacing
+                const rowsEl = this.term.element.querySelector('.xterm-rows');
+                const currentSpacing = rowsEl ? parseFloat(rowsEl.style.letterSpacing || '0') : -999;
+                console.log('[PWA-FIX] resize fix start, current letter-spacing:', currentSpacing, 'renderer:', !!renderer);
+                if (!renderer) { console.log('[PWA-FIX] no renderer, skip'); return; }
+                // 触发 xterm 原生的 options 变更处理流程
                 if (typeof renderer._handleOptionsChanged === 'function') {
+                    console.log('[PWA-FIX] calling _handleOptionsChanged');
                     renderer._handleOptionsChanged();
                 } else {
+                    console.log('[PWA-FIX] _handleOptionsChanged not found, using fallback');
                     // 降级：手动走相同流程
                     const cellWidth = this.term._core._renderService.dimensions.css.cell.width;
-                    const rowsEl = this.term.element.querySelector('.xterm-rows');
                     if (!rowsEl) return;
                     const cs = getComputedStyle(rowsEl);
                     const canvas = document.createElement('canvas');
@@ -192,7 +194,6 @@ class TermSession {
                     ctx.font = cs.font;
                     const measuredW = ctx.measureText('W').width;
                     const correctSpacing = cellWidth - measuredW;
-                    const currentSpacing = parseFloat(rowsEl.style.letterSpacing || '0');
                     if (Math.abs(currentSpacing - correctSpacing) > 0.001) {
                         if (renderer._widthCache) renderer._widthCache.clear();
                         rowsEl.style.letterSpacing = correctSpacing.toFixed(6) + 'px';
@@ -200,9 +201,15 @@ class TermSession {
                             renderer._rowFactory.defaultSpacing = correctSpacing;
                         }
                         this.term.refresh();
+                        console.log('[PWA-FIX] fixed spacing to:', correctSpacing);
                     }
                 }
-            } catch(e) { /* 忽略 */ }
+                // 验证修复结果
+                const afterSpacing = rowsEl ? parseFloat(rowsEl.style.letterSpacing || '0') : -999;
+                console.log('[PWA-FIX] after fix, letter-spacing:', afterSpacing);
+            } catch(e) {
+                console.error('[PWA-FIX] error:', e);
+            }
         };
         // 双 rAF 确保字体加载完成 + 首次渲染结束
         requestAnimationFrame(() => requestAnimationFrame(doFix));
