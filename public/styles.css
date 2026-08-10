@@ -462,6 +462,7 @@
 }
 .toast-success { background: rgba(45,108,223,0.85); }
 .toast-error   { background: rgba(217,83,79,0.85); }
+.toast-warn    { background: rgba(212,167,44,0.9); }
 /* 右上角：top/right 16px，transform: translateX(120%) 初始在屏幕右侧外，加 .toast-show 滑入；停留 1.5s 后滑出，允许堆叠（每个偏移 40px） */
 .dropdown-row {
     padding: 6px 8px;
