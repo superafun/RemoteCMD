@@ -56,6 +56,16 @@ class TermSession {
         this.term.loadAddon(new Unicode11Addon.Unicode11Addon());
         this.term.unicode.activeVersion = '11';
 
+        // PWA 字体加载完成后自动修复 spacing
+        // 问题：xterm 初始化时字体可能还没加载完成，WidthCache 用回退字体测量导致宽度错误
+        this._autoFixSpacing();
+        if (document.fonts && document.fonts.ready) {
+            document.fonts.ready.then(() => {
+                // 字体加载完成后延迟一帧执行
+                requestAnimationFrame(() => this._autoFixSpacing());
+            });
+        }
+
         // 输入原样转发到服务端
         this.term.onData(data => {
             wsSend({ type: 'input', id: this.id, data: data });
@@ -166,44 +176,52 @@ class TermSession {
         wsSend({ type: 'input', id: this.id, data: seq });
     }
 
+    // === 自动修复 PWA 字体 spacing 问题 ===
+    // 严格按照 xterm 内部逻辑执行：
+    // 1. 用 WidthCache.setFont() 更新 OffscreenCanvas 字体（不是自己建普通 canvas）
+    // 2. 清缓存
+    // 3. 用 WidthCache.get('W') 测量（和 xterm _setDefaultSpacing 一致）
+    // 4. 设置正确的 letterSpacing + defaultSpacing
+    // 5. 重渲染
+    _autoFixSpacing() {
+        try {
+            const term = this.term;
+            const renderer = term._core._renderService._renderer;
+            if (!renderer || !renderer._widthCache) return;
+            const wc = renderer._widthCache;
+            const rowsEl = term.element?.querySelector('.xterm-rows');
+            if (!rowsEl) return;
+
+            const opts = term.options;
+            const cellWidth = term._core._renderService.dimensions.css.cell.width;
+            if (!cellWidth || cellWidth <= 0) return;
+
+            // 1. 调用公共 setFont 方法更新所有 OffscreenCanvas 字体并清缓存
+            wc.setFont(
+                opts.fontFamily,
+                opts.fontSize,
+                opts.fontWeight || 'normal',
+                opts.fontWeightBold || 'bold'
+            );
+            // 2. 再清一次缓存保险
+            wc.clear();
+            // 3. 按 xterm _setDefaultSpacing 逻辑计算
+            const measuredW = wc.get('W', false, false);
+            const spacing = cellWidth - measuredW;
+            // 4. 设置
+            rowsEl.style.letterSpacing = `${spacing}px`;
+            if (renderer._rowFactory) {
+                renderer._rowFactory.defaultSpacing = spacing;
+            }
+            // 5. 重渲染
+            term.refresh(0, term.rows - 1);
+        } catch(e) { /* 忽略 */ }
+    }
+
     // === 尺寸 ===
     resize(cols, rows) {
         this.term.resize(cols, rows);
-        // PWA fullscreen 模式下 xterm 初始化时 WidthCache canvas 字体在字体未就绪时被设置，
-        // 导致 canvas.measureText 用回退字体测量，container letter-spacing 为 0。
-        // 修复：延迟两帧后 → 调用 _handleOptionsChanged() → 清缓存 → 设 spacing → 重渲染。
-        const doFix = () => {
-            try {
-                const renderer = this.term._core._renderService._renderer;
-                if (!renderer) return;
-                const cellWidth = this.term._core._renderService.dimensions.css.cell.width;
-                const rowsEl = this.term.element.querySelector('.xterm-rows');
-                if (!rowsEl) return;
-                const cs = getComputedStyle(rowsEl);
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                ctx.font = cs.font;
-                const measuredW = ctx.measureText('W').width;
-                const correctSpacing = cellWidth - measuredW;
-                const currentSpacing = parseFloat(rowsEl.style.letterSpacing || '0');
-                if (Math.abs(currentSpacing - correctSpacing) > 0.001) {
-                    // 核心：调用 xterm 公共方法，自动重设 canvas 字体 + 重算 spacing
-                    if (typeof renderer._handleOptionsChanged === 'function') {
-                        renderer._handleOptionsChanged();
-                    }
-                    // 清缓存
-                    if (renderer._widthCache) renderer._widthCache.clear();
-                    // 兜底：强制设置 container spacing 和 defaultSpacing
-                    rowsEl.style.letterSpacing = correctSpacing.toFixed(6) + 'px';
-                    if (renderer._rowFactory) {
-                        renderer._rowFactory.defaultSpacing = correctSpacing;
-                    }
-                    // 重渲染
-                    this.term.refresh();
-                }
-            } catch(e) { /* 忽略 */ }
-        };
-        // 双 rAF 确保字体加载完成 + 首次渲染结束
-        requestAnimationFrame(() => requestAnimationFrame(doFix));
+        // 延迟两帧后自动修复 spacing（确保 resize 后 dimensions 已更新、字体可用）
+        requestAnimationFrame(() => requestAnimationFrame(() => this._autoFixSpacing()));
     }
 }
