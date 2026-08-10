@@ -171,7 +171,7 @@ class TermSession {
         this.term.resize(cols, rows);
         // PWA fullscreen 模式下 xterm 初始化时 WidthCache canvas 字体在字体未就绪时被设置，
         // 导致 canvas.measureText 用回退字体测量，container letter-spacing 为 0。
-        // 修复：延迟两帧后 → 重设 WidthCache 字体 → 清缓存 → 重算 spacing → 重渲染。
+        // 修复：延迟两帧后 → 直接设 WidthCache canvas 字体 → 清缓存 → 重算 spacing → 重渲染。
         const doFix = () => {
             try {
                 const renderer = this.term._core._renderService._renderer;
@@ -179,7 +179,6 @@ class TermSession {
                 const cellWidth = this.term._core._renderService.dimensions.css.cell.width;
                 const rowsEl = this.term.element.querySelector('.xterm-rows');
                 if (!rowsEl) return;
-                // 用当前 font 在 canvas 上测量字符宽度
                 const cs = getComputedStyle(rowsEl);
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
@@ -188,13 +187,13 @@ class TermSession {
                 const correctSpacing = cellWidth - measuredW;
                 const currentSpacing = parseFloat(rowsEl.style.letterSpacing || '0');
                 if (Math.abs(currentSpacing - correctSpacing) > 0.001) {
-                    // 1. 重设 WidthCache 的 canvas 字体
-                    const opts = this.term.options;
-                    if (renderer._widthCache && opts.fontFamily) {
-                        renderer._widthCache.setFont(
-                            opts.fontFamily, opts.fontSize, opts.fontWeight || 'normal',
-                            !!opts.fontStyle && opts.fontStyle !== 'normal'
-                        );
+                    // 1. 直接重设 WidthCache 内部 canvas 字体（绕过 setFont 参数问题）
+                    if (renderer._widthCache && renderer._widthCache._canvasElements) {
+                        for (const [, canvasEl] of renderer._widthCache._canvasElements) {
+                            if (canvasEl && canvasEl._ctx) {
+                                canvasEl._ctx.font = cs.font;
+                            }
+                        }
                     }
                     // 2. 清除 WidthCache 缓存
                     if (renderer._widthCache) renderer._widthCache.clear();

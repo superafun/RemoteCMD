@@ -69,7 +69,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 85;  // 纯递增整数，每次代码改动 +1，用于验证当前版本是否已生效
+        const APP_VERSION = 86;  // 纯递增整数，每次代码改动 +1，用于验证当前版本是否已生效
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -315,17 +315,12 @@
         function fixPwaSpacing(e) {
             if (e) { e.stopPropagation(); e.preventDefault(); }
             const s = sessions.get(activeId);
-            if (!s || !s.term) {
-                showToast('无活动终端', 'error');
-                return;
-            }
+            if (!s || !s.term) { showToast('无活动终端', 'error'); return; }
             const term = s.term;
             const renderer = term._core._renderService._renderer;
             const rowsEl = term.element.querySelector('.xterm-rows');
-            if (!rowsEl || !renderer) {
-                showToast('找不到 renderer 或 .xterm-rows', 'error');
-                return;
-            }
+            if (!rowsEl || !renderer) { showToast('找不到 renderer 或 .xterm-rows', 'error'); return; }
+
             const cellWidth = term._core._renderService.dimensions.css.cell.width;
             const cs = getComputedStyle(rowsEl);
             const canvas = document.createElement('canvas');
@@ -336,34 +331,40 @@
             const currentSpacing = parseFloat(rowsEl.style.letterSpacing || '0');
             appendDebug(`[修复] cellWidth=${cellWidth} canvas测量W=${measuredW.toFixed(6)} correctSpacing=${correctSpacing.toFixed(6)} currentSpacing=${currentSpacing}`);
 
-            // 1. 重设 WidthCache 的 canvas 字体（关键！之前 WidthCache 用的是回退字体）
+            // 关键修复：直接操作 WidthCache 内部 canvas 字体
+            // WidthCache 内部 canvas 可能用了回退字体（初始化时字体未加载）
             try {
-                const opts = term.options;
-                if (renderer._widthCache && opts.fontFamily) {
-                    renderer._widthCache.setFont(
-                        opts.fontFamily,
-                        opts.fontSize,
-                        opts.fontWeight || 'normal',
-                        !!opts.fontStyle && opts.fontStyle !== 'normal'
-                    );
-                    appendDebug(`[修复] 已重设 WidthCache 字体: ${opts.fontFamily} ${opts.fontSize}px ${opts.fontWeight}`);
+                if (renderer._widthCache && renderer._widthCache._canvasElements) {
+                    let fixed = 0;
+                    for (const [variant, canvasEl] of renderer._widthCache._canvasElements) {
+                        if (canvasEl && canvasEl._ctx) {
+                            // 直接设置 canvas context 字体为当前页面实际字体
+                            canvasEl._ctx.font = cs.font;
+                            fixed++;
+                        }
+                    }
+                    appendDebug(`[修复] 已重设 ${fixed} 个 WidthCache canvas 字体为: ${cs.font}`);
                 }
             } catch(err) {
-                appendDebug(`[修复] WidthCache.setFont 失败: ${err.message}`);
+                appendDebug(`[修复] WidthCache 直接修复失败: ${err.message}`);
             }
 
-            // 2. 清除 WidthCache 缓存
-            if (renderer._widthCache) renderer._widthCache.clear();
+            // 清除 WidthCache 缓存
+            try {
+                if (renderer._widthCache) renderer._widthCache.clear();
+                appendDebug('[修复] WidthCache 缓存已清除');
+            } catch(err) {
+                appendDebug(`[修复] 清缓存失败: ${err.message}`);
+            }
 
-            // 3. 设置 container letter-spacing 和 defaultSpacing
+            // 设置 container letter-spacing 和 defaultSpacing
             rowsEl.style.letterSpacing = correctSpacing.toFixed(6) + 'px';
             if (renderer._rowFactory) {
                 renderer._rowFactory.defaultSpacing = correctSpacing;
             }
 
-            // 4. 强制重渲染所有行
+            // 强制重渲染
             term.refresh();
-
             appendDebug(`[修复] 已设置 letter-spacing=${correctSpacing.toFixed(6)}px 并完成重渲染`);
             showToast('已修复', 'success');
 
@@ -374,7 +375,7 @@
                 const firstSpan = afterEl?.querySelector('span');
                 const firstWidth = firstSpan ? firstSpan.getClientRects()[0]?.width : -1;
                 appendDebug(`[修复验证] after letter-spacing=${afterSpacing} first span width=${firstWidth}`);
-            }, 100);
+            }, 200);
         }
 
         // 解析快捷键名为转义序列
