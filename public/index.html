@@ -11,6 +11,9 @@
     <script src="./addon-web-links/lib/addon-web-links.js"></script>
     <script src="./addon-unicode11/lib/addon-unicode11.js"></script>
     <script src="./addon-webgl/lib/addon-webgl.js"></script>
+    <script src="./addon-search/lib/addon-search.js"></script>
+    <script src="./addon-clipboard/lib/addon-clipboard.js"></script>
+    <script src="./addon-progress/lib/addon-progress.js"></script>
     <script src="./term-session.js"></script>
 </head>
 
@@ -27,6 +30,7 @@
             <div class="toolbar-right">
                 <button id="sizeToggleBtn" onclick="toggleSize()">大</button>
                 <button id="selectModeBtn" onclick="toggleSelectMode()">选区模式</button>
+                <button id="searchBtn" onclick="openSearchBox()">搜索</button>
                 <button id="openSettingsBtn" onclick="openSettingsModal()">设置</button>
                 <button id="logoutBtn" onclick="logout()">退出</button>
                 <span id="wsStatus"></span>
@@ -51,12 +55,18 @@
                 </div>
             </div>
         </div>
+        <div id="search-box" style="display:none;position:fixed;top:4px;left:50%;transform:translateX(-50%);z-index:60;background:#2b2b2b;border:1px solid #555;border-radius:6px;padding:6px 8px;gap:6px;align-items:center;box-shadow:0 2px 8px rgba(0,0,0,.4)">
+            <input id="searchInput" type="text" placeholder="搜索…" style="background:#1e1e1e;color:#ddd;border:1px solid #555;border-radius:4px;padding:4px 6px;font-size:14px;min-width:160px;">
+            <button id="searchPrevBtn" onclick="searchNav(-1)" title="上一个">↑</button>
+            <button id="searchNextBtn" onclick="searchNav(1)" title="下一个">↓</button>
+            <button id="searchCloseBtn" onclick="closeSearchBox()" title="关闭">✕</button>
+        </div>
         <textarea id="inputBarText" placeholder="输入内容，回车发送，点换行键换一行" rows="1" style="display:none;"></textarea>
     </div>
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 93;  // 每次代码改动 +1，用于验证前端改动是否已生效
+        const APP_VERSION = 94;  // 每次代码改动 +1，用于验证前端改动是否已生效
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -1095,8 +1105,63 @@
             if (activeId != null) sessions.get(activeId)?.hide();
             activeId = idNum;
             sessions.get(idNum)?.show();
-            document.getElementById('sessionSelectBtn').textContent = sessions.get(activeId)?.name || ('Shell #' + activeId);
+            updateSessionButtonLabel();
         }
+        // 会话下拉按钮文字 = 会话名 + 进度后缀（由 ProgressAddon 的 onChange 写入 session.progress）
+        function progressSuffix(p) {
+            if (!p || p.state === 0) return '';
+            if (p.state === 3) return ' ⠿';                       // 不确定进度
+            const v = Math.max(0, Math.min(100, p.value | 0));
+            const filled = Math.round(v / 20);
+            const bar = '█'.repeat(filled) + '░'.repeat(5 - filled);
+            if (p.state === 2) return ` ✕${bar}${v}%`;            // 错误
+            if (p.state === 4) return ` ⏸${bar}${v}%`;            // 暂停/警告
+            return ` ${bar}${v}%`;                                // state 1 百分比
+        }
+        function updateSessionButtonLabel() {
+            const s = activeId != null ? sessions.get(activeId) : null;
+            const name = s?.name || ('Shell #' + activeId);
+            document.getElementById('sessionSelectBtn').textContent = name + progressSuffix(s?.progress);
+        }
+        // === 搜索（SearchAddon）：顶栏「搜索」按钮或 Ctrl+F 唤起浮层，在当前活跃会话内检索 ===
+        function openSearchBox() {
+            document.getElementById('search-box').style.display = 'flex';
+            const input = document.getElementById('searchInput');
+            input.focus();
+            input.select();
+            const term = input.value;
+            if (term) sessions.get(activeId)?._search?.findNext(term);
+        }
+        function closeSearchBox() {
+            document.getElementById('search-box').style.display = 'none';
+            sessions.get(activeId)?._search?.clearDecorations();
+            document.getElementById('searchInput').blur();
+        }
+        function searchNav(dir) {
+            const term = document.getElementById('searchInput').value;
+            if (!term) { document.getElementById('searchInput').focus(); return; }
+            const s = sessions.get(activeId);
+            if (!s?._search) return;
+            if (dir >= 0) s._search.findNext(term);
+            else s._search.findPrevious(term);
+        }
+        // 全局 Ctrl+F 拦截浏览器原生查找，改为打开搜索浮层
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'f' || e.key === 'F' || e.code === 'KeyF')) {
+                e.preventDefault();
+                openSearchBox();
+            }
+        });
+        // 搜索框内键盘：Enter=下一个 / Shift+Enter=上一个 / Esc=关闭
+        document.getElementById('searchInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                searchNav(e.shiftKey ? -1 : 1);
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                closeSearchBox();
+            }
+        });
         // 点击按钮切换下拉菜单
         // 下拉定位(按钮正下方展开) 与 点击外部关闭 —— session/recentPaths/rename 三处共用
         function openDropdownBelow(btnId, ddId, sizeFn) {
