@@ -52,10 +52,23 @@
         </div>
         <textarea id="inputBarText" placeholder="输入内容，回车发送，点换行键换一行" rows="1" style="display:none;"></textarea>
     </div>
+    <!-- PWA 环境诊断面板：固定在页面右下角，可折叠，自动打印环境信息 -->
+    <div id="debug-panel">
+        <div id="debug-header" onclick="toggleDebug()">
+            <span id="debug-title">Debug</span>
+            <div id="debug-actions">
+                <button id="debug-clear" onclick="clearDebug(event)">清空</button>
+                <button id="debug-copy" onclick="copyDebug(event)">复制</button>
+                <button id="debug-refresh" onclick="refreshDebug(event)">刷新</button>
+                <span id="debug-toggle" onclick="toggleDebug(event)">▼</span>
+            </div>
+        </div>
+        <div id="debug-body"></div>
+    </div>
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 78;  // 纯递增整数，每次代码改动 +1，用于验证当前版本是否已生效
+        const APP_VERSION = 79;  // 纯递增整数，每次代码改动 +1，用于验证当前版本是否已生效
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -159,13 +172,82 @@
             } else {
                 info.push('[诊断] 无活动会话');
             }
+            // 输出到前端日志
             info.forEach(line => addFrontendLog(line));
+            // 同时输出到 debug 面板
+            appendDebug(info.join('\n'));
             // 如果日志弹窗已打开，刷新它
             const overlay = document.querySelector('.modal-overlay');
             if (overlay && overlay.querySelector('h3')?.textContent.includes('后台日志')) {
                 overlay.remove();
                 openLogModal();
             }
+        }
+
+        // === Debug 面板辅助函数 ===
+        function appendDebug(text) {
+            const body = document.getElementById('debug-body');
+            if (!body) return;
+            const ts = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+            body.textContent += `\n--- ${ts} ---\n${text}\n`;
+            body.scrollTop = body.scrollHeight;
+        }
+        function toggleDebug(e) {
+            if (e) e.stopPropagation();
+            const body = document.getElementById('debug-body');
+            const toggle = document.getElementById('debug-toggle');
+            if (!body) return;
+            if (body.style.display === 'none') {
+                body.style.display = 'block';
+                toggle.textContent = '▼';
+            } else {
+                body.style.display = 'none';
+                toggle.textContent = '▲';
+            }
+        }
+        function clearDebug(e) {
+            if (e) { e.stopPropagation(); e.preventDefault(); }
+            const body = document.getElementById('debug-body');
+            if (body) body.textContent = '';
+        }
+        function copyDebug(e) {
+            if (e) { e.stopPropagation(); e.preventDefault(); }
+            const body = document.getElementById('debug-body');
+            if (!body || !body.textContent.trim()) {
+                showToast('无内容可复制', 'error');
+                return;
+            }
+            const text = body.textContent;
+            // 移动端必须用户手势触发：用异步 Clipboard API + execCommand 降级
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showToast('已复制', 'success');
+                }).catch(() => {
+                    // 降级：创建临时 textarea
+                    fallbackCopy(text);
+                });
+            } else {
+                fallbackCopy(text);
+            }
+        }
+        function fallbackCopy(text) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            try {
+                document.execCommand('copy');
+                showToast('已复制', 'success');
+            } catch {
+                showToast('复制失败，请手动选择', 'error');
+            }
+            document.body.removeChild(ta);
+        }
+        function refreshDebug(e) {
+            if (e) { e.stopPropagation(); e.preventDefault(); }
+            diagEnv();
         }
 
         // 解析快捷键名为转义序列
@@ -1023,9 +1105,14 @@
         }
         // DOM 加载完成后首次同步
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', syncLayoutWidths);
+            document.addEventListener('DOMContentLoaded', () => {
+                syncLayoutWidths();
+                // 延迟 2s 自动采集环境诊断（等 xterm 初始化完成）
+                setTimeout(diagEnv, 2000);
+            });
         } else {
             syncLayoutWidths();
+            setTimeout(diagEnv, 2000);
         }
         // 窗口 resize（旋屏/视口宽变化）时统一重算：fitPageZoom→positionInputBarText
         // 顺序很关键（见 handleResize 注释）。与 installModalFit 中注册的 handler 是同一个，只挂一次避免重复执行。
