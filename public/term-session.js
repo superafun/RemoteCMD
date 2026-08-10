@@ -59,12 +59,7 @@ class TermSession {
         // 完全不走字体，从根上消除移动端字体回退不一致导致的错位。
         try {
             const webgl = new WebglAddon.WebglAddon();
-            // 浏览器对同时存在的 WebGL context 有数量上限（Chrome 约 16 个），会话开多了最老的会被丢弃。
-            // 丢失后该终端会停止渲染，故必须 dispose 掉 addon 让 xterm 自动回落到 DOM 渲染器。
-            webgl.onContextLoss(() => {
-                webgl.dispose();
-                if (typeof addFrontendLog === 'function') addFrontendLog(`WebGL 上下文丢失，${this.name} 回退 DOM 渲染器`, 'warn');
-            });
+            // 会话数已在 createNew 上限 16（浏览器 WebGL context 上限），不会触发 context 回收，无需 onContextLoss 兜底
             this.term.loadAddon(webgl);
         } catch(e) {
             if (typeof addFrontendLog === 'function') addFrontendLog('WebglAddon 加载失败，回退 DOM 渲染器: ' + e, 'warn');
