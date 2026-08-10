@@ -10,6 +10,7 @@
     <link rel="manifest" href="manifest.webmanifest">
     <script src="./addon-web-links/lib/addon-web-links.js"></script>
     <script src="./addon-unicode11/lib/addon-unicode11.js"></script>
+    <script src="./addon-canvas/lib/addon-canvas.js"></script>
     <script src="./term-session.js"></script>
 </head>
 
@@ -69,7 +70,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 90;  // 纯递增整数，每次代码改动 +1，用于验证当前版本是否已生效
+        const APP_VERSION = 91;  // 纯递增整数，每次代码改动 +1，用于验证当前版本是否已生效
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null

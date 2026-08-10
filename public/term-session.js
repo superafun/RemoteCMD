@@ -55,9 +55,12 @@ class TermSession {
         this.term.loadAddon(new WebLinksAddon.WebLinksAddon());
         this.term.loadAddon(new Unicode11Addon.Unicode11Addon());
         this.term.unicode.activeVersion = '11';
-
-        // PWA 字体加载完成后自动修复 spacing
-        // 问题：xterm 初始化时字体可能还没加载完成，WidthCache 用回退字体测量导致宽度错误
+        // Canvas 渲染器：测量和渲染在同一个 canvas 上，彻底解决移动端 OffscreenCanvas 与 DOM 对 Braille 等特殊字符字体回退不一致导致的错位问题
+        try {
+            this.term.loadAddon(new CanvasAddon.CanvasAddon());
+        } catch(e) {
+            console.warn('CanvasAddon 加载失败，回退到 DOM 渲染器:', e);
+        }
         this._autoFixSpacing();
         if (document.fonts && document.fonts.ready) {
             document.fonts.ready.then(() => {

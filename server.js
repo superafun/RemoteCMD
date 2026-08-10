@@ -87,16 +87,16 @@ function loadConfig() {
     // === shellPath 兜底：pty spawn 用的 shell 绝对路径（如 pwsh.exe）。
     // 手动在 config.json 里配置；空字符串时 spawn 会用空路径并报错（前端能看到清晰错误）。
     if (typeof cfg.shellPath !== 'string') cfg.shellPath = '';
-    if (typeof cfg.sessionSecret !== 'string' || cfg.sessionSecret.length < 16) {
-        cfg.sessionSecret = crypto.randomBytes(32).toString('hex');
-        saveConfig(cfg);
-    }
     return cfg;
 }
 function saveConfig(cfg) {
     fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2));
 }
 let config = loadConfig();
+if (typeof config.sessionSecret !== 'string' || config.sessionSecret.length < 16) {
+    config.sessionSecret = crypto.randomBytes(32).toString('hex');
+    saveConfig(config);
+}
 // === 登录认证辅助（无状态签名 cookie） ===
 const SESSION_COOKIE = 'rc_session';
 function parseCookies(req) {
@@ -336,6 +336,7 @@ app.use(express.static(path.join(__dirname, 'public'), {
 app.use('/xterm', express.static(path.join(__dirname, 'node_modules/@xterm/xterm')));
 app.use('/addon-web-links', express.static(path.join(__dirname, 'node_modules/@xterm/addon-web-links')));
 app.use('/addon-unicode11', express.static(path.join(__dirname, 'node_modules/@xterm/addon-unicode11')));
+app.use('/addon-canvas', express.static(path.join(__dirname, 'node_modules/@xterm/addon-canvas')));
 
 const sessions = {};
 let sessionCounter = 1;
@@ -395,6 +396,13 @@ function broadcast(msg) {
     wss.clients.forEach(c => c.readyState === 1 && c.send(JSON.stringify(msg)));
 }
 
+function applySetting(key, type, data, validator) {
+    if (validator && !validator(data)) return;
+    config[key] = data;
+    broadcast({ type, data: config[key] });
+    saveConfig(config);
+}
+
 const wss = new WebSocketServer({ server, verifyClient: (info, done) => {
     if (isAuthed(info.req)) return done(true);
     return done(false, 401, 'Unauthorized');
@@ -416,44 +424,24 @@ console.warn = function (...args) {
 };
 process.on('uncaughtException', (e) => { console.error('uncaughtException:', e && e.stack ? e.stack : e); });
 process.on('unhandledRejection', (e) => { console.error('unhandledRejection:', e && e.stack ? e.stack : e); });
-// 记录一条最近路径：去重 + 置顶 + 截断到 10 + 写盘 + 广播
-function addRecentPath(raw) {
-    const p = (raw || '').trim();
-    if (!p) return;
-    config.recentPaths = [p, ...config.recentPaths.filter(x => x !== p)].slice(0, config.recentPathsLimit);
+function addToRecentList(arr, raw, limit, broadcastType, addedMsg) {
+    const v = (raw || '').trim();
+    if (!v) return;
+    arr.splice(0, arr.length, v, ...arr.filter(x => x !== v));
+    arr.length = Math.min(arr.length, limit);
     saveConfig(config);
-    broadcast({ type: 'recent_paths', data: config.recentPaths, added: p });
+    broadcast({ type: broadcastType, data: arr, [addedMsg]: v });
 }
 
-// 删除一条最近路径：从列表过滤移除 + 落盘 + 广播（与 addRecentPath 同款结构）
-function removeRecentPath(raw) {
-    const p = (raw || '').trim();
-    if (!p) return;
-    const before = config.recentPaths.length;
-    config.recentPaths = config.recentPaths.filter(x => x !== p);
-    if (config.recentPaths.length === before) return; // 本就不在列表，无变化不广播
+function removeFromRecentList(arr, raw, broadcastType, deletedMsg) {
+    const v = (raw || '').trim();
+    if (!v) return;
+    const before = arr.length;
+    const filtered = arr.filter(x => x !== v);
+    arr.splice(0, arr.length, ...filtered);
+    if (arr.length === before) return;
     saveConfig(config);
-    broadcast({ type: 'recent_paths', data: config.recentPaths, deleted: p });
-}
-
-// 记录一条历史命名：去重 + 置顶 + 截断到 recentPathsLimit + 写盘 + 广播
-function addRecentName(raw) {
-    const n = (raw || '').trim();
-    if (!n) return;
-    config.recentNames = [n, ...config.recentNames.filter(x => x !== n)].slice(0, config.recentPathsLimit);
-    saveConfig(config);
-    broadcast({ type: 'recent_names', data: config.recentNames, added: n });
-}
-
-// 删除一条历史命名：从列表过滤移除 + 落盘 + 广播（与 removeRecentPath 同款结构）
-function removeRecentName(raw) {
-    const n = String(raw || '').trim();
-    if (!n) return;
-    const before = config.recentNames.length;
-    config.recentNames = config.recentNames.filter(x => x !== n);
-    if (config.recentNames.length === before) return; // 本就不在列表，无变化不广播
-    saveConfig(config);
-    broadcast({ type: 'recent_names', data: config.recentNames, deleted: n });
+    broadcast({ type: broadcastType, data: arr, [deletedMsg]: v });
 }
 
 // 判定一个盘符路径应记入的"文件夹路径"：
@@ -473,24 +461,22 @@ function resolveFolderToRecord(raw) {
 
 // 剥掉末尾反斜杠（C:\ 根保留，避免把 C:\ 记成 C:）
 function normalizePath(s) {
-    if (s.length > 3 && s.endsWith('\\')) return s.slice(0, -1);
+    if (s.length > 3 && s.endsWith(path.sep)) return s.slice(0, -1);
     return s;
 }
 
 // 把输入字节流累积成"当前输入行"；遇到回车/换行返回完成行并清空，否则返回 null。
 // 跳过 ANSI 转义序列（方向键等），处理退格。用于从任意入口（输入条/终端直敲）检测路径。
-function feedInputLine(session, data) {
-    let s = session.inputLine || '';
+function feedInputLine(sessionId, data) {
+    let s = sessions[sessionId].inputLine || '';
     for (let i = 0; i < data.length; i++) {
         const c = data[i];
         if (c === '\r' || c === '\n') {
-            session.inputLine = '';
+            sessions[sessionId].inputLine = '';
             return s;
         } else if (c === '\b' || c === '\x7f') {
             s = s.slice(0, -1);
         } else if (c === '\x1b') {
-            // 跳过转义序列：CSI(ESC[) 跳过参数直到最终字节 0x40–0x7E 并吞掉（如 ~ 结尾的 Home/End/PageUp）；
-            // 其它 ESC 序列（如 ESC O P 功能键）保持原逻辑，遇到字母结束
             i++;
             if (i < data.length && data[i] === '[') {
                 i++;
@@ -502,7 +488,7 @@ function feedInputLine(session, data) {
             s += c;
         }
     }
-    session.inputLine = s;
+    sessions[sessionId].inputLine = s;
     return null;
 }
 
@@ -638,17 +624,17 @@ wss.on('connection', (ws) => {
         if (type === 'create') createSession();
         else if (type === 'input' && sessions[id]) {
             sessions[id].pty.write(data);
-            const line = feedInputLine(sessions[id], data);
+            const line = feedInputLine(id, data);
             if (line && /^\s*(cd|chdir)\b/i.test(line)) {
                 const m = line.match(/\b[A-Za-z]:\\[^\s"'`]+/);
                 if (m) {
                     resolveFolderToRecord(m[0]).then(folder => {
-                        if (folder) addRecentPath(folder);
+                        if (folder) addToRecentList(config.recentPaths, folder, config.recentPathsLimit, 'recent_paths', 'added');
                     });
                 }
             }
         }
-        else if (type === 'recent_paths_delete') removeRecentPath(data);
+        else if (type === 'recent_paths_delete') removeFromRecentList(config.recentPaths, data, 'recent_paths', 'deleted');
         else if (type === 'kill' && sessions[id]) sessions[id].pty.kill();
         else if (type === 'buffer' && sessions[id]) {
             const sess = sessions[id];
@@ -699,102 +685,38 @@ wss.on('connection', (ws) => {
             saveConfig(config);
             broadcast({ type: 'current_size', data: size });
         }
-        else if (type === 'hot_keys') {
-            config.hotkeys = data || {};
-            broadcast({ type: 'hotkeys', data: config.hotkeys });
-            saveConfig(config);
-        }
+        else if (type === 'hot_keys') applySetting('hotkeys', 'hotkeys', data || {});
         else if (type === 'scroll_interval_terminal') {
             const v = parseInt(data);
-            if (!Number.isInteger(v) || v < 1 || v > 1000) return;
-            config.scrollIntervalTerminal = v;
-            broadcast({ type: 'scroll_interval_terminal', data: config.scrollIntervalTerminal });
-            saveConfig(config);
+            applySetting('scrollIntervalTerminal', 'scroll_interval_terminal', v, v => Number.isInteger(v) && v >= 1 && v <= 1000);
         }
         else if (type === 'scroll_interval_page') {
             const v = parseInt(data);
-            if (!Number.isInteger(v) || v < 1 || v > 1000) return;
-            config.scrollIntervalPage = v;
-            broadcast({ type: 'scroll_interval_page', data: config.scrollIntervalPage });
-            saveConfig(config);
+            applySetting('scrollIntervalPage', 'scroll_interval_page', v, v => Number.isInteger(v) && v >= 1 && v <= 1000);
         }
         else if (type === 'swipe_threshold') {
             const v = parseInt(data);
-            if (!Number.isInteger(v) || v < 1 || v > 200) return;
-            config.swipeThreshold = v;
-            broadcast({ type: 'swipe_threshold', data: config.swipeThreshold });
-            saveConfig(config);
+            applySetting('swipeThreshold', 'swipe_threshold', v, v => Number.isInteger(v) && v >= 1 && v <= 200);
         }
         else if (type === 'swipe_classify') {
             const v = parseInt(data);
-            if (!Number.isInteger(v) || v < 1 || v > 100) return;
-            config.swipeClassify = v;
-            broadcast({ type: 'swipe_classify', data: config.swipeClassify });
-            saveConfig(config);
+            applySetting('swipeClassify', 'swipe_classify', v, v => Number.isInteger(v) && v >= 1 && v <= 100);
         }
-        else if (type === 'show_scroll_buttons') {
-            if (typeof data !== 'boolean') return;
-            config.showScrollButtons = data;
-            broadcast({ type: 'show_scroll_buttons', data: config.showScrollButtons });
-            saveConfig(config);
-        }
-        else if (type === 'auto_send_path_to_terminal') {
-            if (typeof data !== 'boolean') return;
-            config.autoSendPathToTerminal = data;
-            broadcast({ type: 'auto_send_path_to_terminal', data: config.autoSendPathToTerminal });
-            saveConfig(config);
-        }
-        else if (type === 'input_bar_button_action') {
-            if (data !== 'newline' && data !== 'send') return;
-            config.inputBarButtonAction = data;
-            broadcast({ type: 'input_bar_button_action', data: config.inputBarButtonAction });
-            saveConfig(config);
-        }
-        else if (type === 'input_bar_enter_action') {
-            if (data !== 'newline' && data !== 'send') return;
-            config.inputBarEnterAction = data;
-            broadcast({ type: 'input_bar_enter_action', data: config.inputBarEnterAction });
-            saveConfig(config);
-        }
-        else if (type === 'input_bar_close_after_send') {
-            if (typeof data !== 'boolean') return;
-            config.inputBarCloseAfterSend = data;
-            broadcast({ type: 'input_bar_close_after_send', data: config.inputBarCloseAfterSend });
-            saveConfig(config);
-        }
-        else if (type === 'input_bar_hide_on_blur') {
-            if (typeof data !== 'boolean') return;
-            config.inputBarHideOnBlur = data;
-            broadcast({ type: 'input_bar_hide_on_blur', data: config.inputBarHideOnBlur });
-            saveConfig(config);
-        }
-        else if (type === 'enter_delay_ms') {
-            if (typeof data !== 'number' || data < 50 || data > 3000) return;
-            config.enterDelayMs = data;
-            broadcast({ type: 'enter_delay_ms', data: config.enterDelayMs });
-            saveConfig(config);
-        }
-	else if (type === 'screen_history_lines') {
-            // headless 终端 scrollback 在构造时确定，不在运行时热改（避免内部 API 脆弱性）。
-            // 新值应用到之后新建的会话；已在运行的会话在下次重连/重建时按新值创建 headless 终端。
+        else if (type === 'show_scroll_buttons') applySetting('showScrollButtons', 'show_scroll_buttons', data, v => typeof v === 'boolean');
+        else if (type === 'auto_send_path_to_terminal') applySetting('autoSendPathToTerminal', 'auto_send_path_to_terminal', data, v => typeof v === 'boolean');
+        else if (type === 'input_bar_button_action') applySetting('inputBarButtonAction', 'input_bar_button_action', data, v => v === 'newline' || v === 'send');
+        else if (type === 'input_bar_enter_action') applySetting('inputBarEnterAction', 'input_bar_enter_action', data, v => v === 'newline' || v === 'send');
+        else if (type === 'input_bar_close_after_send') applySetting('inputBarCloseAfterSend', 'input_bar_close_after_send', data, v => typeof v === 'boolean');
+        else if (type === 'input_bar_hide_on_blur') applySetting('inputBarHideOnBlur', 'input_bar_hide_on_blur', data, v => typeof v === 'boolean');
+        else if (type === 'enter_delay_ms') applySetting('enterDelayMs', 'enter_delay_ms', data, v => typeof v === 'number' && v >= 50 && v <= 3000);
+        else if (type === 'screen_history_lines') {
             const v = parseInt(data);
-            if (!Number.isInteger(v) || v < 0 || v > 20000) return;
-            config.screenHistoryLines = v;
-            broadcast({ type: 'screen_history_lines', data: config.screenHistoryLines });
-            saveConfig(config);
+            applySetting('screenHistoryLines', 'screen_history_lines', v, v => Number.isInteger(v) && v >= 0 && v <= 20000);
         }
-        else if (type === 'max_frontend_logs') {
-            config.maxFrontendLogs = data;
-            broadcast({ type: 'max_frontend_logs', data: config.maxFrontendLogs });
-            saveConfig(config);
-        }
-
+        else if (type === 'max_frontend_logs') applySetting('maxFrontendLogs', 'max_frontend_logs', data);
         else if (type === 'session_duration_hours') {
             const v = parseFloat(data);
-            if (!Number.isFinite(v) || v <= 0) return;
-            config.sessionDurationHours = v;
-            broadcast({ type: 'session_duration_hours', data: config.sessionDurationHours });
-            saveConfig(config);
+            applySetting('sessionDurationHours', 'session_duration_hours', v, v => Number.isFinite(v) && v > 0);
         }
 
         else if (type === 'recent_paths_limit') {
@@ -813,18 +735,13 @@ wss.on('connection', (ws) => {
             saveConfig(config);
         }
 
-        else if (type === 'glass_mode') {
-            if (typeof data !== 'object' || !data || typeof data.blur !== 'string') return;
-            config.glassConfig = data;
-            broadcast({ type: 'glass_mode', data: config.glassConfig });
-            saveConfig(config);
-        }
+        else if (type === 'glass_mode') applySetting('glassConfig', 'glass_mode', data, v => typeof v === 'object' && v !== null && typeof v.blur === 'string');
 
         else if (type === 'rename' && sessions[id]) {
             const name = (data == null ? '' : String(data)).trim().slice(0, 50);
             const prev = sessions[id].name;
             sessions[id].name = name === '' ? computeSmartName() : name;
-            if (name !== '' && name !== prev) addRecentName(name);
+            if (name !== '' && name !== prev) addToRecentList(config.recentNames, name, config.recentPathsLimit, 'recent_names', 'added');
             broadcast(buildListMsg());
         }
         else if (type === 'rename_all') {
@@ -836,7 +753,7 @@ wss.on('connection', (ws) => {
             broadcast(buildListMsg());
         }
         else if (type === 'recent_names_delete') {
-            removeRecentName(data);
+            removeFromRecentList(config.recentNames, data, 'recent_names', 'deleted');
         }
         else if (type === 'restart_server') {
             ws.send(JSON.stringify({ type: 'restart_server', data: 'ok' }));
