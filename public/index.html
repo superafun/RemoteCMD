@@ -55,8 +55,8 @@
                 </div>
             </div>
         </div>
-        <div id="search-box" style="display:none;position:fixed;top:4px;left:50%;transform:translateX(-50%);z-index:60;background:#2b2b2b;border:1px solid #555;border-radius:6px;padding:6px 8px;gap:6px;align-items:center;box-shadow:0 2px 8px rgba(0,0,0,.4)">
-            <input id="searchInput" type="text" placeholder="搜索…" style="background:#1e1e1e;color:#ddd;border:1px solid #555;border-radius:4px;padding:4px 6px;font-size:14px;min-width:160px;">
+        <div id="search-box" class="dropdown-menu" style="display:none;position:fixed;top:4px;left:50%;transform:translateX(-50%);padding:6px 8px;gap:6px;align-items:center">
+            <input id="searchInput" type="text" placeholder="搜索…" class="rename-dropdown-input" style="min-width:160px;">
             <button id="searchPrevBtn" onclick="searchNav(-1)" title="上一个">↑</button>
             <button id="searchNextBtn" onclick="searchNav(1)" title="下一个">↓</button>
             <button id="searchCloseBtn" onclick="closeSearchBox()" title="关闭">✕</button>
@@ -66,7 +66,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 95;  // 每次代码改动 +1，用于验证前端改动是否已生效
+        const APP_VERSION = 96;  // 每次代码改动 +1，用于验证前端改动是否已生效
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -1112,6 +1112,7 @@
             if (!p || p.state === 0) return '';
             if (p.state === 3) return ' ⠿';                       // 不确定进度
             const v = Math.max(0, Math.min(100, p.value | 0));
+            if (v >= 100) return '';                              // 到达 100% 视为完成，隐藏进度条
             const filled = Math.round(v / 20);
             const bar = '█'.repeat(filled) + '░'.repeat(5 - filled);
             if (p.state === 2) return ` ✕${bar}${v}%`;            // 错误
