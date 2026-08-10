@@ -169,16 +169,42 @@ class TermSession {
     // === 尺寸 ===
     resize(cols, rows) {
         this.term.resize(cols, rows);
-        // PWA fullscreen 模式下 xterm 初始化时 _setDefaultSpacing 可能在字体未完全就绪时被调用，
-        // 导致 WidthCache 缓存了错误的字符宽度测量值，container letter-spacing 为 0。
-        // 这里在 resize 后强制触发 handleCharSizeChanged，清除 WidthCache 并重新测量，
-        // 确保 container letter-spacing 与实际 cellWidth 匹配。
-        // 见 PWA 错位排查诊断：PWA .xterm-rows letter-spacing=0px vs 浏览器 -0.00146px。
-        try {
-            const renderer = this.term._core._renderService._renderer;
-            if (renderer && typeof renderer.handleCharSizeChanged === 'function') {
-                renderer.handleCharSizeChanged();
-            }
-        } catch(e) { /* 忽略，不影响主流程 */ }
+        // PWA fullscreen 模式下 xterm 初始化时 WidthCache canvas 字体在字体未就绪时被设置，
+        // 导致 canvas.measureText 用回退字体测量，container letter-spacing 为 0。
+        // 修复：延迟两帧后触发 _handleOptionsChanged → 重设 canvas 字体 + 清缓存 + 重算 spacing。
+        const doFix = () => {
+            try {
+                const renderer = this.term._core._renderService._renderer;
+                if (!renderer) return;
+                // 触发 xterm 原生的 options 变更处理流程：
+                // _updateDimensions() → _widthCache.setFont() → _setDefaultSpacing()
+                // 这会用当前已加载的字体重新设置 canvas 字体并重算 letter-spacing
+                if (typeof renderer._handleOptionsChanged === 'function') {
+                    renderer._handleOptionsChanged();
+                } else {
+                    // 降级：手动走相同流程
+                    const cellWidth = this.term._core._renderService.dimensions.css.cell.width;
+                    const rowsEl = this.term.element.querySelector('.xterm-rows');
+                    if (!rowsEl) return;
+                    const cs = getComputedStyle(rowsEl);
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    ctx.font = cs.font;
+                    const measuredW = ctx.measureText('W').width;
+                    const correctSpacing = cellWidth - measuredW;
+                    const currentSpacing = parseFloat(rowsEl.style.letterSpacing || '0');
+                    if (Math.abs(currentSpacing - correctSpacing) > 0.001) {
+                        if (renderer._widthCache) renderer._widthCache.clear();
+                        rowsEl.style.letterSpacing = correctSpacing.toFixed(6) + 'px';
+                        if (renderer._rowFactory) {
+                            renderer._rowFactory.defaultSpacing = correctSpacing;
+                        }
+                        this.term.refresh();
+                    }
+                }
+            } catch(e) { /* 忽略 */ }
+        };
+        // 双 rAF 确保字体加载完成 + 首次渲染结束
+        requestAnimationFrame(() => requestAnimationFrame(doFix));
     }
 }
