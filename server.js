@@ -336,7 +336,7 @@ app.use(express.static(path.join(__dirname, 'public'), {
 app.use('/xterm', express.static(path.join(__dirname, 'node_modules/@xterm/xterm')));
 app.use('/addon-web-links', express.static(path.join(__dirname, 'node_modules/@xterm/addon-web-links')));
 app.use('/addon-unicode11', express.static(path.join(__dirname, 'node_modules/@xterm/addon-unicode11')));
-app.use('/addon-canvas', express.static(path.join(__dirname, 'node_modules/@xterm/addon-canvas')));
+app.use('/addon-webgl', express.static(path.join(__dirname, 'node_modules/@xterm/addon-webgl')));
 
 const sessions = {};
 let sessionCounter = 1;

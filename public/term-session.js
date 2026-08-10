@@ -1,6 +1,6 @@
 // public/term-session.js
 // 封装单个终端会话的所有状态与行为。
-// 依赖全局：Terminal, WebLinksAddon, Unicode11Addon, wsSend, addFrontendLog
+// 依赖全局：Terminal, WebLinksAddon, Unicode11Addon, WebglAddon, wsSend, addFrontendLog
 // （rows/cols 已在 2026-07-01 改用 size_slots/current_size 协议，
 //  TermSession 构造时不立即 resize，等 current_size 消息到达后由外部循环调用 resize）
 //
@@ -55,11 +55,19 @@ class TermSession {
         this.term.loadAddon(new WebLinksAddon.WebLinksAddon());
         this.term.loadAddon(new Unicode11Addon.Unicode11Addon());
         this.term.unicode.activeVersion = '11';
-        // Canvas 渲染器：测量和渲染在同一个 canvas 上，彻底解决移动端 OffscreenCanvas 与 DOM 对 Braille 等特殊字符字体回退不一致导致的错位问题
+        // WebGL 渲染器：customGlyphs 默认开启，Braille(U+2800-U+28FF)、Box Drawing 等由渲染器直接手绘、
+        // 完全不走字体，从根上消除移动端字体回退不一致导致的错位。
         try {
-            this.term.loadAddon(new CanvasAddon.CanvasAddon());
+            const webgl = new WebglAddon.WebglAddon();
+            // 浏览器对同时存在的 WebGL context 有数量上限（Chrome 约 16 个），会话开多了最老的会被丢弃。
+            // 丢失后该终端会停止渲染，故必须 dispose 掉 addon 让 xterm 自动回落到 DOM 渲染器。
+            webgl.onContextLoss(() => {
+                webgl.dispose();
+                if (typeof addFrontendLog === 'function') addFrontendLog(`WebGL 上下文丢失，${this.name} 回退 DOM 渲染器`, 'warn');
+            });
+            this.term.loadAddon(webgl);
         } catch(e) {
-            console.warn('CanvasAddon 加载失败，回退到 DOM 渲染器:', e);
+            if (typeof addFrontendLog === 'function') addFrontendLog('WebglAddon 加载失败，回退 DOM 渲染器: ' + e, 'warn');
         }
 
         // 输入原样转发到服务端
