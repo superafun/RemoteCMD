@@ -69,7 +69,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 89;  // 纯递增整数，每次代码改动 +1，用于验证当前版本是否已生效
+        const APP_VERSION = 90;  // 纯递增整数，每次代码改动 +1，用于验证当前版本是否已生效
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -130,6 +130,43 @@
             if (frontendLogs.length > maxFrontendLogs * 2) {
                 frontendLogs.splice(0, frontendLogs.length - maxFrontendLogs);
             }
+        }
+
+        // === 通用反射查找：解决生产构建属性名压缩问题 ===
+        // 通过鸭子类型识别对象，不依赖硬编码属性名
+        // 在 obj 及其原型链上查找符合特征的对象
+        function findByDuckType(obj, predicate, maxDepth = 3, visited = new Set()) {
+            if (!obj || typeof obj !== 'object' || visited.has(obj)) return null;
+            visited.add(obj);
+            if (predicate(obj)) return obj;
+            if (maxDepth <= 0) return null;
+            for (const key in obj) {
+                try {
+                    const val = obj[key];
+                    if (val && typeof val === 'object') {
+                        const found = findByDuckType(val, predicate, maxDepth - 1, visited);
+                        if (found) return found;
+                    }
+                } catch(e) {}
+            }
+            return null;
+        }
+
+        // 从 renderer 中找 WidthCache（有 setFont/clear/get 方法）
+        function getWidthCache(renderer) {
+            return findByDuckType(renderer, obj =>
+                typeof obj.setFont === 'function' &&
+                typeof obj.clear === 'function' &&
+                typeof obj.get === 'function'
+            );
+        }
+
+        // 从 renderer 中找 rowFactory（有 defaultSpacing 属性和 createRow 方法）
+        function getRowFactory(renderer) {
+            return findByDuckType(renderer, obj =>
+                'defaultSpacing' in obj &&
+                typeof obj.createRow === 'function'
+            );
         }
 
         // PWA 环境诊断：收集 viewport/DPR/xterm 渲染状态，用于对比 PWA vs 浏览器差异
@@ -214,11 +251,13 @@
                     // xterm 内部 defaultSpacing 和 WidthCache 测量
                     try {
                         const renderer = term._core._renderService._renderer;
-                        if (renderer && renderer._rowFactory) {
-                            info.push(`[诊断] xterm defaultSpacing: ${renderer._rowFactory.defaultSpacing}`);
+                        const rowFactory = renderer ? getRowFactory(renderer) : null;
+                        const wc = renderer ? getWidthCache(renderer) : null;
+                        info.push(`[诊断] renderer found: ${!!renderer}, rowFactory found: ${!!rowFactory}, widthCache found: ${!!wc}`);
+                        if (rowFactory) {
+                            info.push(`[诊断] xterm defaultSpacing: ${rowFactory.defaultSpacing}`);
                         }
-                        if (renderer && renderer._widthCache) {
-                            const wc = renderer._widthCache;
+                        if (wc) {
                             info.push(`[诊断] WidthCache measure 'W': ${wc.get('W', false, false).toFixed(6)}`);
                             info.push(`[诊断] WidthCache measure 'i': ${wc.get('i', false, false).toFixed(6)}`);
                             info.push(`[诊断] WidthCache measure ' ': ${wc.get(' ', false, false).toFixed(6)}`);
@@ -347,8 +386,9 @@
             const renderer = term._core._renderService._renderer;
             const rowsEl = term.element.querySelector('.xterm-rows');
             if (!rowsEl || !renderer) { showToast('找不到 renderer 或 .xterm-rows', 'error'); return; }
-            const wc = renderer._widthCache;
-            if (!wc) { showToast('找不到 WidthCache', 'error'); return; }
+            const wc = getWidthCache(renderer);
+            const rowFactory = getRowFactory(renderer);
+            if (!wc) { showToast('找不到 WidthCache（可能属性名已压缩）', 'error'); return; }
 
             const opts = term.options;
             const cellWidth = term._core._renderService.dimensions.css.cell.width;
@@ -357,12 +397,12 @@
             const fontWeight = opts.fontWeight || 'normal';
             const fontWeightBold = opts.fontWeightBold || 'bold';
 
-            appendDebug(`[修复] 开始: cellWidth=${cellWidth} fontFamily=${fontFamily} fontSize=${fontSize}`);
+            appendDebug(`[修复] 开始: cellWidth=${cellWidth} fontFamily=${fontFamily} fontSize=${fontSize} rowFactory=${!!rowFactory}`);
 
             try {
                 // 1. 正确调用 setFont：这会更新内部 4 个 OffscreenCanvas 的字体，并且自动清缓存
                 wc.setFont(fontFamily, fontSize, fontWeight, fontWeightBold);
-                appendDebug(`[修复] setFont(${fontFamily}, ${fontSize}, ${fontWeight}, ${fontWeightBold}) 已调用`);
+                appendDebug(`[修复] setFont() 已调用`);
             } catch(err) {
                 appendDebug(`[修复] setFont 失败: ${err.message}`);
                 return;
@@ -373,18 +413,16 @@
             appendDebug('[修复] WidthCache 缓存已清除');
 
             // 3. 按照 xterm _setDefaultSpacing 的逻辑计算正确的 spacing
-            //    spacing = cellWidth - WidthCache 测量的 'W' 宽度
-            //    注意：必须用 wc.get('W') 而不是自己建 canvas 测量！
             const measuredW = wc.get('W', false, false);
             const correctSpacing = cellWidth - measuredW;
             const currentSpacing = parseFloat(rowsEl.style.letterSpacing || '0');
 
             appendDebug(`[修复] WidthCache 测量 W=${measuredW.toFixed(6)} correctSpacing=${correctSpacing.toFixed(6)} currentSpacing=${currentSpacing}`);
 
-            // 4. 设置 letter-spacing 到 container 和 rowFactory（和 xterm 内部逻辑一致）
+            // 4. 设置 letter-spacing 到 container 和 rowFactory
             rowsEl.style.letterSpacing = `${correctSpacing}px`;
-            if (renderer._rowFactory) {
-                renderer._rowFactory.defaultSpacing = correctSpacing;
+            if (rowFactory) {
+                rowFactory.defaultSpacing = correctSpacing;
             }
             appendDebug(`[修复] 已设置 letterSpacing=${correctSpacing.toFixed(6)}px, defaultSpacing=${correctSpacing.toFixed(6)}`);
 
@@ -395,14 +433,8 @@
 
             // 6. 200ms 后验证
             setTimeout(() => {
-                const afterEl = term.element.querySelector('.xterm-rows');
-                const afterSpacing = afterEl ? parseFloat(afterEl.style.letterSpacing || '0') : -999;
-                const firstSpan = afterEl?.querySelector('span');
-                const firstRect = firstSpan ? firstSpan.getClientRects()[0] : null;
-                const firstWidth = firstRect ? firstRect.width.toFixed(4) : -1;
-                const firstLeft = firstRect ? firstRect.left.toFixed(4) : -1;
-                appendDebug(`[修复验证] letterSpacing=${afterSpacing.toFixed(6)} 第一个span: left=${firstLeft} width=${firstWidth}`);
-            }, 200);
+                diagEnv();
+            }, 300);
         }
 
         // 解析快捷键名为转义序列

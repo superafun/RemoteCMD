@@ -187,8 +187,33 @@ class TermSession {
         try {
             const term = this.term;
             const renderer = term._core._renderService._renderer;
-            if (!renderer || !renderer._widthCache) return;
-            const wc = renderer._widthCache;
+            if (!renderer) return;
+
+            // 鸭子类型反射查找 WidthCache 和 RowFactory（解决生产构建属性名压缩问题）
+            const findByDuckType = (obj, predicate, depth = 3, visited = new Set()) => {
+                if (!obj || typeof obj !== 'object' || visited.has(obj)) return null;
+                visited.add(obj);
+                if (predicate(obj)) return obj;
+                if (depth <= 0) return null;
+                for (const key in obj) {
+                    try {
+                        const val = obj[key];
+                        if (val && typeof val === 'object') {
+                            const found = findByDuckType(val, predicate, depth - 1, visited);
+                            if (found) return found;
+                        }
+                    } catch(e) {}
+                }
+                return null;
+            };
+            const wc = findByDuckType(renderer, o =>
+                typeof o.setFont === 'function' && typeof o.clear === 'function' && typeof o.get === 'function'
+            );
+            const rowFactory = findByDuckType(renderer, o =>
+                'defaultSpacing' in o && typeof o.createRow === 'function'
+            );
+
+            if (!wc) return;
             const rowsEl = term.element?.querySelector('.xterm-rows');
             if (!rowsEl) return;
 
@@ -210,8 +235,8 @@ class TermSession {
             const spacing = cellWidth - measuredW;
             // 4. 设置
             rowsEl.style.letterSpacing = `${spacing}px`;
-            if (renderer._rowFactory) {
-                renderer._rowFactory.defaultSpacing = spacing;
+            if (rowFactory) {
+                rowFactory.defaultSpacing = spacing;
             }
             // 5. 重渲染
             term.refresh(0, term.rows - 1);
