@@ -323,21 +323,6 @@
         }
         .xterm {
             touch-action: pan-x pinch-zoom;  /* 同上，更具体保底（xterm 自身可能设过 touch-action） */
-            /* 根因修复：移动 Chrome 对 xterm 文本应用 text-spacing-trim 压缩 CJK 标点，
-               导致单字符测量宽度与实际渲染宽度不一致，每行漂移可达数十像素。
-               space-all = 不压缩任何标点间距，保持与 WidthCache 单字符测量一致。
-               见 xterm.js issue #6058 */
-            text-spacing-trim: space-all;
-            /* 根因修复：移动 Chrome 的 text autosizer / font inflation 会自动放大小字号文本，
-               xterm 按 fontSize 测量并计算 cellWidth，但浏览器渲染时字号被改了 → 字形宽度 ≠ cellWidth。
-               锁死为 100% 保持测量与渲染一致。 */
-            -webkit-text-size-adjust: 100%;
-            text-size-adjust: 100%;
-        }
-        .xterm-rows {
-            /* 与 .xterm 同步，覆盖行容器自身的文字调整行为 */
-            -webkit-text-size-adjust: 100%;
-            text-size-adjust: 100%;
         }
         .hidden { display: none !important; }  /* 滚动按钮显隐开关（服务端 showScrollButtons 控制） */
         .toolbar {
