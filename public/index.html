@@ -55,7 +55,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 74;  // 纯递增整数，每次代码改动 +1，用于验证当前版本是否已生效
+        const APP_VERSION = 75;  // 纯递增整数，每次代码改动 +1，用于验证当前版本是否已生效
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -1509,20 +1509,15 @@ function showToast(message, type = 'success') {
 
         // === 顶栏自动隐藏（2026-08-08 引入） ===
         let toolbarHidden = false;
-        let restoreTimer = null;
         function hideToolbar() {
             if (!toolbarHidden) {
                 document.querySelector('.toolbar').classList.add('toolbar-hidden');
                 toolbarHidden = true;
             }
-            clearTimeout(restoreTimer);
-            restoreTimer = setTimeout(restoreToolbar, 3000);
         }
         function restoreToolbar() {
             document.querySelector('.toolbar').classList.remove('toolbar-hidden');
             toolbarHidden = false;
-            clearTimeout(restoreTimer);
-            restoreTimer = null;
         }
 
         function setupTouchScroll() {
