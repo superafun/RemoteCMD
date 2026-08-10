@@ -171,7 +171,7 @@ class TermSession {
         this.term.resize(cols, rows);
         // PWA fullscreen 模式下 xterm 初始化时 WidthCache canvas 字体在字体未就绪时被设置，
         // 导致 canvas.measureText 用回退字体测量，container letter-spacing 为 0。
-        // 修复：延迟两帧后 → 直接设 WidthCache canvas 字体 → 清缓存 → 重算 spacing → 重渲染。
+        // 修复：延迟两帧后 → 调用 _handleOptionsChanged() → 清缓存 → 设 spacing → 重渲染。
         const doFix = () => {
             try {
                 const renderer = this.term._core._renderService._renderer;
@@ -187,22 +187,18 @@ class TermSession {
                 const correctSpacing = cellWidth - measuredW;
                 const currentSpacing = parseFloat(rowsEl.style.letterSpacing || '0');
                 if (Math.abs(currentSpacing - correctSpacing) > 0.001) {
-                    // 1. 直接重设 WidthCache 内部 canvas 字体（绕过 setFont 参数问题）
-                    if (renderer._widthCache && renderer._widthCache._canvasElements) {
-                        for (const [, canvasEl] of renderer._widthCache._canvasElements) {
-                            if (canvasEl && canvasEl._ctx) {
-                                canvasEl._ctx.font = cs.font;
-                            }
-                        }
+                    // 核心：调用 xterm 公共方法，自动重设 canvas 字体 + 重算 spacing
+                    if (typeof renderer._handleOptionsChanged === 'function') {
+                        renderer._handleOptionsChanged();
                     }
-                    // 2. 清除 WidthCache 缓存
+                    // 清缓存
                     if (renderer._widthCache) renderer._widthCache.clear();
-                    // 3. 设置 container letter-spacing 和 defaultSpacing
+                    // 兜底：强制设置 container spacing 和 defaultSpacing
                     rowsEl.style.letterSpacing = correctSpacing.toFixed(6) + 'px';
                     if (renderer._rowFactory) {
                         renderer._rowFactory.defaultSpacing = correctSpacing;
                     }
-                    // 4. 强制重渲染
+                    // 重渲染
                     this.term.refresh();
                 }
             } catch(e) { /* 忽略 */ }
