@@ -69,7 +69,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 87;  // 纯递增整数，每次代码改动 +1，用于验证当前版本是否已生效
+        const APP_VERSION = 88;  // 纯递增整数，每次代码改动 +1，用于验证当前版本是否已生效
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -331,21 +331,46 @@
             const currentSpacing = parseFloat(rowsEl.style.letterSpacing || '0');
             appendDebug(`[修复] cellWidth=${cellWidth} canvas测量W=${measuredW.toFixed(6)} correctSpacing=${correctSpacing.toFixed(6)} currentSpacing=${currentSpacing}`);
 
-            // 核心修复：调用 xterm 公共方法 _handleOptionsChanged()
-            // 该方法会：_updateDimensions() → _widthCache.setFont() → _setDefaultSpacing()
-            // 即重设 canvas 字体 + 重算 container letter-spacing
+            // 核心修复：用反射遍历 WidthCache 找到所有 canvas context 并重设字体
+            // 生产构建压缩了属性名，需要用 for...in 遍历
+            let canvasFixed = 0;
             try {
-                if (typeof renderer._handleOptionsChanged === 'function') {
-                    renderer._handleOptionsChanged();
-                    appendDebug('[修复] 已调用 _handleOptionsChanged()');
-                } else {
-                    appendDebug('[修复] _handleOptionsChanged 不存在');
+                if (renderer._widthCache) {
+                    const wc = renderer._widthCache;
+                    // 遍历 WidthCache 所有属性，找 canvas 元素
+                    const props = [];
+                    for (const key in wc) {
+                        const val = wc[key];
+                        if (val && typeof val === 'object') {
+                            // 检查是否是 canvas 元素（有 getContext 方法）
+                            if (typeof val.getContext === 'function') {
+                                const c = val.getContext('2d');
+                                if (c) { c.font = cs.font; canvasFixed++; }
+                            }
+                            // 检查是否是 WidthCacheFontVariantCanvas（有 _ctx 或 ctx 属性）
+                            for (const key2 in val) {
+                                const val2 = val[key2];
+                                if (val2 && typeof val2 === 'object' && typeof val2.getContext === 'function') {
+                                    const c = val2.getContext('2d');
+                                    if (c) { c.font = cs.font; canvasFixed++; }
+                                }
+                            }
+                        }
+                    }
+                    // 也尝试用 setFont 公共方法（如果存在）
+                    if (typeof wc.setFont === 'function') {
+                        try {
+                            wc.setFont(term.options.fontFamily, term.options.fontSize, 'normal', false);
+                            appendDebug('[修复] setFont() 也已调用');
+                        } catch(e) {}
+                    }
+                    appendDebug(`[修复] 已重设 ${canvasFixed} 个 canvas context 字体`);
                 }
             } catch(err) {
-                appendDebug(`[修复] _handleOptionsChanged 异常: ${err.message}`);
+                appendDebug(`[修复] WidthCache 反射修复失败: ${err.message}`);
             }
 
-            // 清除 WidthCache 缓存（强制所有字符重新测量）
+            // 清除 WidthCache 缓存
             try {
                 if (renderer._widthCache) renderer._widthCache.clear();
                 appendDebug('[修复] WidthCache 缓存已清除');
@@ -353,13 +378,13 @@
                 appendDebug(`[修复] 清缓存失败: ${err.message}`);
             }
 
-            // 确保 container letter-spacing 正确（即使 _handleOptionsChanged 失败也生效）
+            // 设置 container letter-spacing 和 defaultSpacing
             if (Math.abs(currentSpacing - correctSpacing) > 0.001) {
                 rowsEl.style.letterSpacing = correctSpacing.toFixed(6) + 'px';
                 if (renderer._rowFactory) {
                     renderer._rowFactory.defaultSpacing = correctSpacing;
                 }
-                appendDebug(`[修复] 强制设置 container letter-spacing=${correctSpacing.toFixed(6)}px`);
+                appendDebug(`[修复] 设置 container letter-spacing=${correctSpacing.toFixed(6)}px`);
             }
 
             // 强制重渲染
