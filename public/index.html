@@ -55,7 +55,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 77;  // 纯递增整数，每次代码改动 +1，用于验证当前版本是否已生效
+        const APP_VERSION = 78;  // 纯递增整数，每次代码改动 +1，用于验证当前版本是否已生效
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -115,6 +115,56 @@
             // 滞回式截断：超出上限 2 倍时截断到上限，避免每次 push 都做 O(n) 操作
             if (frontendLogs.length > maxFrontendLogs * 2) {
                 frontendLogs.splice(0, frontendLogs.length - maxFrontendLogs);
+            }
+        }
+
+        // PWA 环境诊断：收集 viewport/DPR/xterm 渲染状态，用于对比 PWA vs 浏览器差异
+        // 临时诊断代码，定位 PWA fullscreen 错位根因后删除
+        function diagEnv() {
+            const s = sessions.get(activeId);
+            const term = s?.term;
+            const info = [];
+            // display-mode 检测
+            const dm = window.matchMedia('(display-mode: fullscreen)').matches ? 'fullscreen' :
+                       window.matchMedia('(display-mode: standalone)').matches ? 'standalone' : 'browser';
+            info.push(`[诊断] display-mode: ${dm}`);
+            info.push(`[诊断] innerWidth: ${window.innerWidth} innerHeight: ${window.innerHeight}`);
+            info.push(`[诊断] devicePixelRatio: ${window.devicePixelRatio}`);
+            info.push(`[诊断] screen: ${screen.width}x${screen.height}`);
+            if (term) {
+                info.push(`[诊断] term.cols: ${term.cols} term.rows: ${term.rows}`);
+                const rowsEl = document.querySelector('.xterm-rows');
+                if (rowsEl) {
+                    const cs = getComputedStyle(rowsEl);
+                    info.push(`[诊断] font-family: ${cs.fontFamily}`);
+                    info.push(`[诊断] font-size: ${cs.fontSize}`);
+                    info.push(`[诊断] line-height: ${cs.lineHeight}`);
+                    info.push(`[诊断] .xterm-rows letter-spacing: ${cs.letterSpacing}`);
+                    info.push(`[诊断] .xterm-rows offsetWidth: ${rowsEl.offsetWidth}`);
+                    // 用同样的 font 在 canvas 测量字符宽度（与 xterm WidthCache 同源）
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    ctx.font = cs.font;
+                    info.push(`[诊断] canvas measureText('W'): ${ctx.measureText('W').width}`);
+                    info.push(`[诊断] canvas measureText('i'): ${ctx.measureText('i').width}`);
+                    info.push(`[诊断] canvas measureText('中'): ${ctx.measureText('中').width}`);
+                }
+                // xterm 内部 dimensions（cellWidth 等）
+                try {
+                    const dims = term._core._renderService.dimensions;
+                    info.push(`[诊断] cellWidth(css): ${dims.css.cell.width}`);
+                    info.push(`[诊断] cellHeight(css): ${dims.css.cell.height}`);
+                    info.push(`[诊断] canvas.width(css): ${dims.css.canvas.width}`);
+                } catch(e) { info.push(`[诊断] dims err: ${e.message}`); }
+            } else {
+                info.push('[诊断] 无活动会话');
+            }
+            info.forEach(line => addFrontendLog(line));
+            // 如果日志弹窗已打开，刷新它
+            const overlay = document.querySelector('.modal-overlay');
+            if (overlay && overlay.querySelector('h3')?.textContent.includes('后台日志')) {
+                overlay.remove();
+                openLogModal();
             }
         }
 
@@ -414,6 +464,7 @@
             html += '</div>';
             html += '</div>';  // .modal-content 结束
             html += '<div class="modal-actions">';
+            html += '<button onclick="diagEnv()">环境诊断</button>';
             html += '<button onclick="this.closest(\'.modal-overlay\').remove()">关闭</button>';
             html += '</div></div></div>';
             const div = document.createElement('div');
