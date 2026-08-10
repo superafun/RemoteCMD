@@ -68,7 +68,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 80;  // 纯递增整数，每次代码改动 +1，用于验证当前版本是否已生效
+        const APP_VERSION = 81;  // 纯递增整数，每次代码改动 +1，用于验证当前版本是否已生效
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -144,45 +144,75 @@
             info.push(`[诊断] innerWidth: ${window.innerWidth} innerHeight: ${window.innerHeight}`);
             info.push(`[诊断] devicePixelRatio: ${window.devicePixelRatio}`);
             info.push(`[诊断] screen: ${screen.width}x${screen.height}`);
+            // 字体加载状态
+            if (document.fonts && document.fonts.ready) {
+                info.push(`[诊断] document.fonts.ready: ${document.fonts.ready.state}`);
+                info.push(`[诊断] document.fonts.count: ${document.fonts.size}`);
+                // 检查 Consolas 和 Microsoft YaHei 是否已加载
+                try {
+                    const consolasReady = document.fonts.check('15px Consolas', 'W');
+                    const yaheiReady = document.fonts.check('15px "Microsoft YaHei"', 'W');
+                    const monoReady = document.fonts.check('15px monospace', 'W');
+                    info.push(`[诊断] fonts.check(Consolas): ${consolasReady}`);
+                    info.push(`[诊断] fonts.check(YaHei): ${yaheiReady}`);
+                    info.push(`[诊断] fonts.check(monospace): ${monoReady}`);
+                } catch(e) { info.push(`[诊断] fonts.check err: ${e.message}`); }
+            }
             if (term) {
                 info.push(`[诊断] term.cols: ${term.cols} term.rows: ${term.rows}`);
-                // 检查有多少个 .xterm-rows（多会话时可能多个）
                 const allRows = document.querySelectorAll('.xterm-rows');
                 info.push(`[诊断] .xterm-rows count: ${allRows.length}`);
-                const rowsEl = allRows[0];  // 取第一个
+                const rowsEl = allRows[0];
                 if (rowsEl) {
                     const cs = getComputedStyle(rowsEl);
                     info.push(`[诊断] font-family: ${cs.fontFamily}`);
                     info.push(`[诊断] font-size: ${cs.fontSize}`);
                     info.push(`[诊断] line-height: ${cs.lineHeight}`);
-                    // 关键：computed vs inline letter-spacing
                     info.push(`[诊断] .xterm-rows letter-spacing(computed): ${cs.letterSpacing}`);
                     info.push(`[诊断] .xterm-rows letter-spacing(inline): ${rowsEl.style.letterSpacing || '(none)'}`);
                     info.push(`[诊断] .xterm-rows offsetWidth: ${rowsEl.offsetWidth}`);
-                    // 检查第一个 span 的 inline letter-spacing
-                    const firstSpan = rowsEl.querySelector('span');
-                    if (firstSpan) {
-                        info.push(`[诊断] first span text: "${firstSpan.textContent.substring(0,20)}"`);
-                        info.push(`[诊断] first span letter-spacing(inline): ${firstSpan.style.letterSpacing || '(none)'}`);
-                        info.push(`[诊断] first span letter-spacing(computed): ${getComputedStyle(firstSpan).letterSpacing}`);
-                        info.push(`[诊断] first span offsetWidth: ${firstSpan.offsetWidth}`);
-                        info.push(`[诊断] first span getClientRects: ${firstSpan.getClientRects()[0]?.width}`);
+                    // 检查多个 span 的实际渲染宽度与 cellWidth 一致性
+                    const spans = rowsEl.querySelectorAll('span');
+                    info.push(`[诊断] span count in row: ${spans.length}`);
+                    let prevRight = 0;
+                    let spanOffsetSum = 0;
+                    let maxDeviation = 0;
+                    for (let i = 0; i < Math.min(spans.length, 20); i++) {
+                        const r = spans[i].getClientRects()[0];
+                        if (r) {
+                            const left = r.left;
+                            const width = r.width;
+                            const ls = spans[i].style.letterSpacing || '(none)';
+                            const text = spans[i].textContent.substring(0, 8);
+                            const expectedLeft = i * 9;  // cellWidth = 9
+                            const deviation = left - expectedLeft;
+                            info.push(`[诊断] span[${i}] "${text}" left=${left.toFixed(4)} width=${width.toFixed(4)} ls=${ls} dev=${deviation.toFixed(4)}`);
+                            if (i === 0) prevRight = left + width;
+                            else {
+                                const gap = left - prevRight;
+                                spanOffsetSum += gap;
+                                prevRight = left + width;
+                            }
+                            maxDeviation = Math.max(maxDeviation, Math.abs(deviation));
+                        }
                     }
-                    // 检查 xterm 内部 defaultSpacing
+                    info.push(`[诊断] span 累积偏移(前20): ${spanOffsetSum.toFixed(4)}px`);
+                    info.push(`[诊断] span 最大偏差: ${maxDeviation.toFixed(4)}px`);
+                    // xterm 内部 defaultSpacing
                     try {
                         const renderer = term._core._renderService._renderer;
                         if (renderer && renderer._rowFactory) {
                             info.push(`[诊断] xterm defaultSpacing: ${renderer._rowFactory.defaultSpacing}`);
                         }
                     } catch(e) { info.push(`[诊断] defaultSpacing err: ${e.message}`); }
-                    // 用同样的 font 在 canvas 测量字符宽度
+                    // canvas 测量
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
                     ctx.font = cs.font;
                     info.push(`[诊断] canvas measureText('W'): ${ctx.measureText('W').width}`);
                     info.push(`[诊断] canvas measureText('i'): ${ctx.measureText('i').width}`);
                     info.push(`[诊断] canvas measureText('中'): ${ctx.measureText('中').width}`);
-                    // 用 DOM span 实际测量（与 canvas 对比）
+                    // DOM span 实际测量
                     const testSpan = document.createElement('span');
                     testSpan.style.font = cs.font;
                     testSpan.style.display = 'inline-block';
