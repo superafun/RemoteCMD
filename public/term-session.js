@@ -61,13 +61,6 @@ class TermSession {
         } catch(e) {
             console.warn('CanvasAddon 加载失败，回退到 DOM 渲染器:', e);
         }
-        this._autoFixSpacing();
-        if (document.fonts && document.fonts.ready) {
-            document.fonts.ready.then(() => {
-                // 字体加载完成后延迟一帧执行
-                requestAnimationFrame(() => this._autoFixSpacing());
-            });
-        }
 
         // 输入原样转发到服务端
         this.term.onData(data => {
@@ -179,77 +172,8 @@ class TermSession {
         wsSend({ type: 'input', id: this.id, data: seq });
     }
 
-    // === 自动修复 PWA 字体 spacing 问题 ===
-    // 严格按照 xterm 内部逻辑执行：
-    // 1. 用 WidthCache.setFont() 更新 OffscreenCanvas 字体（不是自己建普通 canvas）
-    // 2. 清缓存
-    // 3. 用 WidthCache.get('W') 测量（和 xterm _setDefaultSpacing 一致）
-    // 4. 设置正确的 letterSpacing + defaultSpacing
-    // 5. 重渲染
-    _autoFixSpacing() {
-        try {
-            const term = this.term;
-            const renderer = term._core._renderService._renderer;
-            if (!renderer) return;
-
-            // 鸭子类型反射查找 WidthCache 和 RowFactory（解决生产构建属性名压缩问题）
-            const findByDuckType = (obj, predicate, depth = 3, visited = new Set()) => {
-                if (!obj || typeof obj !== 'object' || visited.has(obj)) return null;
-                visited.add(obj);
-                if (predicate(obj)) return obj;
-                if (depth <= 0) return null;
-                for (const key in obj) {
-                    try {
-                        const val = obj[key];
-                        if (val && typeof val === 'object') {
-                            const found = findByDuckType(val, predicate, depth - 1, visited);
-                            if (found) return found;
-                        }
-                    } catch(e) {}
-                }
-                return null;
-            };
-            const wc = findByDuckType(renderer, o =>
-                typeof o.setFont === 'function' && typeof o.clear === 'function' && typeof o.get === 'function'
-            );
-            const rowFactory = findByDuckType(renderer, o =>
-                'defaultSpacing' in o && typeof o.createRow === 'function'
-            );
-
-            if (!wc) return;
-            const rowsEl = term.element?.querySelector('.xterm-rows');
-            if (!rowsEl) return;
-
-            const opts = term.options;
-            const cellWidth = term._core._renderService.dimensions.css.cell.width;
-            if (!cellWidth || cellWidth <= 0) return;
-
-            // 1. 调用公共 setFont 方法更新所有 OffscreenCanvas 字体并清缓存
-            wc.setFont(
-                opts.fontFamily,
-                opts.fontSize,
-                opts.fontWeight || 'normal',
-                opts.fontWeightBold || 'bold'
-            );
-            // 2. 再清一次缓存保险
-            wc.clear();
-            // 3. 按 xterm _setDefaultSpacing 逻辑计算
-            const measuredW = wc.get('W', false, false);
-            const spacing = cellWidth - measuredW;
-            // 4. 设置
-            rowsEl.style.letterSpacing = `${spacing}px`;
-            if (rowFactory) {
-                rowFactory.defaultSpacing = spacing;
-            }
-            // 5. 重渲染
-            term.refresh(0, term.rows - 1);
-        } catch(e) { /* 忽略 */ }
-    }
-
     // === 尺寸 ===
     resize(cols, rows) {
         this.term.resize(cols, rows);
-        // 延迟两帧后自动修复 spacing（确保 resize 后 dimensions 已更新、字体可用）
-        requestAnimationFrame(() => requestAnimationFrame(() => this._autoFixSpacing()));
     }
 }
