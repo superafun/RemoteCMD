@@ -1,6 +1,6 @@
 // public/term-session.js
 // 封装单个终端会话的所有状态与行为。
-// 依赖全局：Terminal, WebLinksAddon, Unicode11Addon, WebglAddon, SearchAddon, ClipboardAddon, ProgressAddon, wsSend, addFrontendLog
+// 依赖全局：Terminal, WebLinksAddon, Unicode11Addon, WebglAddon, wsSend, addFrontendLog
 // （rows/cols 已在 2026-07-01 改用 size_slots/current_size 协议，
 //  TermSession 构造时不立即 resize，等 current_size 消息到达后由外部循环调用 resize）
 //
@@ -64,23 +64,6 @@ class TermSession {
         } catch(e) {
             if (typeof addFrontendLog === 'function') addFrontendLog('WebglAddon 加载失败，回退 DOM 渲染器: ' + e, 'warn');
         }
-
-        // 搜索：顶栏「搜索」按钮 / Ctrl+F 唤起浮层，在当前会话内 findNext/findPrevious
-        this._search = new SearchAddon.SearchAddon();
-        this.term.loadAddon(this._search);
-
-        // 剪贴板：接管 OSC 52，让远端程序把内容写到手机系统剪贴板（区别于现有 Ctrl+C 选区复制）
-        this.term.loadAddon(new ClipboardAddon.ClipboardAddon());
-
-        // 进度：OSC 9;4 ConEmu 进度序列 → 在会话下拉按钮显示，适合手机盯 agent 跑批
-        this.progress = { state: 0, value: 0 };
-        const progressAddon = new ProgressAddon.ProgressAddon();
-        this.term.loadAddon(progressAddon);
-        progressAddon.onChange(p => {
-            this.progress = { state: p.state, value: p.value };
-            // 仅活跃会话需要刷新按钮标签；activeId / updateSessionButtonLabel 由 index.html 主脚本提供
-            if (activeId === this.id && typeof updateSessionButtonLabel === 'function') updateSessionButtonLabel();
-        });
 
         // 输入原样转发到服务端
         this.term.onData(data => {
