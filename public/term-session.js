@@ -169,5 +169,16 @@ class TermSession {
     // === 尺寸 ===
     resize(cols, rows) {
         this.term.resize(cols, rows);
+        // PWA fullscreen 模式下 xterm 初始化时 _setDefaultSpacing 可能在字体未完全就绪时被调用，
+        // 导致 WidthCache 缓存了错误的字符宽度测量值，container letter-spacing 为 0。
+        // 这里在 resize 后强制触发 handleCharSizeChanged，清除 WidthCache 并重新测量，
+        // 确保 container letter-spacing 与实际 cellWidth 匹配。
+        // 见 PWA 错位排查诊断：PWA .xterm-rows letter-spacing=0px vs 浏览器 -0.00146px。
+        try {
+            const renderer = this.term._core._renderService._renderer;
+            if (renderer && typeof renderer.handleCharSizeChanged === 'function') {
+                renderer.handleCharSizeChanged();
+            }
+        } catch(e) { /* 忽略，不影响主流程 */ }
     }
 }
