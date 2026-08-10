@@ -171,45 +171,42 @@ class TermSession {
         this.term.resize(cols, rows);
         // PWA fullscreen 模式下 xterm 初始化时 WidthCache canvas 字体在字体未就绪时被设置，
         // 导致 canvas.measureText 用回退字体测量，container letter-spacing 为 0。
-        // 修复：延迟两帧后触发 _handleOptionsChanged → 重设 canvas 字体 + 清缓存 + 重算 spacing。
+        // 修复：延迟两帧后 → 重设 WidthCache 字体 → 清缓存 → 重算 spacing → 重渲染。
         const doFix = () => {
             try {
                 const renderer = this.term._core._renderService._renderer;
+                if (!renderer) return;
+                const cellWidth = this.term._core._renderService.dimensions.css.cell.width;
                 const rowsEl = this.term.element.querySelector('.xterm-rows');
-                const currentSpacing = rowsEl ? parseFloat(rowsEl.style.letterSpacing || '0') : -999;
-                console.log('[PWA-FIX] resize fix start, current letter-spacing:', currentSpacing, 'renderer:', !!renderer);
-                if (!renderer) { console.log('[PWA-FIX] no renderer, skip'); return; }
-                // 触发 xterm 原生的 options 变更处理流程
-                if (typeof renderer._handleOptionsChanged === 'function') {
-                    console.log('[PWA-FIX] calling _handleOptionsChanged');
-                    renderer._handleOptionsChanged();
-                } else {
-                    console.log('[PWA-FIX] _handleOptionsChanged not found, using fallback');
-                    // 降级：手动走相同流程
-                    const cellWidth = this.term._core._renderService.dimensions.css.cell.width;
-                    if (!rowsEl) return;
-                    const cs = getComputedStyle(rowsEl);
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    ctx.font = cs.font;
-                    const measuredW = ctx.measureText('W').width;
-                    const correctSpacing = cellWidth - measuredW;
-                    if (Math.abs(currentSpacing - correctSpacing) > 0.001) {
-                        if (renderer._widthCache) renderer._widthCache.clear();
-                        rowsEl.style.letterSpacing = correctSpacing.toFixed(6) + 'px';
-                        if (renderer._rowFactory) {
-                            renderer._rowFactory.defaultSpacing = correctSpacing;
-                        }
-                        this.term.refresh();
-                        console.log('[PWA-FIX] fixed spacing to:', correctSpacing);
+                if (!rowsEl) return;
+                // 用当前 font 在 canvas 上测量字符宽度
+                const cs = getComputedStyle(rowsEl);
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                ctx.font = cs.font;
+                const measuredW = ctx.measureText('W').width;
+                const correctSpacing = cellWidth - measuredW;
+                const currentSpacing = parseFloat(rowsEl.style.letterSpacing || '0');
+                if (Math.abs(currentSpacing - correctSpacing) > 0.001) {
+                    // 1. 重设 WidthCache 的 canvas 字体
+                    const opts = this.term.options;
+                    if (renderer._widthCache && opts.fontFamily) {
+                        renderer._widthCache.setFont(
+                            opts.fontFamily, opts.fontSize, opts.fontWeight || 'normal',
+                            !!opts.fontStyle && opts.fontStyle !== 'normal'
+                        );
                     }
+                    // 2. 清除 WidthCache 缓存
+                    if (renderer._widthCache) renderer._widthCache.clear();
+                    // 3. 设置 container letter-spacing 和 defaultSpacing
+                    rowsEl.style.letterSpacing = correctSpacing.toFixed(6) + 'px';
+                    if (renderer._rowFactory) {
+                        renderer._rowFactory.defaultSpacing = correctSpacing;
+                    }
+                    // 4. 强制重渲染
+                    this.term.refresh();
                 }
-                // 验证修复结果
-                const afterSpacing = rowsEl ? parseFloat(rowsEl.style.letterSpacing || '0') : -999;
-                console.log('[PWA-FIX] after fix, letter-spacing:', afterSpacing);
-            } catch(e) {
-                console.error('[PWA-FIX] error:', e);
-            }
+            } catch(e) { /* 忽略 */ }
         };
         // 双 rAF 确保字体加载完成 + 首次渲染结束
         requestAnimationFrame(() => requestAnimationFrame(doFix));
