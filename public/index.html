@@ -68,7 +68,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 79;  // 纯递增整数，每次代码改动 +1，用于验证当前版本是否已生效
+        const APP_VERSION = 80;  // 纯递增整数，每次代码改动 +1，用于验证当前版本是否已生效
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -146,23 +146,54 @@
             info.push(`[诊断] screen: ${screen.width}x${screen.height}`);
             if (term) {
                 info.push(`[诊断] term.cols: ${term.cols} term.rows: ${term.rows}`);
-                const rowsEl = document.querySelector('.xterm-rows');
+                // 检查有多少个 .xterm-rows（多会话时可能多个）
+                const allRows = document.querySelectorAll('.xterm-rows');
+                info.push(`[诊断] .xterm-rows count: ${allRows.length}`);
+                const rowsEl = allRows[0];  // 取第一个
                 if (rowsEl) {
                     const cs = getComputedStyle(rowsEl);
                     info.push(`[诊断] font-family: ${cs.fontFamily}`);
                     info.push(`[诊断] font-size: ${cs.fontSize}`);
                     info.push(`[诊断] line-height: ${cs.lineHeight}`);
-                    info.push(`[诊断] .xterm-rows letter-spacing: ${cs.letterSpacing}`);
+                    // 关键：computed vs inline letter-spacing
+                    info.push(`[诊断] .xterm-rows letter-spacing(computed): ${cs.letterSpacing}`);
+                    info.push(`[诊断] .xterm-rows letter-spacing(inline): ${rowsEl.style.letterSpacing || '(none)'}`);
                     info.push(`[诊断] .xterm-rows offsetWidth: ${rowsEl.offsetWidth}`);
-                    // 用同样的 font 在 canvas 测量字符宽度（与 xterm WidthCache 同源）
+                    // 检查第一个 span 的 inline letter-spacing
+                    const firstSpan = rowsEl.querySelector('span');
+                    if (firstSpan) {
+                        info.push(`[诊断] first span text: "${firstSpan.textContent.substring(0,20)}"`);
+                        info.push(`[诊断] first span letter-spacing(inline): ${firstSpan.style.letterSpacing || '(none)'}`);
+                        info.push(`[诊断] first span letter-spacing(computed): ${getComputedStyle(firstSpan).letterSpacing}`);
+                        info.push(`[诊断] first span offsetWidth: ${firstSpan.offsetWidth}`);
+                        info.push(`[诊断] first span getClientRects: ${firstSpan.getClientRects()[0]?.width}`);
+                    }
+                    // 检查 xterm 内部 defaultSpacing
+                    try {
+                        const renderer = term._core._renderService._renderer;
+                        if (renderer && renderer._rowFactory) {
+                            info.push(`[诊断] xterm defaultSpacing: ${renderer._rowFactory.defaultSpacing}`);
+                        }
+                    } catch(e) { info.push(`[诊断] defaultSpacing err: ${e.message}`); }
+                    // 用同样的 font 在 canvas 测量字符宽度
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
                     ctx.font = cs.font;
                     info.push(`[诊断] canvas measureText('W'): ${ctx.measureText('W').width}`);
                     info.push(`[诊断] canvas measureText('i'): ${ctx.measureText('i').width}`);
                     info.push(`[诊断] canvas measureText('中'): ${ctx.measureText('中').width}`);
+                    // 用 DOM span 实际测量（与 canvas 对比）
+                    const testSpan = document.createElement('span');
+                    testSpan.style.font = cs.font;
+                    testSpan.style.display = 'inline-block';
+                    testSpan.style.visibility = 'hidden';
+                    testSpan.style.fontKerning = 'none';
+                    testSpan.textContent = 'Wi中';
+                    document.body.appendChild(testSpan);
+                    info.push(`[诊断] DOM span offsetWidth('Wi中'): ${testSpan.offsetWidth}`);
+                    document.body.removeChild(testSpan);
                 }
-                // xterm 内部 dimensions（cellWidth 等）
+                // xterm 内部 dimensions
                 try {
                     const dims = term._core._renderService.dimensions;
                     info.push(`[诊断] cellWidth(css): ${dims.css.cell.width}`);
