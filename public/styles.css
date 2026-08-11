@@ -396,7 +396,7 @@
             outline: none;
             font: inherit;
             line-height: 1.4;
-            padding: 4px 6px 0;
+            padding: 4px 26px 0;    /* 右侧 26px 给右上角 × 留位，文字不顶到下方 */
         }
         #inputBarText:focus {
             border-color: #0078d4;  /* 与 .modal-box input:focus 一致的 focus 视觉反馈 */
@@ -406,6 +406,33 @@
             width: 60px;           /* 固定宽：JS positionInputBarText() 按按钮左缘 rect 差值算文本框
                                       right，文本框不会覆盖到换行按钮 */
             box-sizing: border-box;/* width 含 padding/border，保证实际渲染宽 = 60px */
+        }
+        /* 输入条右上角关闭按钮：浮于文本框(z:5)之上，复用玻璃材质，跟随文本框右上角定位 */
+        #inputBarClose {
+            position: absolute;
+            z-index: 6;              /* 高于文本框，确保可点击、不被覆盖 */
+            display: none;           /* 默认隐藏；openInputBar() 由 JS 设 display:flex */
+            width: 22px;
+            height: 22px;
+            padding: 0;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            line-height: 1;
+            color: #d4d4d4;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            backdrop-filter: blur(var(--glass-blur));
+            -webkit-backdrop-filter: blur(var(--glass-blur));
+            border-radius: 4px;
+            cursor: pointer;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        #inputBarClose:hover {
+            color: #fff;
+            border-color: rgba(106,176,255,0.85);
         }
         .toolbar button, #hotkeys-bar button {
             min-width: 60px;  /* 防止短文字按钮（如 ▲、编辑）被压缩到看不清 */
