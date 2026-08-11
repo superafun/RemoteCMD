@@ -71,7 +71,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 100;  // 每次代码改动 +1，用于验证前端改动是否已生效
+        const APP_VERSION = 101;  // 每次代码改动 +1，用于验证前端改动是否已生效
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         const MAX_SESSIONS = 16;     // 浏览器 WebGL 上下文上限，超出会触发上下文回收导致掉帧
@@ -988,6 +988,12 @@
             if (!(sr.width > 0)) return;   // 换行按钮不可见（输入条收起）时保持现值
             ta.style.left = (kr.right - pr.left) + 'px';   // 发按键右缘相对 #page
             ta.style.right = (pr.right - sr.left) + 'px';  // #page 右缘 - 换行按钮左缘
+            // 关闭按钮：浮于文本框右上角，与文本框同右缘、紧贴文本框顶边上方 4px
+            const xBtn = document.getElementById('inputBarClose');
+            if (xBtn) {
+                xBtn.style.right = ta.style.right;            // 与文本框同右缘（不盖「换行」）
+                xBtn.style.bottom = (ta.offsetHeight + 4) + 'px';  // 随文本框高度上移，始终贴右上角
+            }
         }
         // DOM 加载完成后首次同步
         if (document.readyState === 'loading') {
@@ -1791,6 +1797,7 @@ function showToast(message, type = 'success') {
         const inputBarBtn = document.getElementById('inputBarBtn');
         const inputBarWrap = document.getElementById('inputBarWrap');
         const inputBarText = document.getElementById('inputBarText');
+        const inputBarClose = document.getElementById('inputBarClose');
         const hotkeysListEl = document.getElementById('hotkeysList');
 
         // 切换：开↔关
@@ -1808,6 +1815,7 @@ function showToast(message, type = 'success') {
             inputBarText.style.display = 'block';    // 文本框独立显隐（已移出 hotkeys-bar，不再被 wrap 控制）
             applyInputBarButtonLabel();              // 按当前设置刷新右侧按钮文字
             positionInputBarText();                  // 文本框对齐底部栏内按钮（wrap 显示后按钮尺寸才有效）
+            inputBarClose.style.display = 'flex';    // 显示右上角关闭按钮
             // 不再清空 value：保留上次未发送草稿，autoGrow 按现有内容重算高度
             autoGrow(inputBarText);
             inputBarText.focus();
@@ -1818,6 +1826,7 @@ function showToast(message, type = 'success') {
             sessions.get(activeId)?.focus();
             inputBarWrap.style.display = 'none';
             inputBarText.style.display = 'none';     // 文本框独立显隐
+            inputBarClose.style.display = 'none';    // 隐藏右上角关闭按钮
             inputBarBtn.style.display = '';          // 恢复输入条按钮
             hotkeysListEl.style.display = 'flex';    // 恢复快捷键栏
             if (clear) { inputBarText.value = ''; }
