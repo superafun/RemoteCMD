@@ -12,6 +12,20 @@
     <script src="./addon-unicode11/lib/addon-unicode11.js"></script>
     <script src="./addon-webgl/lib/addon-webgl.js"></script>
     <script src="./term-session.js"></script>
+    <script>
+        // 一次性清理历史遗留的 Service Worker（本项目已移除 sw.js，但已装在设备上的旧 SW 仍在控制页面，
+        // 其 stale-while-revalidate 策略会导致每次更新都要刷新两次才生效）。加载即注销，无注册则为 no-op。
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function (regs) {
+                regs.forEach(function (r) { try { r.unregister(); } catch (e) {} });
+            }).catch(function () {});
+            if (self.caches && self.caches.keys) {
+                self.caches.keys().then(function (keys) {
+                    keys.forEach(function (k) { if (k.indexOf('remote-cmd-shell') === 0) self.caches.delete(k); });
+                }).catch(function () {});
+            }
+        }
+    </script>
 </head>
 
 <body>
@@ -56,7 +70,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 99;  // 每次代码改动 +1，用于验证前端改动是否已生效
+        const APP_VERSION = 100;  // 每次代码改动 +1，用于验证前端改动是否已生效
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         const MAX_SESSIONS = 16;     // 浏览器 WebGL 上下文上限，超出会触发上下文回收导致掉帧
