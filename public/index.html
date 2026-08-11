@@ -1847,6 +1847,7 @@ function showToast(message, type = 'success') {
         function autoGrow(ta) {
             ta.style.height = 'auto';
             ta.style.height = ta.scrollHeight + 'px';
+            if (ta === inputBarText) positionInputBarText(); // 高度变化后同步关闭按钮右上角位置（打字/历史翻页都走这里）
         }
         // 输入条回车停顿（ms），模拟手动按 Enter 前的手感；值来自设置项 enterDelayMs（多端同步），非硬编码
         function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
