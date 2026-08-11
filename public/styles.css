@@ -396,7 +396,7 @@
             outline: none;
             font: inherit;
             line-height: 1.4;
-            padding: 4px 26px 0;    /* 右侧 26px 给右上角 × 留位，文字不顶到下方 */
+            padding: 4px 26px 0 6px;    /* 右侧 26px 给右上角 × 留位；左 6px 保持原样，文字贴左 */
         }
         #inputBarText:focus {
             border-color: #0078d4;  /* 与 .modal-box input:focus 一致的 focus 视觉反馈 */
