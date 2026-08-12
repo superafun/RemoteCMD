@@ -71,7 +71,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 102;  // 每次代码改动 +1，用于验证前端改动是否已生效
+        const APP_VERSION = 103;  // 每次代码改动 +1，用于验证前端改动是否已生效
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         const MAX_SESSIONS = 16;     // 浏览器 WebGL 上下文上限，超出会触发上下文回收导致掉帧
@@ -661,19 +661,20 @@
             const cur = cellOfTouch(t);
             const sC1 = Math.min(selStartCell.col, cur.col), sC2 = Math.max(selStartCell.col, cur.col);
             const sR1 = Math.min(selStartCell.row, cur.row), sR2 = Math.max(selStartCell.row, cur.row);
-            ctx.textBaseline = 'middle';
-            ctx.font = Math.round(ch * Z) + 'px Consolas, "Microsoft YaHei", monospace';
+            // 画笔字号必须等于 xterm 真实字号(term.options.fontSize)×Z，使字形字宽≈格宽；
+            // 若用 cell.height×Z 会过大，英文字宽超出单格被邻格背景盖掉右半边（中文全角占两格不受影响）。
+            const fontSize = (term.options.fontSize || 15) * Z;
+            // 第 1 趟：填所有单元格背景 + 选区蓝底（先全部背景，文字后画，避免邻格背景盖掉字形右半边）
             for (let rVis = rowStart; rVis <= rowEnd; rVis++) {
                 const absRow = vy + rVis;
                 const line = term.buffer.active.getLine(absRow);
                 if (!line) continue;
                 for (let col = colStart; col <= colEnd; col++) {
                     const c = line.getCell(col);
-                    if (!c) continue;
-                    const w = c.getWidth();
-                    if (w === 0) continue;               // 宽字符的续格，跳过
+                    if (!c || c.getWidth() === 0) continue;   // 宽字符续格跳过
                     const px = (col * cw - originX) * Z;
                     const py = (rVis * ch - originY) * Z;
+                    const w = c.getWidth();
                     const inSel = absRow >= sR1 && absRow <= sR2 && col >= sC1 && col <= sC2;
                     ctx.fillStyle = resolveCellColor(term, c, false);
                     ctx.fillRect(px, py, cw * Z * w, ch * Z);
@@ -681,11 +682,26 @@
                         ctx.fillStyle = 'rgba(77,166,255,0.40)';
                         ctx.fillRect(px, py, cw * Z * w, ch * Z);
                     }
+                }
+            }
+            // 第 2 趟：画文字（在背景之上，字形可自然略超格宽也不会被邻格覆盖）
+            ctx.textBaseline = 'middle';
+            ctx.font = Math.round(fontSize) + 'px Consolas, "Microsoft YaHei", monospace';
+            for (let rVis = rowStart; rVis <= rowEnd; rVis++) {
+                const absRow = vy + rVis;
+                const line = term.buffer.active.getLine(absRow);
+                if (!line) continue;
+                for (let col = colStart; col <= colEnd; col++) {
+                    const c = line.getCell(col);
+                    if (!c || c.getWidth() === 0) continue;
                     const chars = c.getChars();
-                    if (chars && chars !== ' ' && chars.trim() !== '') {
-                        ctx.fillStyle = resolveCellColor(term, c, true);
-                        ctx.fillText(chars, px + cw * Z * 0.1, py + ch * Z / 2);
-                    }
+                    if (!chars || chars === ' ' || chars.trim() === '') continue;
+                    const w = c.getWidth();
+                    const px = (col * cw - originX) * Z;
+                    const py = (rVis * ch - originY) * Z;
+                    ctx.fillStyle = resolveCellColor(term, c, true);
+                    const aw = ctx.measureText(chars).width;
+                    ctx.fillText(chars, px + (cw * Z * w - aw) / 2, py + ch * Z / 2);
                 }
             }
             // loupe 屏幕位置：手指上方 LOUPE_GAP；上方放不下则翻到下方；边界 clamp
