@@ -71,7 +71,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 101;  // 每次代码改动 +1，用于验证前端改动是否已生效
+        const APP_VERSION = 102;  // 每次代码改动 +1，用于验证前端改动是否已生效
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         const MAX_SESSIONS = 16;     // 浏览器 WebGL 上下文上限，超出会触发上下文回收导致掉帧
@@ -585,25 +585,42 @@
         const LOUPE_ZOOM = 2.5;   // 放大倍数
         const LOUPE_GAP  = 70;    // 手指与 loupe 的垂直间距
 
+        // xterm 颜色编码（lib/xterm.js CellData）：fg/bg 高 2 位(0x03000000)为颜色类型——
+        // 0x03000000=真彩RGB(取低24位) / 0=默认色(用主题 foreground/background) /
+        // 0x01000000 或 0x02000000=调色板(低8位为索引→theme.ansi)。
+        const COLOR_TYPE_MASK = 0x03000000;
+        function getTheme(term) {
+            try { return term._core._themeService._colors; } catch (e) { return null; }
+        }
+        function resolveCellColor(term, cell, isFg) {
+            const theme = getTheme(term);
+            if (!cell) return isFg ? (theme ? theme.foreground.css : '#fff')
+                                   : (theme ? theme.background.css : '#000');
+            const v = isFg ? cell.fg : cell.bg;
+            const type = v & COLOR_TYPE_MASK;
+            if (type === COLOR_TYPE_MASK) {              // 真彩 RGB
+                return '#' + (v & 0xFFFFFF).toString(16).padStart(6, '0');
+            } else if (type === 0) {                     // 默认色
+                return isFg ? (theme ? theme.foreground.css : '#fff')
+                           : (theme ? theme.background.css : '#000');
+            }
+            const idx = v & 0xFF;                        // 调色板索引
+            if (theme && theme.ansi && theme.ansi[idx]) return theme.ansi[idx].css;
+            return isFg ? (theme ? theme.foreground.css : '#fff')
+                       : (theme ? theme.background.css : '#000');
+        }
+
+        // 放大镜改用 canvas 从 buffer 重绘：克隆 term.element 在 WebGL 渲染器下只剩空白 canvas
+        // （cloneNode 不复制位图），故改为读 term.buffer.active 的单元格数据自行放大绘制，渲染器无关。
         function showLoupe(t) {
             const term = getActiveTerm();
             if (!term || !term.element) return;
             if (!loupeEl) {
                 loupeEl = document.createElement('div');
                 loupeEl.className = 'loupe';
-                loupeEl.innerHTML = '<div class="loupe-inner"></div><div class="loupe-center"></div>';
+                loupeEl.innerHTML = '<div class="loupe-inner"><canvas class="loupe-canvas"></canvas></div><div class="loupe-center"></div>';
                 document.body.appendChild(loupeEl);
             }
-            const inner = loupeEl.querySelector('.loupe-inner');
-            inner.innerHTML = '';                       // 清旧克隆
-            const clone = term.element.cloneNode(true); // 快照当前屏幕（含选区蓝底）
-            const ta = clone.querySelector('.xterm-helper-textarea');
-            if (ta) ta.remove();                        // 排除隐藏辅助 textarea，避免聚焦干扰
-            inner.appendChild(clone);
-            // 选区高亮覆盖层：xterm 选区蓝底在克隆中不渲染，这里按单元格手绘（见 updateLoupe）
-            const selOverlay = document.createElement('div');
-            selOverlay.className = 'loupe-sel';
-            inner.appendChild(selOverlay);
             updateLoupe(t);
         }
 
@@ -611,30 +628,65 @@
             if (!loupeEl) return;
             const term = getActiveTerm();
             if (!term || !term.element) return;
+            const cell = getCellDims(term);
+            if (!cell) return;
+            const cw = cell.width, ch = cell.height;
             const rect = term.element.getBoundingClientRect();
-            const tx = t.clientX - rect.left;           // 手指在终端坐标内的位置
+            const tx = t.clientX - rect.left;           // 手指在终端 CSS 坐标内的位置
             const ty = t.clientY - rect.top;
-            const inner = loupeEl.querySelector('.loupe-inner');
-            // 以手指点为 pivot 放大，并把该点对齐到 loupe 中心
-            inner.style.transformOrigin = tx + 'px ' + ty + 'px';
-            inner.style.transform = 'scale(' + LOUPE_ZOOM + ')';
-            inner.style.left = (LOUPE_SIZE / 2 - tx) + 'px';
-            inner.style.top  = (LOUPE_SIZE / 2 - ty) + 'px';
-            // 选区高亮覆盖层：xterm 蓝底在克隆 DOM 中不渲染，按当前选区单元格手绘一层蓝色。
-            // 覆盖层与克隆同处 .loupe-inner 缩放空间，用未缩放的终端像素坐标，自动与放大文字对齐。
-            const sel = inner.querySelector('.loupe-sel');
-            const cell = sel ? getCellDims(term) : null;
-            if (sel && cell) {
-                const cur = cellOfTouch(t);
-                const c1 = Math.min(selStartCell.col, cur.col);
-                const r1 = Math.min(selStartCell.row, cur.row);
-                const c2 = Math.max(selStartCell.col, cur.col);
-                const r2 = Math.max(selStartCell.row, cur.row);
-                const vy = term.buffer.active.viewportY;   // 克隆显示的是视口内行，需减去偏移
-                sel.style.left   = (c1 * cell.width) + 'px';
-                sel.style.top    = ((r1 - vy) * cell.height) + 'px';
-                sel.style.width  = ((c2 - c1 + 1) * cell.width) + 'px';
-                sel.style.height = ((r2 - r1 + 1) * cell.height) + 'px';
+            const Z = LOUPE_ZOOM, W = LOUPE_SIZE, H = LOUPE_SIZE;
+            const canvas = loupeEl.querySelector('.loupe-canvas');
+            const dpr = window.devicePixelRatio || 1;
+            if (canvas.width !== Math.round(W * dpr)) {
+                canvas.width = Math.round(W * dpr);
+                canvas.height = Math.round(H * dpr);
+                canvas.style.width = W + 'px';
+                canvas.style.height = H + 'px';
+            }
+            const ctx = canvas.getContext('2d');
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.clearRect(0, 0, W, H);
+            const theme = getTheme(term);
+            ctx.fillStyle = theme ? theme.background.css : '#000';   // 整块垫底背景
+            ctx.fillRect(0, 0, W, H);
+            // 放大镜显示以手指为中心的终端区域（终端 CSS 坐标），放大 Z 倍
+            const originX = tx - W / (2 * Z);
+            const originY = ty - H / (2 * Z);
+            const vy = term.buffer.active.viewportY;
+            const cols = term.cols, rows = term.rows;
+            const colStart = Math.max(0, Math.floor(originX / cw) - 1);
+            const colEnd   = Math.min(cols - 1, Math.ceil((originX + W / Z) / cw) + 1);
+            const rowStart = Math.max(0, Math.floor(originY / ch) - 1);
+            const rowEnd   = Math.min(rows - 1, Math.ceil((originY + H / Z) / ch) + 1);
+            const cur = cellOfTouch(t);
+            const sC1 = Math.min(selStartCell.col, cur.col), sC2 = Math.max(selStartCell.col, cur.col);
+            const sR1 = Math.min(selStartCell.row, cur.row), sR2 = Math.max(selStartCell.row, cur.row);
+            ctx.textBaseline = 'middle';
+            ctx.font = Math.round(ch * Z) + 'px Consolas, "Microsoft YaHei", monospace';
+            for (let rVis = rowStart; rVis <= rowEnd; rVis++) {
+                const absRow = vy + rVis;
+                const line = term.buffer.active.getLine(absRow);
+                if (!line) continue;
+                for (let col = colStart; col <= colEnd; col++) {
+                    const c = line.getCell(col);
+                    if (!c) continue;
+                    const w = c.getWidth();
+                    if (w === 0) continue;               // 宽字符的续格，跳过
+                    const px = (col * cw - originX) * Z;
+                    const py = (rVis * ch - originY) * Z;
+                    const inSel = absRow >= sR1 && absRow <= sR2 && col >= sC1 && col <= sC2;
+                    ctx.fillStyle = resolveCellColor(term, c, false);
+                    ctx.fillRect(px, py, cw * Z * w, ch * Z);
+                    if (inSel) {                          // 选区蓝底（按单元格手绘，渲染器无关）
+                        ctx.fillStyle = 'rgba(77,166,255,0.40)';
+                        ctx.fillRect(px, py, cw * Z * w, ch * Z);
+                    }
+                    const chars = c.getChars();
+                    if (chars && chars !== ' ' && chars.trim() !== '') {
+                        ctx.fillStyle = resolveCellColor(term, c, true);
+                        ctx.fillText(chars, px + cw * Z * 0.1, py + ch * Z / 2);
+                    }
+                }
             }
             // loupe 屏幕位置：手指上方 LOUPE_GAP；上方放不下则翻到下方；边界 clamp
             let lx = t.clientX - LOUPE_SIZE / 2;

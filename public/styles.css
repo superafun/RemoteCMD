@@ -611,13 +611,18 @@
     z-index: 1000;
     background: #1e1e1e;           /* 与终端背景一致，避免边缘露白 */
 }
-/* 克隆终端的缩放层：绝对定位，由 JS 设置 transform/left/top */
+/* 重绘层：绝对定位铺满圆形容器，由内部 canvas 自绘放大内容 */
 .loupe-inner {
     position: absolute;
     top: 0;
     left: 0;
-    transform-origin: 0 0;         /* JS 会按手指坐标覆盖 */
-    will-change: transform, left, top;
+    width: 140px;
+    height: 140px;
+}
+.loupe-canvas {
+    display: block;
+    width: 140px;
+    height: 140px;
 }
 /* 中心标记：指示手指正对的确切字符位置 */
 .loupe-center {
@@ -631,15 +636,6 @@
     background: rgba(255,80,80,0.9);
     box-shadow: 0 0 0 1px rgba(0,0,0,0.4);
     pointer-events: none;
-}
-/* 选区高亮覆盖层：xterm 选区蓝底在克隆 DOM 中不渲染，这里按单元格手绘一层蓝色（与克隆同处
-   .loupe-inner 缩放空间，自动与放大文字对齐）。pointer-events:none 不拦截触摸。 */
-.loupe-sel {
-    position: absolute;
-    background: rgba(77, 166, 255, 0.40);
-    border-radius: 1px;
-    pointer-events: none;
-    z-index: 1;
 }
 
 /* 安卓软键盘持久化（2026-08-06 起）：
