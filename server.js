@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const http = require('http');
+const { execFileSync } = require('child_process');
 const fs = require('fs');
 const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
@@ -518,20 +519,62 @@ function computeSmartName() {
     return 'Shell #1';
 }
 
+// === Windows PATH 刷新：从注册表现读"最新" PATH，摆脱 PM2 守护进程的陈旧 env 快照 ===
+// 背景：常驻进程（含 PM2）的 PATH 是启动那一刻的继承快照，新装工具写入注册表后不会自动出现在
+// 已有进程里，导致新终端读不到新命令。这里用系统自带 reg.exe 现读 机器/user 两级 PATH，合并去重后
+// 再展开 %VAR%，与手动 `refreshenv` 行为等价，仅在 spawn PTY 时调用（换新终端即时生效）。
+const REG_MACHINE_PATH = 'HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment';
+const REG_USER_PATH = 'HKCU\\Environment';
+
+// 读取注册表指定位置的 PATH 原始值；失败（键不存在等）返回 null
+function readRegPath(key) {
+    try {
+        const out = execFileSync('reg', ['query', key, '/v', 'Path'], { encoding: 'utf8', windowsHide: true });
+        const m = out.match(/\s+Path\s+REG_EXPAND_SZ\s+(.+)$/m);
+        return m ? m[1].trim() : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+// 展开 PATH 里的 %VAR%（系统级常量如 %SystemRoot% 在当前进程 env 必有；个别新增变量未加载则保留原样）
+function expandEnvVars(str) {
+    return str.replace(/%([^%]+)%/g, (_, name) =>
+        process.env[name] != null ? process.env[name] : `%${name}%`
+    );
+}
+
+// 合并 机器PATH + 用户PATH 并按序去重，得到“最新”PATH 字符串
+function freshPath() {
+    const machine = readRegPath(REG_MACHINE_PATH) || '';
+    const user = readRegPath(REG_USER_PATH) || '';
+    const seen = new Set();
+    const parts = (machine + ';' + user).split(';').filter((p) => {
+        if (!p) return false;
+        if (seen.has(p)) return false;
+        seen.add(p);
+        return true;
+    });
+    return expandEnvVars(parts.join(';'));
+}
+
 function createSession() {
     const newId = sessionCounter++;
     const slot = config.sizeSlots[config.currentSize];
     // 使用探测后的绝对路径（见 detectShell），避免 node-pty 找不到 WindowsApps 别名下的 pwsh.exe
-    // 不传 env → node-pty 默认继承父进程 env。
+    // env 显式传入：spawn 时从注册表现刷 PATH，不继承父进程（服务端/PM2）的陈旧 PATH 快照。
     // PS7 的 PSEdition-aware 模块加载能正确挑出 PS7 版本模块，无需过滤 PSModulePath；
     // 实测过滤反而会误删 `C:\Program Files\WindowsPowerShell\Modules`（PS5.1/PS7 共享的 AllUsers 模块路径）。
     let ptyProcess;
+    // 仅 Windows 需要现刷 PATH；其它平台保持默认继承行为（由平台自身管理环境）
+    const spawnEnv = process.platform === 'win32' ? { ...process.env, PATH: freshPath() } : undefined;
     try {
         ptyProcess = pty.spawn(config.shellPath, ['-ExecutionPolicy', 'Bypass'], {
             name: 'xterm-color',
             cols: slot.cols,
             rows: slot.rows,
-            cwd: process.env.USERPROFILE
+            cwd: process.env.USERPROFILE,
+            env: spawnEnv
         });
     } catch (e) {
         console.error('[createSession] spawn 失败:', config.shellPath, e && e.message);
