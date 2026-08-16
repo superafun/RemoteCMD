@@ -1,7 +1,6 @@
 const express = require('express');
 const path = require('path');
 const http = require('http');
-const { execFileSync } = require('child_process');
 const fs = require('fs');
 const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
@@ -519,62 +518,39 @@ function computeSmartName() {
     return 'Shell #1';
 }
 
-// === Windows PATH 刷新：从注册表现读"最新" PATH，摆脱 PM2 守护进程的陈旧 env 快照 ===
-// 背景：常驻进程（含 PM2）的 PATH 是启动那一刻的继承快照，新装工具写入注册表后不会自动出现在
-// 已有进程里，导致新终端读不到新命令。这里用系统自带 reg.exe 现读 机器/user 两级 PATH，合并去重后
-// 再展开 %VAR%，与手动 `refreshenv` 行为等价，仅在 spawn PTY 时调用（换新终端即时生效）。
-const REG_MACHINE_PATH = 'HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment';
-const REG_USER_PATH = 'HKCU\\Environment';
-
-// 读取注册表指定位置的 PATH 原始值；失败（键不存在等）返回 null
-function readRegPath(key) {
+// Windows: 每个新 shell 启动后，从注册表现刷 $env:Path，补齐服务端(PM2)陈旧 env 里缺失的新装命令。
+// 实测 node-pty(ConPTY) 子进程环境固定取自父 node 进程启动快照，服务端无法注入新 PATH；
+// 只能在进程内由 shell 自己刷新——此命令即官方 pwsh 无内建 refreshenv 情况下的手工等价写法，
+// 写入后紧跟 Clear-Host 把执行过程从屏幕上清掉，做到"新建终端自动生效"且不打扰。
+function refreshTerminalPath(ptyProc) {
+    if (process.platform !== 'win32') return;
+    // 仅对 PowerShell 系 shell 注入；cmd 等其它 shell 不适用 PS 语法，跳过
+    const shell = String(config.shellPath || '').toLowerCase();
+    if (!shell.includes('pwsh') && !shell.includes('powershell')) return;
     try {
-        const out = execFileSync('reg', ['query', key, '/v', 'Path'], { encoding: 'utf8', windowsHide: true });
-        const m = out.match(/\s+Path\s+REG_EXPAND_SZ\s+(.+)$/m);
-        return m ? m[1].trim() : null;
+        ptyProc.write("$env:Path = [Environment]::ExpandEnvironmentVariables([Environment]::GetEnvironmentVariable('Path','Machine')) + ';' + [Environment]::ExpandEnvironmentVariables([Environment]::GetEnvironmentVariable('Path','User')); Clear-Host\r");
     } catch (e) {
-        return null;
+        console.error('[createSession] 刷新 PATH 失败:', e && e.message);
     }
-}
-
-// 展开 PATH 里的 %VAR%（系统级常量如 %SystemRoot% 在当前进程 env 必有；个别新增变量未加载则保留原样）
-function expandEnvVars(str) {
-    return str.replace(/%([^%]+)%/g, (_, name) =>
-        process.env[name] != null ? process.env[name] : `%${name}%`
-    );
-}
-
-// 合并 机器PATH + 用户PATH 并按序去重，得到“最新”PATH 字符串
-function freshPath() {
-    const machine = readRegPath(REG_MACHINE_PATH) || '';
-    const user = readRegPath(REG_USER_PATH) || '';
-    const seen = new Set();
-    const parts = (machine + ';' + user).split(';').filter((p) => {
-        if (!p) return false;
-        if (seen.has(p)) return false;
-        seen.add(p);
-        return true;
-    });
-    return expandEnvVars(parts.join(';'));
 }
 
 function createSession() {
     const newId = sessionCounter++;
     const slot = config.sizeSlots[config.currentSize];
     // 使用探测后的绝对路径（见 detectShell），避免 node-pty 找不到 WindowsApps 别名下的 pwsh.exe
-    // env 显式传入：spawn 时从注册表现刷 PATH，不继承父进程（服务端/PM2）的陈旧 PATH 快照。
+    // 【节点 2026-08-17】不再是 spawn 时注入 env 刷 PATH：实测 node-pty(Windows/ConPTY) 的子进程环境
+    // 固定取自父 node 进程启动那一刻的快照（对服务来说就是 PM2 守护进程的陈旧 env），既忽略
+    // pty.spawn({env}) 里的 PATH，也 ignore 运行期 process.env.PATH 覆盖，无法从服务端强行注入新 PATH。
+    // 因此改为：spawn 完成后把"从注册表现刷 PATH"命令写进每个新 shell（见下方 refreshTerminalPath）。
     // PS7 的 PSEdition-aware 模块加载能正确挑出 PS7 版本模块，无需过滤 PSModulePath；
     // 实测过滤反而会误删 `C:\Program Files\WindowsPowerShell\Modules`（PS5.1/PS7 共享的 AllUsers 模块路径）。
     let ptyProcess;
-    // 仅 Windows 需要现刷 PATH；其它平台保持默认继承行为（由平台自身管理环境）
-    const spawnEnv = process.platform === 'win32' ? { ...process.env, PATH: freshPath() } : undefined;
     try {
         ptyProcess = pty.spawn(config.shellPath, ['-ExecutionPolicy', 'Bypass'], {
             name: 'xterm-color',
             cols: slot.cols,
             rows: slot.rows,
-            cwd: process.env.USERPROFILE,
-            env: spawnEnv
+            cwd: process.env.USERPROFILE
         });
     } catch (e) {
         console.error('[createSession] spawn 失败:', config.shellPath, e && e.message);
@@ -584,6 +560,8 @@ function createSession() {
         return;
     }
     sessions[newId] = { pty: ptyProcess, inputLine: '', name: computeSmartName() };
+    // 新建终端后自动刷新 PATH（Windows / PowerShell 系 shell 生效）
+    refreshTerminalPath(ptyProcess);
     // === 重连同步：headless 终端维护"当前可见屏幕 + 有界真实滚屏历史" ===
     // scrollback 用有界行数（config.screenHistoryLines，绝不为 0，否则重连无法上滚看历史）。
     // 加载 Unicode11Addon 与客户端一致，保证字符宽度/换行对齐；SerializeAddon 用于重连时序列化整屏。
