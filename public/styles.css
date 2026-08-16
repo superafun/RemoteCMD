@@ -84,7 +84,7 @@
             transform: translateX(-50%);
             z-index: 999;
             box-sizing: border-box;
-            max-height: max(120px, calc(var(--page-height) - 16px));
+            max-height: max(240px, calc(var(--page-height) - 16px));
             width: min(calc(100vw - 24px), 560px);
             max-width: min(calc(100vw - 24px), 560px);
             min-width: 0;
