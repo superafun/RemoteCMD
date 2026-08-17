@@ -378,23 +378,9 @@ function serverViewportHash(screen) {
     return (h >>> 0).toString(16);
 }
 
-// 等 headless 终端把"当前已排队的全部 write"解析完后，序列化整屏（可见视口 + 有界真实滚屏历史）。
-// 关键点：xterm 的 write() 是异步的，必须在最后一个 write 的回调之后才能 serialize，
-// 否则会拍到半更新的屏幕（策划阶段已用冒烟测试验证：同步 serialize 会得到残缺屏）。
-// sess._writeSeq 是一条"已发出 write 的串行 promise 链"，这里快照当前链尾再序列化。
-function serializeScreen(sess) {
-    const seq = sess._writeSeq || Promise.resolve();
-    return seq.then(() => {
-        try {
-            return sess.serializeAddon.serialize();
-        } catch (e) {
-            throw e;
-        }
-    });
-}
-
 function broadcast(msg) {
-    wss.clients.forEach(c => c.readyState === 1 && c.send(JSON.stringify(msg)));
+    const s = JSON.stringify(msg);  // 只序列化一次，复用同一字符串发给所有客户端（字符串不可变，安全）
+    wss.clients.forEach(c => c.readyState === 1 && c.send(s));
 }
 
 function applySetting(key, type, data, validator) {
@@ -566,7 +552,7 @@ function createSession() {
     // === 重连同步：headless 终端维护"当前可见屏幕 + 有界真实滚屏历史" ===
     // scrollback 用有界行数（config.screenHistoryLines，绝不为 0，否则重连无法上滚看历史）。
     // 加载 Unicode11Addon 与客户端一致，保证字符宽度/换行对齐；SerializeAddon 用于重连时序列化整屏。
-    // _writeSeq：一条写回调串行链，保证 serialize 前所有 write 都已解析（见 serializeScreen）。
+    // _writeSeq：一条写回调串行链，保证 serialize 前所有 write 都已解析（见 buffer 处理器）。
     {
         const screen = new HeadlessTerminal({ scrollback: config.screenHistoryLines || 1000, allowProposedApi: true });
         screen.loadAddon(new HeadlessUnicode11Addon());
