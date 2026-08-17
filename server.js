@@ -339,6 +339,7 @@ app.use('/addon-unicode11', express.static(path.join(__dirname, 'node_modules/@x
 app.use('/addon-webgl', express.static(path.join(__dirname, 'node_modules/@xterm/addon-webgl')));
 
 const sessions = {};
+const MAX_SESSIONS = 16; // 服务端会话数量上限（对齐前端原 WebGL 上下文上限，防止 PTY/conhost 进程无限增长）
 let sessionCounter = 1;
 
 // 构造 size_slots 全量广播消息
@@ -642,7 +643,13 @@ wss.on('connection', (ws) => {
     ws.on('message', (msg) => {
         const p = JSON.parse(msg.toString());
         const { type, id, data } = p;
-        if (type === 'create') createSession();
+        if (type === 'create') {
+            if (Object.keys(sessions).length >= MAX_SESSIONS) {
+                ws.send(JSON.stringify({ type: 'server_log', level: 'error', text: '已达会话数量上限（16 个），无法新建终端' }));
+            } else {
+                createSession();
+            }
+        }
         else if (type === 'input' && sessions[id]) {
             sessions[id].pty.write(data);
             const line = feedInputLine(id, data);

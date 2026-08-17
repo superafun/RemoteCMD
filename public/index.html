@@ -74,7 +74,6 @@
         const APP_VERSION = 103;  // 每次代码改动 +1，用于验证前端改动是否已生效
         let ws = null;
         const sessions = new Map();  // number id → TermSession
-        const MAX_SESSIONS = 16;     // 浏览器 WebGL 上下文上限，超出会触发上下文回收导致掉帧
         let activeId = null;         // number | null
         let recentPaths = [];
         let recentPathsLimit = 10;
@@ -1235,10 +1234,6 @@
             openDropdownBelow('sessionSelectBtn', 'sessionDropdown', (r, dd) => { dd.style.width = r.width + 'px'; dd.style.minWidth = r.width + 'px'; });
         });
         function createNew() {
-            if (sessions.size >= MAX_SESSIONS) {
-                showToast(`最多同时开 ${MAX_SESSIONS} 个终端（浏览器 WebGL 上下文限制）`, 'warn');
-                return;
-            }
             addFrontendLog('新建终端', 'out');
             pendingCreate = true;
             wsSend({ type: 'create' });

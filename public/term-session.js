@@ -59,7 +59,7 @@ class TermSession {
         // 完全不走字体，从根上消除移动端字体回退不一致导致的错位。
         try {
             const webgl = new WebglAddon.WebglAddon();
-            // 会话数已在 createNew 上限 16（浏览器 WebGL context 上限），不会触发 context 回收，无需 onContextLoss 兜底
+            // 会话数由服务端统一限制（MAX_SESSIONS=16，对齐 WebGL context 上限），前端不再本地拦截，无需 onContextLoss 兜底
             this.term.loadAddon(webgl);
         } catch(e) {
             if (typeof addFrontendLog === 'function') addFrontendLog('WebglAddon 加载失败，回退 DOM 渲染器: ' + e, 'warn');
