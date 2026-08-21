@@ -383,6 +383,16 @@ function broadcast(msg) {
     wss.clients.forEach(c => c.readyState === 1 && c.send(s));
 }
 
+// === 当前客户端连接数量：每次连接/断开后重算并广播 ===
+function countOpenClients() {
+    let n = 0;
+    wss.clients.forEach(c => { if (c.readyState === 1) n++; });  // readyState 1 = OPEN，排除 CONNECTING/CLOSING 瞬时态
+    return n;
+}
+function broadcastClientCount() {
+    broadcast({ type: 'client_count', data: countOpenClients() });
+}
+
 function applySetting(key, type, data, validator) {
     if (validator && !validator(data)) return;
     config[key] = data;
@@ -394,6 +404,18 @@ const wss = new WebSocketServer({ server, verifyClient: (info, done) => {
     if (isAuthed(info.req)) return done(true);
     return done(false, 401, 'Unauthorized');
 } });
+
+// === 心跳：清理崩溃/断网后未正常发送 close 的僵尸连接，保证 client_count 准确 ===
+// 采用 ws 官方标准 ping/pong isAlive 模式（原生方案，非 hack）
+const HEARTBEAT_INTERVAL = 30000;
+const heartbeat = setInterval(() => {
+    wss.clients.forEach(ws => {
+        if (ws.isAlive === false) return ws.terminate();  // 上一轮 ping 未收到 pong → 杀掉，触发 close → 广播更新
+        ws.isAlive = false;
+        try { ws.ping(); } catch (e) {}
+    });
+}, HEARTBEAT_INTERVAL);
+wss.on('close', () => clearInterval(heartbeat));  // 服务关闭时清理定时器，避免句柄泄漏
 
 // 服务端日志转发到前端：前端看不到 console，所有 error/warn 必须进前端日志（error 额外触发 toast）
 function serverLog(level, text) {
@@ -590,6 +612,11 @@ function createSession() {
 }
 
 wss.on('connection', (ws) => {
+    ws.isAlive = true;
+    ws.on('pong', () => { ws.isAlive = true; });
+    // 连接断开/出错都重算并广播客户端数量（当前代码无 close 处理器，此处新增）
+    ws.on('close', () => broadcastClientCount());
+    ws.on('error', () => broadcastClientCount());
     // === 先发影响 list 处理的设置（size_slots + current_size），再发 list ===
     // 这样前端 list 处理器可以无条件从 sizeSlots[currentSize] 取值 resize 新会话
     // 不区分"首次连接"和"后续新建"两条路径（2026-07-02 重构 + 2026-07-02 扩展）
@@ -626,6 +653,8 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'recent_names', data: config.recentNames }));
     ws.send(JSON.stringify({ type: 'recent_paths_limit', data: config.recentPathsLimit }));
     ws.send(JSON.stringify({ type: 'glass_mode', data: config.glassConfig }));
+    // 连接建立完成：广播最新客户端数量（此时新 ws 已在 wss.clients 中，新人会立即收到含自己的总数）
+    broadcastClientCount();
     ws.on('message', (msg) => {
         const p = JSON.parse(msg.toString());
         const { type, id, data } = p;
