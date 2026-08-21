@@ -7,7 +7,6 @@
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",
-  "orientation": "default",
   "background_color": "#0b1020",
   "theme_color": "#0b1020",
   "categories": ["developer", "productivity", "utilities"],
