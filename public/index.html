@@ -45,6 +45,7 @@
                 <button id="logoutBtn" onclick="logout()">退出</button>
                 <span id="wsStatus"></span>
             </div>
+            <div class="toolbar-center"><span id="clientCount">1</span></div>
             <div id="sessionDropdown" class="dropdown-menu"></div>
             <div id="renameDropdown" class="dropdown-menu"></div>
             <div id="recentPathsDropdown" class="dropdown-menu"></div>
@@ -71,7 +72,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 103;  // 每次代码改动 +1，用于验证前端改动是否已生效
+        const APP_VERSION = 104;  // 每次代码改动 +1，用于验证前端改动是否已生效
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -1021,6 +1022,11 @@
                             addFrontendLog('历史命名已删除: ' + msg.deleted + ' (共 ' + recentNames.length + ' 条)', 'in');
                         } else {
                             addFrontendLog('历史命名已同步: ' + recentNames.length + ' 条', 'in');
+                        }
+                    } else if (msg.type === 'client_count') {
+                        const el = document.getElementById('clientCount');
+                        if (el && Number.isInteger(msg.data)) {
+                            el.textContent = msg.data;  // 整数直接写 textContent，无 HTML 注入风险
                         }
                     }
                 };

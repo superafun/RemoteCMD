@@ -349,6 +349,30 @@
         }
         .toolbar-left { margin-right: auto; }  /* 弹性撑杆：将右侧按钮组推向顶栏右端 */
         .toolbar-right { margin-left: auto; }   /* 弹性撑杆：与左侧配合，使左右按钮组分居两端（窄屏换行时右组右对齐） */
+        /* 顶栏正中：客户端连接数量徽标（绝对定位，不破坏 left/right flex 布局） */
+        .toolbar-center {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;  /* 徽标不拦截点击 */
+        }
+        .toolbar-center #clientCount {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 22px;
+            height: 22px;
+            padding: 0 7px;
+            border-radius: 11px;
+            font-size: 12px;
+            line-height: 1;
+            color: #fff;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+            -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+        }
         #hotkeys-bar {
             display: flex;
             flex-wrap: nowrap;
