@@ -1028,12 +1028,9 @@
                         if (el && Number.isInteger(msg.data)) {
                             el.textContent = msg.data;  // 整数直接写 textContent，无 HTML 注入风险
                         }
-                    } else if (msg.type === 'input_draft') {
-                        // 内容相同就跳过：打字的那端会收到自己的回声，重写会重置光标、打断中文输入法组合
-                        if (typeof msg.data === 'string' && inputBarText.value !== msg.data) {
-                            inputBarText.value = msg.data;
-                            autoGrow(inputBarText);
-                        }
+                    } else if (msg.type === 'input_draft' && typeof msg.data === 'string') {
+                        inputBarText.value = msg.data;   // 服务端已排除发起者，收到的必是别人的更新
+                        autoGrow(inputBarText);
                     }
                 };
             }
@@ -1871,7 +1868,8 @@ function showToast(message, type = 'success') {
             autoGrow(inputBarText);
             inputBarText.focus();
         }
-        function closeInputBar(clear = true) {
+        // 只收起 UI、不清空文本：草稿是跨端共享状态，关闭与重新打开都不应改变它（重开仍在原位）
+        function closeInputBar() {
             // 先交还终端焦点，避免 textarea 隐藏瞬间失焦导致移动端软键盘收回
             // （与其他快捷键按钮一致：点完后焦点仍在终端输入框，键盘不收）
             sessions.get(activeId)?.focus();
@@ -1880,15 +1878,15 @@ function showToast(message, type = 'success') {
             inputBarClose.style.display = 'none';    // 隐藏右上角关闭按钮
             inputBarBtn.style.display = '';          // 恢复输入条按钮
             hotkeysListEl.style.display = 'flex';    // 恢复快捷键栏
-            if (clear) { inputBarText.value = ''; }
             cmdHistoryIdx = -1; cmdHistoryDraft = '';
             // 不显式设 height='auto':下次 openInputBar → autoGrow() 会自己重置
         }
-        // 保留草稿地关闭（焦点移出用）：不清空内容，下次点开仍可见
-        function closeInputBarPreserve() { closeInputBar(false); }
+        // 草稿多端同步：内容一变就广播。程序给 value 赋值不触发 input 事件，故赋值处须手动调本函数
+        function syncInputDraft() { wsSend({ type: 'input_draft', data: inputBarText.value }); }
         // 清空内容但保持展开、焦点留在输入框（Esc / 发送后用）
         function clearInputBar() {
             inputBarText.value = '';
+            syncInputDraft();
             cmdHistoryIdx = -1; cmdHistoryDraft = '';
             // 不显式设 height='auto':下面 autoGrow() 第一行会自己重置
             autoGrow(inputBarText);
@@ -1921,6 +1919,7 @@ function showToast(message, type = 'success') {
             inputBarText.value = inputBarText.value.slice(0, s) + '\n' + inputBarText.value.slice(e);
             inputBarText.selectionStart = inputBarText.selectionEnd = s + 1;
             autoGrow(inputBarText);
+            syncInputDraft();
             inputBarText.focus();
         }
         // 右侧按钮：按当前设置决定是换行还是发送
@@ -1938,10 +1937,8 @@ function showToast(message, type = 'success') {
             if (!t) { return; }                                  // 空内容：不发送、不关闭（回车发送语义）
             const targetId = activeId;                            // 捕获目标会话，防止发送途中切换会话串台
             const textSeq = t.replace(/\n/g, '\r');              // 正文内容，\n→\r，不含末尾回车
-            // 原：clearInputBar();  // 清空内容但保持展开
-            // 改：按设置决定收起还是保持展开
-            if (inputBarCloseAfterSend) closeInputBar();   // 清空并收起（closeInputBar 默认 clear=true）
-            else clearInputBar();                          // 清空保持展开
+            clearInputBar();                               // 发送后草稿作废（清空并同步到其他端）
+            if (inputBarCloseAfterSend) closeInputBar();   // 收起输入条（收起本身不清空）
             if (!targetId) return;                               // 捕获时无活动会话则不发送
             // 记录命令历史（空内容不发，已由前面 !t return 保证；重复命令去重并移到最前）
             if (t) {
@@ -1953,7 +1950,7 @@ function showToast(message, type = 'success') {
             await sleep(enterDelayMs);                          // 停顿，模拟手动按 Enter 前的手感（取自设置项）
             wsSend({ type: 'input', id: targetId, data: '\r' });     // 单独发回车 = 确认/执行
         }
-        inputBarText.addEventListener('input', () => autoGrow(inputBarText));
+        inputBarText.addEventListener('input', () => { autoGrow(inputBarText); syncInputDraft(); });
         // 输入条命令历史上/下浏览：物理键盘(keydown) 与 「发按键」面板 共用同一份逻辑
         // dir: 'up' | 'down'
         function navigateCmdHistory(dir) {
@@ -1978,6 +1975,7 @@ function showToast(message, type = 'success') {
                 }
             }
             autoGrow(inputBarText);
+            syncInputDraft();
             inputBarText.selectionStart = inputBarText.selectionEnd = inputBarText.value.length;
             inputBarText.focus();   // 面板点按后焦点可能离开 textarea，回到输入条以保光标/软键盘
         }
@@ -2007,7 +2005,7 @@ function showToast(message, type = 'success') {
             const r = e.relatedTarget;
             // 焦点仍在输入条内（换行按钮 或 textarea 自身），不关闭
             if (r && (inputBarWrap.contains(r) || r === inputBarText)) return;
-            closeInputBarPreserve();                             // 点外部/终端：关闭但保留草稿
+            closeInputBar();                                     // 点外部/终端：收起输入条，草稿保留
         });
 
         function openHotkeyEditor() {

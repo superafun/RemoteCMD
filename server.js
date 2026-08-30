@@ -342,6 +342,10 @@ const sessions = {};
 const MAX_SESSIONS = 16; // 服务端会话数量上限（对齐前端原 WebGL 上下文上限，防止 PTY/conhost 进程无限增长）
 let sessionCounter = 1;
 
+// 底部输入条共享草稿：所有客户端共用一份，只存内存（重启即空），不进 config.json
+let inputDraft = '';
+const INPUT_DRAFT_MAX = 10000; // 上限，防止一次超大粘贴广播给所有客户端
+
 // 构造 size_slots 全量广播消息
 function buildSizeSlotsMsg() {
     return { type: 'size_slots', data: config.sizeSlots };
@@ -378,9 +382,10 @@ function serverViewportHash(screen) {
     return (h >>> 0).toString(16);
 }
 
-function broadcast(msg) {
+// except：可选，跳过某个连接（用于「广播给除发起者之外的所有人」）
+function broadcast(msg, except) {
     const s = JSON.stringify(msg);  // 只序列化一次，复用同一字符串发给所有客户端（字符串不可变，安全）
-    wss.clients.forEach(c => c.readyState === 1 && c.send(s));
+    wss.clients.forEach(c => c !== except && c.readyState === 1 && c.send(s));
 }
 
 // === 当前客户端连接数量：每次连接/断开后重算并广播 ===
@@ -651,6 +656,7 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'session_duration_hours', data: config.sessionDurationHours }));
     ws.send(JSON.stringify({ type: 'recent_paths', data: config.recentPaths }));
     ws.send(JSON.stringify({ type: 'recent_names', data: config.recentNames }));
+    ws.send(JSON.stringify({ type: 'input_draft', data: inputDraft })); // 新客户端/刷新后看到当前共享草稿
     ws.send(JSON.stringify({ type: 'recent_paths_limit', data: config.recentPathsLimit }));
     ws.send(JSON.stringify({ type: 'glass_mode', data: config.glassConfig }));
     // 连接建立完成：广播最新客户端数量（此时新 ws 已在 wss.clients 中，新人会立即收到含自己的总数）
@@ -676,6 +682,11 @@ wss.on('connection', (ws) => {
                     });
                 }
             }
+        }
+        else if (type === 'input_draft') {
+            inputDraft = typeof data === 'string' ? data.slice(0, INPUT_DRAFT_MAX) : '';
+            // 不回发给发起者：回声滞后到达时会把发起者已更新的新内容回滚成旧值（实测打字丢字符）
+            broadcast({ type: 'input_draft', data: inputDraft }, ws);
         }
         else if (type === 'recent_paths_delete') removeFromRecentList(config.recentPaths, data, 'recent_paths', 'deleted');
         else if (type === 'kill' && sessions[id]) sessions[id].pty.kill();
