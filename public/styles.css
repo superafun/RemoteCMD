@@ -331,16 +331,11 @@
             gap: 0;
             align-items: center;
             /* width 由 #page flex 列布局默认 stretch 提供 */
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            z-index: 10;
-            background: transparent;  /* 全透明覆盖在 xterm 上 */
+            /* 顶栏常驻于文档流顶部，终端紧接其下（终端顶部对接顶栏底部） */
+            position: relative;  /* 定位上下文：顶栏居中徽标 .toolbar-center 锚定到本栏 */
+            background: transparent;
             padding-top: env(safe-area-inset-top, 0);  /* 顶栏下移避开系统状态栏（普通手机有效；桌面无 inset 无影响） */
-            transition: transform .25s ease-out;  /* 顶栏自动隐藏动画 */
         }
-        .toolbar.toolbar-hidden { transform: translateY(-100%); }
         .toolbar-left, .toolbar-right {
             display: flex;
             flex-wrap: wrap;
