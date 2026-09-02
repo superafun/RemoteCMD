@@ -72,7 +72,7 @@
     <script src="./xterm/lib/xterm.js"></script>
     <script>
         const terminalContainer = document.getElementById('terminal-container');
-        const APP_VERSION = 106;  // 每次代码改动 +1，用于验证前端改动是否已生效
+        const APP_VERSION = 107;  // 每次代码改动 +1，用于验证前端改动是否已生效
         let ws = null;
         const sessions = new Map();  // number id → TermSession
         let activeId = null;         // number | null
@@ -1936,7 +1936,9 @@ function showToast(message, type = 'success') {
             const t = inputBarText.value.replace(/\n+$/, '');   // 去末尾换行，避免多发空行
             if (!t) { return; }                                  // 空内容：不发送、不关闭（回车发送语义）
             const targetId = activeId;                            // 捕获目标会话，防止发送途中切换会话串台
-            const textSeq = t.replace(/\n/g, '\r');              // 正文内容，\n→\r，不含末尾回车
+            // 【临时试验】注释掉 \n→\r 转换，把原始 LF 直接发往终端，观察实际反应
+            // const textSeq = t.replace(/\n/g, '\r');            // 原：正文内容，\n→\r，不含末尾回车
+            const textSeq = t;                                    // 试验版：换行保留 LF，不做转换
             clearInputBar();                               // 发送后草稿作废（清空并同步到其他端）
             if (inputBarCloseAfterSend) closeInputBar();   // 收起输入条（收起本身不清空）
             if (!targetId) return;                               // 捕获时无活动会话则不发送
