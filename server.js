@@ -479,6 +479,54 @@ function normalizePath(s) {
     return s;
 }
 
+// 自动重命名：取路径末端文件夹名，与历史命名比对，够像则把会话名改成最相近的历史名。
+const AUTO_RENAME_MIN_SIMILARITY = 0.5;
+
+// 相似度：相等或互相包含 → 1；否则 最长公共子串长度 / 较短串长度
+function nameSimilarity(a, b) {
+    a = (a || '').trim(); b = (b || '').trim();
+    if (!a || !b) return 0;
+    if (a === b) return 1;
+    if (a.includes(b) || b.includes(a)) return 1;
+    return longestCommonSubstring(a, b) / Math.min(a.length, b.length);
+}
+
+function longestCommonSubstring(a, b) {
+    let best = 0;
+    const dp = new Array(b.length + 1).fill(0);
+    for (let i = 1; i <= a.length; i++) {
+        let prev = 0;
+        for (let j = 1; j <= b.length; j++) {
+            const tmp = dp[j];
+            dp[j] = a[i - 1] === b[j - 1] ? prev + 1 : 0;
+            if (dp[j] > best) best = dp[j];
+            prev = tmp;
+        }
+    }
+    return best;
+}
+
+// 解析出的文件夹路径 → 取末端文件夹名 → 与历史命名找最相近者 → 够像则改名（含置顶/广播/落盘）
+function autoRenameByFolder(id, folderPath) {
+    const sess = sessions[id];
+    if (!sess) return;
+    const names = config.recentNames || [];
+    if (names.length === 0) return;
+    const folder = (folderPath || '').split(/[\\/]/).pop() || '';
+    if (!folder) return;
+    let bestName = null, bestScore = 0;
+    for (const n of names) {
+        if (!n) continue;
+        const s = nameSimilarity(folder, n);
+        if (s > bestScore) { bestScore = s; bestName = n; }
+    }
+    if (bestName && bestScore >= AUTO_RENAME_MIN_SIMILARITY && bestName !== sess.name) {
+        sess.name = bestName;
+        addToRecentList(config.recentNames, bestName, config.recentPathsLimit, 'recent_names', 'added');
+        broadcast(buildListMsg());
+    }
+}
+
 // 把输入字节流累积成"当前输入行"；遇到回车/换行返回完成行并清空，否则返回 null。
 // 跳过 ANSI 转义序列（方向键等），处理退格。用于从任意入口（输入条/终端直敲）检测路径。
 function feedInputLine(sessionId, data) {
@@ -678,7 +726,10 @@ wss.on('connection', (ws) => {
                 const m = line.match(/\b[A-Za-z]:\\[^\s"'`]+/);
                 if (m) {
                     resolveFolderToRecord(m[0]).then(folder => {
-                        if (folder) addToRecentList(config.recentPaths, folder, config.recentPathsLimit, 'recent_paths', 'added');
+                        if (folder) {
+                            addToRecentList(config.recentPaths, folder, config.recentPathsLimit, 'recent_paths', 'added');
+                            autoRenameByFolder(id, folder);
+                        }
                     });
                 }
             }
