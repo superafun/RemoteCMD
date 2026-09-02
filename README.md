@@ -76,9 +76,17 @@ RemoteCMD 不是那种「把 SSH 套个 Web 壳」就完事的项目。这堆设
 
 不管从哪儿粘贴——Windows 的 CRLF、老 Mac 的 CR、Linux 的 LF——进了 textarea 就只剩 `\n` 一种，浏览器自己归一化了，不用操心换行符标不标准。
 
-发送时每个 `\n` 换成 `\r`，因为终端只认 `\r` 当回车键。正文整段一次发出，故意不带末尾回车：于是前面几行当场就执行了，停 `enterDelayMs` 之后再单独补一个 `\r`，最后一行才跑。代价是最后一行总比前几行慢那么一下——`enterDelayMs` 默认 300ms，50 到 3000ms 随便调。
+换行原样发过去，不转换成回车键。于是多行会被 PowerShell 收进续行模式（屏幕上出现 `>>`），停 `enterDelayMs` 之后补一个回车，整块按原顺序执行一次。
 
-「整段粘贴、只执行一次」不是没试过：LF 续行、CRLF、bracketed paste、Shift+Enter 四条路全试了一遍，Windows ConPTY 下 PowerShell 的续行回显会错乱、执行顺序还会颠倒（实测 `BBB` 的输出跑在 `AAA` 前面），只能作罢。
+但这里埋着 PowerShell 自己的一个坑，必须配套处理：PSReadLine 把 LF 当成 Ctrl+Enter，而这枚键默认绑定的是「在**上方**插入一行」——程序化写进来的多行每遇一个换行就把已有内容往下推，最后 N 行**整体倒序**执行（你写的第一行变成最后执行的那行）。官方 issue `PowerShell/PSReadLine#496`，汇总 issue `#579` 至今未修。
+
+绕法就一行，写进 PowerShell 的 `$PROFILE`：
+
+```powershell
+Set-PSReadLineKeyHandler -Chord Ctrl+Enter -Function AddLine
+```
+
+把这枚键从「上方插行」改成「下方插行」，顺序就正过来了。没有这行配置时，RemoteCMD 发进去的多行会倒着跑。
 
 ### 最近路径
 
@@ -204,9 +212,15 @@ RemoteCMD isn't yet another "SSH in a web wrapper." The design came from real us
 
 **Hotkeys are escape sequences, not key events.** Browser key handling is a mess. RemoteCMD maps named shortcuts to literal escape sequences (`Tab → \t`, `Ctrl+C → \x03`) and sends them char-by-char over WebSocket. Works identically on every browser. Works on mobile where there's no keyboard at all.
 
-**Multi-line sends run line by line.** Newlines pasted into the input bar come out as plain `\n` — the browser normalizes CRLF, lone CR and LF for you. Each `\n` becomes `\r` on the way out, since `\r` is Enter as far as the terminal is concerned. The body goes out as one write with no trailing Enter, so every line but the last runs immediately; after `enterDelayMs` a lone `\r` follows and the last line runs — which is why the last line always trails the rest by that pause (default 300ms, 50–3000 adjustable).
+**Multi-line sends run as one block.** Newlines pasted into the input bar come out as plain `\n` — the browser normalizes CRLF, lone CR and LF for you. The text is sent with those LFs intact (no conversion to `\r`), so PowerShell pulls it into continuation mode (`>>` prompts) and, after `enterDelayMs`, a final Enter executes the whole block in the original order.
 
-**Executing a multi-line paste as one block was tried and dropped.** Under Windows ConPTY, PowerShell’s continuation prompt scrambles the echo and reorders output (measured: `BBB` printed before `AAA`) — LF continuation, CRLF, bracketed paste and Shift+Enter all failed.
+⚠️ **Requires one line in your PowerShell `$PROFILE`:**
+
+```powershell
+Set-PSReadLineKeyHandler -Chord Ctrl+Enter -Function AddLine
+```
+
+PSReadLine reads LF as Ctrl+Enter, which by default is bound to *insert a line **above*** — so programmatically written multi-line text gets pushed down one line at a time and ends up executing **fully reversed** (your first line runs last). Upstream issue `PowerShell/PSReadLine#496`; umbrella issue `#579` is still open years later. The line above rebinds it to insert *below*. Without it, a multi-line send from RemoteCMD runs bottom-up.
 
 **Recent paths track your breadcrumbs.** `cd` is the most typed command. RemoteCMD captures it automatically and right-aligns long paths — the project folder name at the end is what you actually care about.
 
