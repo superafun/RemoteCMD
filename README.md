@@ -72,9 +72,13 @@ RemoteCMD 不是那种「把 SSH 套个 Web 壳」就完事的项目。这堆设
 
 所以 RemoteCMD 的快捷键不走键盘事件——你定义 "Tab" → `\t`、"Ctrl+C" → `\x03`、"↑" → `\x1b[A`，然后逐字符往 WebSocket 里塞。不依赖浏览器能正确识别哪个键被按了。手机端的快捷键栏按钮和桌面端实体键盘共享同一套映射，行为完全一致。
 
-### 回车停顿是什么鬼
+### 多行文本是怎么发出去的
 
-粘贴多行代码时，每行末尾带一个 `\r`。如果上百个 `\r` 同时砸向 PTY，子进程来不及消化就会丢输入。`enterDelayMs` 在每次发 `\r` 后停一小下（默认 300ms），让 PTY 缓口气。你可以从 50ms 调到 3000ms——越快越爽，越慢越稳。
+不管从哪儿粘贴——Windows 的 CRLF、老 Mac 的 CR、Linux 的 LF——进了 textarea 就只剩 `\n` 一种，浏览器自己归一化了，不用操心换行符标不标准。
+
+发送时每个 `\n` 换成 `\r`，因为终端只认 `\r` 当回车键。正文整段一次发出，故意不带末尾回车：于是前面几行当场就执行了，停 `enterDelayMs` 之后再单独补一个 `\r`，最后一行才跑。代价是最后一行总比前几行慢那么一下——`enterDelayMs` 默认 300ms，50 到 3000ms 随便调。
+
+「整段粘贴、只执行一次」不是没试过：LF 续行、CRLF、bracketed paste、Shift+Enter 四条路全试了一遍，Windows ConPTY 下 PowerShell 的续行回显会错乱、执行顺序还会颠倒（实测 `BBB` 的输出跑在 `AAA` 前面），只能作罢。
 
 ### 最近路径
 
@@ -200,7 +204,9 @@ RemoteCMD isn't yet another "SSH in a web wrapper." The design came from real us
 
 **Hotkeys are escape sequences, not key events.** Browser key handling is a mess. RemoteCMD maps named shortcuts to literal escape sequences (`Tab → \t`, `Ctrl+C → \x03`) and sends them char-by-char over WebSocket. Works identically on every browser. Works on mobile where there's no keyboard at all.
 
-**Enter delay is a throttle.** Paste 100 lines and 100 `\r` chars hit the PTY in a burst. `enterDelayMs` (default 300ms) inserts a pause between lines — just enough to keep the terminal from choking.
+**Multi-line sends run line by line.** Newlines pasted into the input bar come out as plain `\n` — the browser normalizes CRLF, lone CR and LF for you. Each `\n` becomes `\r` on the way out, since `\r` is Enter as far as the terminal is concerned. The body goes out as one write with no trailing Enter, so every line but the last runs immediately; after `enterDelayMs` a lone `\r` follows and the last line runs — which is why the last line always trails the rest by that pause (default 300ms, 50–3000 adjustable).
+
+**Executing a multi-line paste as one block was tried and dropped.** Under Windows ConPTY, PowerShell’s continuation prompt scrambles the echo and reorders output (measured: `BBB` printed before `AAA`) — LF continuation, CRLF, bracketed paste and Shift+Enter all failed.
 
 **Recent paths track your breadcrumbs.** `cd` is the most typed command. RemoteCMD captures it automatically and right-aligns long paths — the project folder name at the end is what you actually care about.
 
